@@ -22,6 +22,7 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"github.com/disintegration/imaging"
+	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -259,7 +260,8 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	inst, _ := whatsapp.DeviceFromContext(scoped)
 	client := inst.GetClient()
 
-	if err := ensureStatusRecipients(scoped, client); err != nil {
+	recipientCount, err := ensureStatusRecipients(scoped, client)
+	if err != nil {
 		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
 	}
 	msg, hasMedia, err := buildStatusMessage(scoped, client, req)
@@ -267,44 +269,62 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"account_id": req.GetAccountId(),
+		"kind":       statusMessageKind(msg),
+		"has_media":  hasMedia,
+		"recipients": recipientCount,
+	}).Info("sending WhatsApp status")
 	ts, err := client.SendMessage(scoped, types.StatusBroadcastJID, msg)
 	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"account_id": req.GetAccountId(),
+			"kind":       statusMessageKind(msg),
+			"recipients": recipientCount,
+		}).Warn("failed to send WhatsApp status")
 		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
 	}
+	logrus.WithFields(logrus.Fields{
+		"account_id": req.GetAccountId(),
+		"kind":       statusMessageKind(msg),
+		"message_id": string(ts.ID),
+		"server_ts":  ts.Timestamp,
+		"recipients": recipientCount,
+	}).Info("WhatsApp status send acknowledged")
 	return &bridgepb.SendStatusResponse{Success: true, MessageId: ts.ID, HasMedia: hasMedia}, nil
 }
 
-func ensureStatusRecipients(ctx context.Context, client *whatsmeow.Client) error {
+func ensureStatusRecipients(ctx context.Context, client *whatsmeow.Client) (int, error) {
 	recipients, err := client.DangerousInternals().GetStatusBroadcastRecipients(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to resolve status recipients: %w", err)
+		return 0, fmt.Errorf("failed to resolve status recipients: %w", err)
 	}
 	if len(recipients) > 0 {
-		return nil
+		return len(recipients), nil
 	}
 
 	if err := client.FetchAppState(ctx, appstate.WAPatchCriticalUnblockLow, false, true); err != nil {
-		return fmt.Errorf("failed to sync WhatsApp contacts for status recipients: %w", err)
+		return 0, fmt.Errorf("failed to sync WhatsApp contacts for status recipients: %w", err)
 	}
 	recipients, err = client.DangerousInternals().GetStatusBroadcastRecipients(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to resolve status recipients after contact sync: %w", err)
+		return 0, fmt.Errorf("failed to resolve status recipients after contact sync: %w", err)
 	}
 	if len(recipients) > 0 {
-		return nil
+		return len(recipients), nil
 	}
 
 	if err := client.FetchAppState(ctx, appstate.WAPatchCriticalUnblockLow, true, false); err != nil {
-		return fmt.Errorf("failed to full-sync WhatsApp contacts for status recipients: %w", err)
+		return 0, fmt.Errorf("failed to full-sync WhatsApp contacts for status recipients: %w", err)
 	}
 	recipients, err = client.DangerousInternals().GetStatusBroadcastRecipients(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to resolve status recipients after full contact sync: %w", err)
+		return 0, fmt.Errorf("failed to resolve status recipients after full contact sync: %w", err)
 	}
 	if len(recipients) == 0 {
-		return fmt.Errorf("no WhatsApp status recipients found; sync contacts or adjust WhatsApp status privacy before publishing")
+		return 0, fmt.Errorf("no WhatsApp status recipients found; sync contacts or adjust WhatsApp status privacy before publishing")
 	}
-	return nil
+	return len(recipients), nil
 }
 
 func buildStatusMessage(ctx context.Context, client *whatsmeow.Client, req *bridgepb.SendStatusRequest) (*waE2E.Message, bool, error) {
@@ -320,7 +340,7 @@ func buildStatusMessage(ctx context.Context, client *whatsmeow.Client, req *brid
 	}
 	ext := &waE2E.ExtendedTextMessage{
 		Text:        proto.String(text),
-		ContextInfo: &waE2E.ContextInfo{},
+		ContextInfo: statusContextInfo(waE2E.ContextInfo_TEXT),
 	}
 	if bg, ok := parseStatusARGB(req.GetColor()); ok {
 		ext.BackgroundArgb = proto.Uint32(bg)
@@ -334,6 +354,7 @@ func buildMediaStatusMessage(ctx context.Context, client *whatsmeow.Client, medi
 	if err != nil {
 		return nil, err
 	}
+	mediaKeyTimestamp := proto.Int64(time.Now().Unix())
 
 	switch {
 	case strings.HasPrefix(mimeType, "image/"):
@@ -346,38 +367,66 @@ func buildMediaStatusMessage(ctx context.Context, client *whatsmeow.Client, medi
 			return nil, fmt.Errorf("failed to upload status image: %w", err)
 		}
 		return &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String(imageMime),
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uploaded.FileLength),
-			Caption:       proto.String(caption),
-			JPEGThumbnail: thumb,
-			Width:         proto.Uint32(width),
-			Height:        proto.Uint32(height),
-			ContextInfo:   &waE2E.ContextInfo{},
+			URL:               proto.String(uploaded.URL),
+			DirectPath:        proto.String(uploaded.DirectPath),
+			MediaKey:          uploaded.MediaKey,
+			Mimetype:          proto.String(imageMime),
+			FileEncSHA256:     uploaded.FileEncSHA256,
+			FileSHA256:        uploaded.FileSHA256,
+			FileLength:        proto.Uint64(uploaded.FileLength),
+			MediaKeyTimestamp: mediaKeyTimestamp,
+			Caption:           proto.String(caption),
+			JPEGThumbnail:     thumb,
+			Width:             proto.Uint32(width),
+			Height:            proto.Uint32(height),
+			ContextInfo:       statusContextInfo(waE2E.ContextInfo_IMAGE),
 		}}, nil
 	case strings.HasPrefix(mimeType, "video/"):
 		uploaded, err := client.Upload(ctx, data, whatsmeow.MediaVideo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload status video: %w", err)
 		}
+		sourceType := waE2E.ContextInfo_VIDEO
+		if videoAsGif {
+			sourceType = waE2E.ContextInfo_GIF
+		}
 		return &waE2E.Message{VideoMessage: &waE2E.VideoMessage{
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String(mimeType),
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uploaded.FileLength),
-			Caption:       proto.String(caption),
-			GifPlayback:   proto.Bool(videoAsGif),
-			ContextInfo:   &waE2E.ContextInfo{},
+			URL:               proto.String(uploaded.URL),
+			DirectPath:        proto.String(uploaded.DirectPath),
+			MediaKey:          uploaded.MediaKey,
+			Mimetype:          proto.String(mimeType),
+			FileEncSHA256:     uploaded.FileEncSHA256,
+			FileSHA256:        uploaded.FileSHA256,
+			FileLength:        proto.Uint64(uploaded.FileLength),
+			MediaKeyTimestamp: mediaKeyTimestamp,
+			Caption:           proto.String(caption),
+			GifPlayback:       proto.Bool(videoAsGif),
+			ContextInfo:       statusContextInfo(sourceType),
 		}}, nil
 	default:
 		return nil, fmt.Errorf("unsupported status media type: %s", mimeType)
+	}
+}
+
+func statusContextInfo(source waE2E.ContextInfo_StatusSourceType) *waE2E.ContextInfo {
+	return &waE2E.ContextInfo{StatusSourceType: source.Enum()}
+}
+
+func statusMessageKind(msg *waE2E.Message) string {
+	switch {
+	case msg == nil:
+		return "unknown"
+	case msg.GetImageMessage() != nil:
+		return "image"
+	case msg.GetVideoMessage() != nil:
+		if msg.GetVideoMessage().GetGifPlayback() {
+			return "gif"
+		}
+		return "video"
+	case msg.GetExtendedTextMessage() != nil:
+		return "text"
+	default:
+		return "unknown"
 	}
 }
 

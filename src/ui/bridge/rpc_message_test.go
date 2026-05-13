@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestBuildStatusMessageRejectsEmptyText(t *testing.T) {
@@ -34,6 +36,40 @@ func TestBuildStatusMessageUsesExtendedText(t *testing.T) {
 	}
 	if got := msg.GetExtendedTextMessage().GetBackgroundArgb(); got != 0xFF123456 {
 		t.Fatalf("background argb = %#x, want %#x", got, uint32(0xFF123456))
+	}
+	if got := msg.GetExtendedTextMessage().GetContextInfo().GetStatusSourceType(); got != waE2E.ContextInfo_TEXT {
+		t.Fatalf("status source type = %s, want %s", got, waE2E.ContextInfo_TEXT)
+	}
+}
+
+func TestStatusContextInfoUsesSourceType(t *testing.T) {
+	tests := []waE2E.ContextInfo_StatusSourceType{
+		waE2E.ContextInfo_TEXT,
+		waE2E.ContextInfo_IMAGE,
+		waE2E.ContextInfo_VIDEO,
+		waE2E.ContextInfo_GIF,
+	}
+	for _, tt := range tests {
+		t.Run(tt.String(), func(t *testing.T) {
+			if got := statusContextInfo(tt).GetStatusSourceType(); got != tt {
+				t.Fatalf("status source type = %s, want %s", got, tt)
+			}
+		})
+	}
+}
+
+func TestStatusMessageKind(t *testing.T) {
+	if got := statusMessageKind(&waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{}}); got != "text" {
+		t.Fatalf("kind = %q, want text", got)
+	}
+	if got := statusMessageKind(&waE2E.Message{ImageMessage: &waE2E.ImageMessage{}}); got != "image" {
+		t.Fatalf("kind = %q, want image", got)
+	}
+	if got := statusMessageKind(&waE2E.Message{VideoMessage: &waE2E.VideoMessage{}}); got != "video" {
+		t.Fatalf("kind = %q, want video", got)
+	}
+	if got := statusMessageKind(&waE2E.Message{VideoMessage: &waE2E.VideoMessage{GifPlayback: proto.Bool(true)}}); got != "gif" {
+		t.Fatalf("kind = %q, want gif", got)
 	}
 }
 
