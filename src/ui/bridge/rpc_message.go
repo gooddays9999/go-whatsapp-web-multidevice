@@ -1,8 +1,16 @@
 package bridge
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"io"
+	"mime"
+	"net/http"
+	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -13,9 +21,18 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
+	"github.com/disintegration/imaging"
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
+)
+
+const (
+	statusMediaMaxBytes        = 50 * 1024 * 1024
+	statusThumbnailMaxEdge     = 320
+	statusThumbnailJPEGQuality = 75
 )
 
 func (s *Service) accountContext(ctx context.Context, accountID string) (context.Context, error) {
@@ -241,12 +258,245 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	}
 	inst, _ := whatsapp.DeviceFromContext(scoped)
 	client := inst.GetClient()
-	msg := &waE2E.Message{Conversation: proto.String(req.GetContent())}
+
+	if err := ensureStatusRecipients(scoped, client); err != nil {
+		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
+	}
+	msg, hasMedia, err := buildStatusMessage(scoped, client, req)
+	if err != nil {
+		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
+	}
+
 	ts, err := client.SendMessage(scoped, types.StatusBroadcastJID, msg)
 	if err != nil {
 		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
 	}
-	return &bridgepb.SendStatusResponse{Success: true, MessageId: ts.ID, HasMedia: false}, nil
+	return &bridgepb.SendStatusResponse{Success: true, MessageId: ts.ID, HasMedia: hasMedia}, nil
+}
+
+func ensureStatusRecipients(ctx context.Context, client *whatsmeow.Client) error {
+	recipients, err := client.DangerousInternals().GetStatusBroadcastRecipients(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to resolve status recipients: %w", err)
+	}
+	if len(recipients) > 0 {
+		return nil
+	}
+
+	if err := client.FetchAppState(ctx, appstate.WAPatchCriticalUnblockLow, false, true); err != nil {
+		return fmt.Errorf("failed to sync WhatsApp contacts for status recipients: %w", err)
+	}
+	recipients, err = client.DangerousInternals().GetStatusBroadcastRecipients(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to resolve status recipients after contact sync: %w", err)
+	}
+	if len(recipients) > 0 {
+		return nil
+	}
+
+	if err := client.FetchAppState(ctx, appstate.WAPatchCriticalUnblockLow, true, false); err != nil {
+		return fmt.Errorf("failed to full-sync WhatsApp contacts for status recipients: %w", err)
+	}
+	recipients, err = client.DangerousInternals().GetStatusBroadcastRecipients(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to resolve status recipients after full contact sync: %w", err)
+	}
+	if len(recipients) == 0 {
+		return fmt.Errorf("no WhatsApp status recipients found; sync contacts or adjust WhatsApp status privacy before publishing")
+	}
+	return nil
+}
+
+func buildStatusMessage(ctx context.Context, client *whatsmeow.Client, req *bridgepb.SendStatusRequest) (*waE2E.Message, bool, error) {
+	mediaURL := strings.TrimSpace(req.GetMediaUrl())
+	if mediaURL != "" {
+		msg, err := buildMediaStatusMessage(ctx, client, mediaURL, firstNonEmpty(req.GetCaption(), req.GetContent()), req.GetSendVideoAsGif())
+		return msg, true, err
+	}
+
+	text := strings.TrimSpace(firstNonEmpty(req.GetContent(), req.GetCaption()))
+	if text == "" {
+		return nil, false, fmt.Errorf("status content or media_url is required")
+	}
+	ext := &waE2E.ExtendedTextMessage{
+		Text:        proto.String(text),
+		ContextInfo: &waE2E.ContextInfo{},
+	}
+	if bg, ok := parseStatusARGB(req.GetColor()); ok {
+		ext.BackgroundArgb = proto.Uint32(bg)
+		ext.TextArgb = proto.Uint32(0xFFFFFFFF)
+	}
+	return &waE2E.Message{ExtendedTextMessage: ext}, false, nil
+}
+
+func buildMediaStatusMessage(ctx context.Context, client *whatsmeow.Client, mediaURL, caption string, videoAsGif bool) (*waE2E.Message, error) {
+	data, mimeType, err := downloadStatusMedia(mediaURL)
+	if err != nil {
+		return nil, err
+	}
+
+	switch {
+	case strings.HasPrefix(mimeType, "image/"):
+		imageData, imageMime, thumb, width, height, err := prepareStatusImage(data, mimeType)
+		if err != nil {
+			return nil, err
+		}
+		uploaded, err := client.Upload(ctx, imageData, whatsmeow.MediaImage)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload status image: %w", err)
+		}
+		return &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
+			URL:           proto.String(uploaded.URL),
+			DirectPath:    proto.String(uploaded.DirectPath),
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      proto.String(imageMime),
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    proto.Uint64(uploaded.FileLength),
+			Caption:       proto.String(caption),
+			JPEGThumbnail: thumb,
+			Width:         proto.Uint32(width),
+			Height:        proto.Uint32(height),
+			ContextInfo:   &waE2E.ContextInfo{},
+		}}, nil
+	case strings.HasPrefix(mimeType, "video/"):
+		uploaded, err := client.Upload(ctx, data, whatsmeow.MediaVideo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload status video: %w", err)
+		}
+		return &waE2E.Message{VideoMessage: &waE2E.VideoMessage{
+			URL:           proto.String(uploaded.URL),
+			DirectPath:    proto.String(uploaded.DirectPath),
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      proto.String(mimeType),
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    proto.Uint64(uploaded.FileLength),
+			Caption:       proto.String(caption),
+			GifPlayback:   proto.Bool(videoAsGif),
+			ContextInfo:   &waE2E.ContextInfo{},
+		}}, nil
+	default:
+		return nil, fmt.Errorf("unsupported status media type: %s", mimeType)
+	}
+}
+
+func downloadStatusMedia(rawURL string) ([]byte, string, error) {
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("download status media: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("download status media failed: HTTP %d", resp.StatusCode)
+	}
+	if resp.ContentLength > statusMediaMaxBytes {
+		return nil, "", fmt.Errorf("status media size %d exceeds maximum %d", resp.ContentLength, statusMediaMaxBytes)
+	}
+	limited := &io.LimitedReader{R: resp.Body, N: statusMediaMaxBytes + 1}
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, "", fmt.Errorf("read status media: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, "", fmt.Errorf("status media is empty")
+	}
+	if len(data) > statusMediaMaxBytes {
+		return nil, "", fmt.Errorf("status media size %d exceeds maximum %d", len(data), statusMediaMaxBytes)
+	}
+
+	mimeType := normalizeStatusMediaMIME(resp.Header.Get("Content-Type"), rawURL, data)
+	if !strings.HasPrefix(mimeType, "image/") && !strings.HasPrefix(mimeType, "video/") {
+		return nil, "", fmt.Errorf("unsupported status media type: %s", mimeType)
+	}
+	return data, mimeType, nil
+}
+
+func normalizeStatusMediaMIME(contentType, rawURL string, data []byte) string {
+	if idx := strings.Index(contentType, ";"); idx >= 0 {
+		contentType = contentType[:idx]
+	}
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	if strings.HasPrefix(contentType, "image/") || strings.HasPrefix(contentType, "video/") {
+		return contentType
+	}
+	if detected := strings.ToLower(http.DetectContentType(data)); strings.HasPrefix(detected, "image/") || strings.HasPrefix(detected, "video/") {
+		return detected
+	}
+	if parsed, err := url.Parse(rawURL); err == nil {
+		if byExt := mime.TypeByExtension(strings.ToLower(filepath.Ext(parsed.Path))); byExt != "" {
+			if idx := strings.Index(byExt, ";"); idx >= 0 {
+				byExt = byExt[:idx]
+			}
+			byExt = strings.ToLower(strings.TrimSpace(byExt))
+			if strings.HasPrefix(byExt, "image/") || strings.HasPrefix(byExt, "video/") {
+				return byExt
+			}
+		}
+	}
+	lowerURL := strings.ToLower(rawURL)
+	switch {
+	case strings.Contains(lowerURL, "jpeg"), strings.Contains(lowerURL, "jpg"):
+		return "image/jpeg"
+	case strings.Contains(lowerURL, "png"):
+		return "image/png"
+	case strings.Contains(lowerURL, "webp"):
+		return "image/webp"
+	case strings.Contains(lowerURL, "mp4"):
+		return "video/mp4"
+	case strings.Contains(lowerURL, "mov"):
+		return "video/quicktime"
+	case strings.Contains(lowerURL, "webm"):
+		return "video/webm"
+	}
+	return contentType
+}
+
+func prepareStatusImage(data []byte, mimeType string) ([]byte, string, []byte, uint32, uint32, error) {
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", nil, 0, 0, fmt.Errorf("decode status image: %w", err)
+	}
+	bounds := img.Bounds()
+	width := uint32(bounds.Dx())
+	height := uint32(bounds.Dy())
+	thumb := makeStatusImageThumbnail(img)
+	if strings.EqualFold(mimeType, "image/webp") {
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+			return nil, "", nil, 0, 0, fmt.Errorf("convert webp status image: %w", err)
+		}
+		return buf.Bytes(), "image/jpeg", thumb, width, height, nil
+	}
+	return data, mimeType, thumb, width, height, nil
+}
+
+func makeStatusImageThumbnail(img image.Image) []byte {
+	bounds := img.Bounds()
+	if bounds.Dx() > statusThumbnailMaxEdge || bounds.Dy() > statusThumbnailMaxEdge {
+		img = imaging.Fit(img, statusThumbnailMaxEdge, statusThumbnailMaxEdge, imaging.Lanczos)
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: statusThumbnailJPEGQuality}); err != nil {
+		return nil
+	}
+	return buf.Bytes()
+}
+
+func parseStatusARGB(raw string) (uint32, bool) {
+	value := strings.TrimSpace(strings.TrimPrefix(raw, "#"))
+	if len(value) != 6 && len(value) != 8 {
+		return 0, false
+	}
+	var parsed uint64
+	if _, err := fmt.Sscanf(value, "%x", &parsed); err != nil {
+		return 0, false
+	}
+	if len(value) == 6 {
+		parsed |= 0xFF000000
+	}
+	return uint32(parsed), true
 }
 
 func (s *Service) CommentStatus(ctx context.Context, req *bridgepb.CommentStatusRequest) (*bridgepb.CommentStatusResponse, error) {
