@@ -38,7 +38,7 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 	case *events.Message:
 		s.handleMessageEvent(ctx, accountID, instance, evt)
 	case *events.Receipt:
-		s.handleReceiptEvent(accountID, evt)
+		s.handleReceiptEvent(ctx, accountID, instance, evt)
 	case *events.GroupInfo:
 		s.handleGroupInfoEvent(accountID, evt)
 	case *events.JoinedGroup:
@@ -229,7 +229,7 @@ func normalizedJIDString(value string) string {
 	return jid.ToNonAD().String()
 }
 
-func (s *Service) handleReceiptEvent(accountID string, evt *events.Receipt) {
+func (s *Service) handleReceiptEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Receipt) {
 	status := "sent"
 	switch evt.Type {
 	case types.ReceiptTypeDelivered:
@@ -240,7 +240,36 @@ func (s *Service) handleReceiptEvent(accountID string, evt *events.Receipt) {
 		status = "failed"
 	}
 	for _, id := range evt.MessageIDs {
-		s.publish("message.status", accountID, map[string]any{"messageId": id, "status": status})
+		s.publish("message.status", accountID, map[string]any{
+			"messageId": id,
+			"status":    status,
+			"fromMe":    s.receiptAppliesToOutgoing(ctx, instance, id, evt),
+			"chatId":    normalizedEventJID(ctx, instance, evt.Chat).ToNonAD().String(),
+			"from":      normalizedEventJID(ctx, instance, evt.Sender).ToNonAD().String(),
+			"timestamp": evt.Timestamp.UnixMilli(),
+		})
+	}
+}
+
+func (s *Service) receiptAppliesToOutgoing(ctx context.Context, instance *whatsapp.DeviceInstance, id types.MessageID, evt *events.Receipt) bool {
+	if instance != nil {
+		if repo := instance.GetChatStorage(); repo != nil {
+			if msg, err := repo.GetMessageByID(id); err == nil && msg != nil {
+				return msg.IsFromMe
+			}
+		}
+	}
+	if s.deps.ChatStorageRepo != nil {
+		if msg, err := s.deps.ChatStorageRepo.GetMessageByID(id); err == nil && msg != nil {
+			return msg.IsFromMe
+		}
+	}
+
+	switch evt.Type {
+	case types.ReceiptTypeDelivered, types.ReceiptTypeRead, types.ReceiptTypePlayed:
+		return true
+	default:
+		return false
 	}
 }
 

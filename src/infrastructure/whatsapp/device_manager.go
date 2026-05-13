@@ -501,6 +501,7 @@ func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceI
 		inst.SetEnvironment(env.ProxyAddress, env.UserAgent, env.BrowserFamily, env.OSName)
 	}
 	if existing := inst.GetClient(); existing != nil {
+		existing.SetForceActiveDeliveryReceipts(true)
 		if env.ProxyAddress != "" && !existing.IsConnected() {
 			if err := existing.SetProxyAddress(env.ProxyAddress); err != nil {
 				return nil, fmt.Errorf("failed to configure proxy: %w", err)
@@ -525,6 +526,7 @@ func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceI
 	client := whatsmeow.NewClient(storeDevice, newFilteredLogger(baseLogger))
 	client.EnableAutoReconnect = true
 	client.AutoTrustIdentity = true
+	client.SetForceActiveDeliveryReceipts(true)
 	if env.ProxyAddress != "" {
 		if err := client.SetProxyAddress(env.ProxyAddress); err != nil {
 			return nil, fmt.Errorf("failed to configure proxy: %w", err)

@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
+	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
 	domainMessage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/message"
 	domainSend "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/send"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
+	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -69,6 +72,7 @@ func (s *Service) SendMessage(ctx context.Context, req *bridgepb.SendMessageRequ
 		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetTo(), "error": err.Error()})
 		return &bridgepb.SendMessageResponse{Success: false, Status: "failed", Error: err.Error()}, nil
 	}
+	s.markRecentIncomingAsRead(scoped, req.GetTo())
 	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": resp.MessageID, "to": req.GetTo()})
 	return &bridgepb.SendMessageResponse{Success: true, MessageId: resp.MessageID, Status: "sent"}, nil
 }
@@ -107,6 +111,7 @@ func (s *Service) SendMedia(ctx context.Context, req *bridgepb.SendMediaRequest)
 		}
 		msgID = resp.MessageID
 	}
+	s.markRecentIncomingAsRead(scoped, req.GetTo())
 	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": msgID, "to": req.GetTo()})
 	return &bridgepb.SendMediaResponse{Success: true, MessageId: msgID, Status: "sent"}, nil
 }
@@ -130,7 +135,60 @@ func (s *Service) SendContact(ctx context.Context, req *bridgepb.SendContactRequ
 	if err != nil {
 		return &bridgepb.SendContactResponse{Success: false, Status: "failed", Error: err.Error()}, nil
 	}
+	s.markRecentIncomingAsRead(scoped, req.GetTo())
 	return &bridgepb.SendContactResponse{Success: true, MessageId: resp.MessageID, Status: "sent"}, nil
+}
+
+func (s *Service) markRecentIncomingAsRead(ctx context.Context, to string) {
+	inst, ok := whatsapp.DeviceFromContext(ctx)
+	if !ok || inst == nil {
+		return
+	}
+	client := inst.GetClient()
+	if client == nil || client.Store == nil || client.Store.ID == nil {
+		return
+	}
+	chat, err := utils.ParseJID(to)
+	if err != nil {
+		return
+	}
+	chat = whatsapp.NormalizeJIDFromLID(ctx, chat, client).ToNonAD()
+	if chat.IsEmpty() || chat.Server == types.GroupServer {
+		return
+	}
+
+	repo := inst.GetChatStorage()
+	if repo == nil {
+		repo = s.deps.ChatStorageRepo
+	}
+	if repo == nil {
+		return
+	}
+	deviceID := inst.JID()
+	if deviceID == "" {
+		deviceID = inst.ID()
+	}
+	isFromMe := false
+	messages, err := repo.GetMessages(&domainChatStorage.MessageFilter{
+		DeviceID: deviceID,
+		ChatJID:  chat.String(),
+		Limit:    20,
+		IsFromMe: &isFromMe,
+	})
+	if err != nil || len(messages) == 0 {
+		return
+	}
+
+	ids := make([]types.MessageID, 0, len(messages))
+	for _, msg := range messages {
+		if msg != nil && msg.ID != "" {
+			ids = append(ids, msg.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	_ = client.MarkRead(ctx, ids, time.Now(), chat, chat)
 }
 
 func (s *Service) GetMessageStatus(ctx context.Context, req *bridgepb.MessageStatusRequest) (*bridgepb.MessageStatusResponse, error) {
