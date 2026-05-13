@@ -61,26 +61,83 @@ func (s *Service) AddContact(ctx context.Context, req *bridgepb.AddContactReques
 }
 
 func (s *Service) GetContactDetail(ctx context.Context, req *bridgepb.GetContactDetailRequest) (*bridgepb.GetContactDetailResponse, error) {
+	if req.GetAccountId() == "" || req.GetPhone() == "" {
+		return nil, grpcError(fmt.Errorf("account_id and phone are required"))
+	}
 	scoped, err := s.accountContext(ctx, req.GetAccountId())
 	if err != nil {
 		return nil, grpcError(err)
 	}
+	legacyID := legacyContactChatID(req.GetPhone())
+	number := legacyContactNumber(req.GetPhone())
+	jid := types.NewJID(number, types.DefaultUserServer)
+
+	var contactName, pushName, verifiedName string
+	var isMyContact bool
+	if inst, ok := whatsapp.DeviceFromContext(scoped); ok && inst != nil {
+		if client := inst.GetClient(); client != nil && client.Store != nil && client.Store.Contacts != nil && !jid.IsEmpty() {
+			if contact, err := client.Store.Contacts.GetContact(scoped, jid); err == nil && contact.Found {
+				isMyContact = true
+				contactName = firstNonEmpty(contact.FullName, contact.FirstName)
+				pushName = contact.PushName
+				verifiedName = contact.BusinessName
+			}
+		}
+	}
+
 	info, _ := s.deps.UserUsecase.Info(scoped, domainUser.InfoRequest{Phone: req.GetPhone()})
 	avatar, _ := s.deps.UserUsecase.Avatar(scoped, domainUser.AvatarRequest{Phone: req.GetPhone(), IsPreview: true})
 	detail := &bridgepb.ContactDetail{
-		Id:              req.GetPhone(),
-		Number:          strings.TrimSuffix(strings.TrimSuffix(req.GetPhone(), "@s.whatsapp.net"), "@c.us"),
-		FormattedNumber: req.GetPhone(),
+		Id:              legacyID,
+		Number:          number,
+		FormattedNumber: number,
+		Name:            contactName,
+		PushName:        pushName,
+		VerifiedName:    verifiedName,
 		ProfilePicUrl:   avatar.URL,
+		IsMyContact:     isMyContact,
 		IsWaContact:     len(info.Data) > 0,
 	}
 	if len(info.Data) > 0 {
-		detail.Name = info.Data[0].Name
-		detail.PushName = info.Data[0].Name
-		detail.VerifiedName = info.Data[0].VerifiedName
-		detail.About = info.Data[0].Status
+		detail.Name = firstNonEmpty(detail.Name, info.Data[0].Name)
+		detail.PushName = firstNonEmpty(detail.PushName, info.Data[0].Name)
+		detail.VerifiedName = firstNonEmpty(detail.VerifiedName, info.Data[0].VerifiedName)
 	}
 	return &bridgepb.GetContactDetailResponse{Contact: detail}, nil
+}
+
+func legacyContactChatID(phone string) string {
+	trimmed := strings.TrimSpace(phone)
+	if strings.Contains(trimmed, "@s.whatsapp.net") {
+		return strings.Replace(trimmed, "@s.whatsapp.net", "@c.us", 1)
+	}
+	if strings.Contains(trimmed, "@") {
+		return trimmed
+	}
+	return legacyContactNumber(trimmed) + "@c.us"
+}
+
+func legacyContactNumber(phone string) string {
+	trimmed := strings.TrimSpace(phone)
+	if idx := strings.Index(trimmed, "@"); idx >= 0 {
+		return trimmed[:idx]
+	}
+	var b strings.Builder
+	for _, r := range trimmed {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (s *Service) SetProfilePicture(ctx context.Context, req *bridgepb.SetProfilePictureRequest) (*bridgepb.SetProfilePictureResponse, error) {
