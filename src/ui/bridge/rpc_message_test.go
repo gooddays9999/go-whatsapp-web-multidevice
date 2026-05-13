@@ -8,8 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -70,6 +72,54 @@ func TestStatusMessageKind(t *testing.T) {
 	}
 	if got := statusMessageKind(&waE2E.Message{VideoMessage: &waE2E.VideoMessage{GifPlayback: proto.Bool(true)}}); got != "gif" {
 		t.Fatalf("kind = %q, want gif", got)
+	}
+}
+
+func TestNormalizeStatusMessageIDAcceptsSerializedWebID(t *testing.T) {
+	got := normalizeStatusMessageID("false_status@broadcast_3EB0FFA6360E3CCA77AF70_16723028367@c.us")
+	if got != "3EB0FFA6360E3CCA77AF70" {
+		t.Fatalf("id = %q, want short status id", got)
+	}
+}
+
+func TestBuildStatusReplyMessageQuotesStatusBroadcast(t *testing.T) {
+	targetJID := types.NewJID("16723028367", types.DefaultUserServer)
+	target := &statusReplyTarget{
+		StatusMessageID: "3EB0FFA6360E3CCA77AF70",
+		TargetJID:       targetJID,
+		QuotedMessage:   &waE2E.Message{Conversation: proto.String("hello")},
+	}
+	msg := buildStatusReplyMessage(target, "👍")
+	ctxInfo := msg.GetExtendedTextMessage().GetContextInfo()
+	if ctxInfo.GetRemoteJID() != types.StatusBroadcastJID.String() {
+		t.Fatalf("remote jid = %q, want %q", ctxInfo.GetRemoteJID(), types.StatusBroadcastJID.String())
+	}
+	if ctxInfo.GetParticipant() != targetJID.String() {
+		t.Fatalf("participant = %q, want %q", ctxInfo.GetParticipant(), targetJID.String())
+	}
+	if ctxInfo.GetStanzaID() != target.StatusMessageID {
+		t.Fatalf("stanza id = %q, want %q", ctxInfo.GetStanzaID(), target.StatusMessageID)
+	}
+}
+
+func TestStatusReplyTargetFromMessageMatchesIMSFields(t *testing.T) {
+	target, err := statusReplyTargetFromMessage(&domainChatStorage.Message{
+		ID:      "3EB0FFA6360E3CCA77AF70",
+		ChatJID: types.StatusBroadcastJID.String(),
+		Sender:  "16723028367@s.whatsapp.net",
+		Content: "hello",
+	}, "userId")
+	if err != nil {
+		t.Fatalf("statusReplyTargetFromMessage() error = %v", err)
+	}
+	if target.Source != "userId" {
+		t.Fatalf("source = %q, want userId", target.Source)
+	}
+	if got := imsTargetUserID(target.TargetJID); got != "16723028367@c.us" {
+		t.Fatalf("target user = %q, want 16723028367@c.us", got)
+	}
+	if target.QuotedMessage.GetConversation() != "hello" {
+		t.Fatalf("quoted text = %q, want hello", target.QuotedMessage.GetConversation())
 	}
 }
 

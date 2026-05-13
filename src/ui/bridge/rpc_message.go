@@ -552,14 +552,283 @@ func (s *Service) CommentStatus(ctx context.Context, req *bridgepb.CommentStatus
 	if req.GetAccountId() == "" || (req.GetMessageId() == "" && req.GetUserId() == "") {
 		return nil, grpcError(fmt.Errorf("account_id and message_id or user_id are required"))
 	}
-	return &bridgepb.CommentStatusResponse{Success: false, Error: "status comment is not supported by this bridge"}, nil
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	inst, _ := whatsapp.DeviceFromContext(scoped)
+	client := inst.GetClient()
+
+	target, err := s.resolveStatusReplyTarget(scoped, client, req.GetMessageId(), req.GetUserId())
+	if err != nil {
+		return &bridgepb.CommentStatusResponse{Success: false, Error: err.Error()}, nil
+	}
+	comment := strings.TrimSpace(req.GetComment())
+	if comment == "" {
+		comment = "👍\u200B"
+	}
+	sentID, err := s.sendStatusReply(scoped, client, target, comment)
+	if err != nil {
+		return &bridgepb.CommentStatusResponse{Success: false, Error: err.Error()}, nil
+	}
+	return &bridgepb.CommentStatusResponse{
+		Success:         true,
+		MessageId:       string(sentID),
+		TargetUserId:    imsTargetUserID(target.TargetJID),
+		Comment:         comment,
+		Source:          target.Source,
+		StatusMessageId: target.StatusMessageID,
+	}, nil
 }
 
 func (s *Service) LikeStatus(ctx context.Context, req *bridgepb.LikeStatusRequest) (*bridgepb.LikeStatusResponse, error) {
 	if req.GetAccountId() == "" || (req.GetMessageId() == "" && req.GetUserId() == "") {
 		return nil, grpcError(fmt.Errorf("account_id and message_id or user_id are required"))
 	}
-	return &bridgepb.LikeStatusResponse{Success: false, Error: "status like is not supported by this bridge"}, nil
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	inst, _ := whatsapp.DeviceFromContext(scoped)
+	client := inst.GetClient()
+
+	target, err := s.resolveStatusReplyTarget(scoped, client, req.GetMessageId(), req.GetUserId())
+	if err != nil {
+		return &bridgepb.LikeStatusResponse{Success: false, Error: err.Error()}, nil
+	}
+	emoji := strings.TrimSpace(req.GetEmoji())
+	if emoji == "" {
+		emoji = "👍"
+	}
+	if _, err := s.sendStatusReply(scoped, client, target, emoji); err != nil {
+		return &bridgepb.LikeStatusResponse{Success: false, Error: err.Error()}, nil
+	}
+	return &bridgepb.LikeStatusResponse{
+		Success:         true,
+		StatusMessageId: target.StatusMessageID,
+		TargetUserId:    imsTargetUserID(target.TargetJID),
+		Emoji:           emoji,
+		Action:          "add",
+		Source:          target.Source,
+	}, nil
+}
+
+type statusReplyTarget struct {
+	StatusMessageID string
+	TargetJID       types.JID
+	Source          string
+	QuotedMessage   *waE2E.Message
+}
+
+func (s *Service) resolveStatusReplyTarget(ctx context.Context, client *whatsmeow.Client, messageID, userID string) (*statusReplyTarget, error) {
+	if s.deps.ChatStorageRepo == nil {
+		return nil, fmt.Errorf("chat storage is not available")
+	}
+	deviceID := currentDeviceStorageID(ctx, client)
+	if deviceID == "" {
+		return nil, fmt.Errorf("unable to resolve current account device")
+	}
+
+	if strings.TrimSpace(messageID) != "" {
+		msg, err := findStatusMessageByID(s.deps.ChatStorageRepo, deviceID, messageID)
+		if err != nil {
+			return nil, err
+		}
+		return statusReplyTargetFromMessage(msg, "messageId")
+	}
+
+	targetJID, err := parseStatusUserJID(userID)
+	if err != nil {
+		return nil, err
+	}
+	msg, err := findLatestStatusMessageByUser(s.deps.ChatStorageRepo, deviceID, targetJID)
+	if err != nil {
+		return nil, err
+	}
+	return statusReplyTargetFromMessage(msg, "userId")
+}
+
+func (s *Service) sendStatusReply(ctx context.Context, client *whatsmeow.Client, target *statusReplyTarget, content string) (types.MessageID, error) {
+	msg := buildStatusReplyMessage(target, content)
+	resp, err := client.SendMessage(ctx, target.TargetJID, msg)
+	if err != nil {
+		return "", fmt.Errorf("failed to send status reply: %w", err)
+	}
+	if s.deps.ChatStorageRepo != nil {
+		sender := ""
+		if client.Store != nil && client.Store.ID != nil {
+			sender = client.Store.ID.String()
+		}
+		if err := s.deps.ChatStorageRepo.StoreSentMessageWithContext(ctx, string(resp.ID), sender, target.TargetJID.String(), content, resp.Timestamp, msg); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"message_id":        string(resp.ID),
+				"status_message_id": target.StatusMessageID,
+				"target":            target.TargetJID.String(),
+			}).Warn("failed to store status reply message")
+		}
+	}
+	logrus.WithFields(logrus.Fields{
+		"message_id":        string(resp.ID),
+		"status_message_id": target.StatusMessageID,
+		"target":            target.TargetJID.String(),
+	}).Info("WhatsApp status reply acknowledged")
+	return resp.ID, nil
+}
+
+func buildStatusReplyMessage(target *statusReplyTarget, content string) *waE2E.Message {
+	return &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+		Text: proto.String(content),
+		ContextInfo: &waE2E.ContextInfo{
+			StanzaID:      proto.String(target.StatusMessageID),
+			Participant:   proto.String(target.TargetJID.ToNonAD().String()),
+			RemoteJID:     proto.String(types.StatusBroadcastJID.String()),
+			QuotedMessage: target.QuotedMessage,
+		},
+	}}
+}
+
+func statusReplyTargetFromMessage(msg *domainChatStorage.Message, source string) (*statusReplyTarget, error) {
+	if msg == nil {
+		return nil, fmt.Errorf("status message not found")
+	}
+	if msg.ChatJID != types.StatusBroadcastJID.String() {
+		return nil, fmt.Errorf("message %s is not a status message", msg.ID)
+	}
+	targetJID, err := parseStatusUserJID(msg.Sender)
+	if err != nil {
+		return nil, fmt.Errorf("invalid status sender %s: %w", msg.Sender, err)
+	}
+	return &statusReplyTarget{
+		StatusMessageID: normalizeStatusMessageID(msg.ID),
+		TargetJID:       targetJID,
+		Source:          source,
+		QuotedMessage:   quotedStatusMessage(msg),
+	}, nil
+}
+
+func findStatusMessageByID(repo domainChatStorage.IChatStorageRepository, deviceID, rawID string) (*domainChatStorage.Message, error) {
+	targetID := normalizeStatusMessageID(rawID)
+	messages, err := repo.GetMessages(&domainChatStorage.MessageFilter{
+		DeviceID: deviceID,
+		ChatJID:  types.StatusBroadcastJID.String(),
+		Limit:    1000,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to find status message: %w", err)
+	}
+	for _, msg := range messages {
+		if normalizeStatusMessageID(msg.ID) == targetID {
+			return msg, nil
+		}
+	}
+
+	for _, candidate := range []string{targetID, strings.TrimSpace(rawID)} {
+		if candidate == "" {
+			continue
+		}
+		msg, err := repo.GetMessageByID(candidate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find status message: %w", err)
+		}
+		if isStatusMessageForDevice(msg, deviceID) {
+			return msg, nil
+		}
+	}
+	return nil, fmt.Errorf("status message not found: %s", rawID)
+}
+
+func findLatestStatusMessageByUser(repo domainChatStorage.IChatStorageRepository, deviceID string, userJID types.JID) (*domainChatStorage.Message, error) {
+	messages, err := repo.GetMessages(&domainChatStorage.MessageFilter{
+		DeviceID: deviceID,
+		ChatJID:  types.StatusBroadcastJID.String(),
+		Limit:    1000,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to find latest status message: %w", err)
+	}
+	for _, msg := range messages {
+		if statusSenderMatches(msg.Sender, userJID) {
+			return msg, nil
+		}
+	}
+	return nil, fmt.Errorf("no status found for user: %s", imsTargetUserID(userJID))
+}
+
+func isStatusMessageForDevice(msg *domainChatStorage.Message, deviceID string) bool {
+	if msg == nil || msg.ChatJID != types.StatusBroadcastJID.String() {
+		return false
+	}
+	return msg.DeviceID == "" || msg.DeviceID == deviceID
+}
+
+func statusSenderMatches(sender string, target types.JID) bool {
+	senderJID, err := parseStatusUserJID(sender)
+	if err != nil {
+		return false
+	}
+	return senderJID.User == target.User || senderJID.ToNonAD().String() == target.ToNonAD().String()
+}
+
+func quotedStatusMessage(msg *domainChatStorage.Message) *waE2E.Message {
+	content := strings.TrimSpace(msg.Content)
+	switch strings.ToLower(msg.MediaType) {
+	case "image":
+		return &waE2E.Message{ImageMessage: &waE2E.ImageMessage{Caption: proto.String(content)}}
+	case "video":
+		return &waE2E.Message{VideoMessage: &waE2E.VideoMessage{Caption: proto.String(content)}}
+	default:
+		if content == "" {
+			content = "Status"
+		}
+		return &waE2E.Message{Conversation: proto.String(content)}
+	}
+}
+
+func parseStatusUserJID(raw string) (types.JID, error) {
+	value := strings.TrimSpace(raw)
+	value = strings.TrimPrefix(value, "+")
+	value = strings.ReplaceAll(value, "@c.us", "@s.whatsapp.net")
+	if idx := strings.LastIndex(value, ":"); idx >= 0 && strings.Contains(value, "@s.whatsapp.net") {
+		value = value[:idx] + value[strings.Index(value, "@s.whatsapp.net"):]
+	}
+	if !strings.Contains(value, "@") {
+		return types.NewJID(value, types.DefaultUserServer), nil
+	}
+	return types.ParseJID(value)
+}
+
+func imsTargetUserID(jid types.JID) string {
+	if jid.Server == types.DefaultUserServer {
+		return jid.User + "@c.us"
+	}
+	return jid.ToNonAD().String()
+}
+
+func normalizeStatusMessageID(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" || !strings.Contains(value, "_") {
+		return value
+	}
+	parts := strings.Split(value, "_")
+	for i := len(parts) - 1; i >= 0; i-- {
+		part := strings.TrimSpace(parts[i])
+		if len(part) >= 12 && !strings.Contains(part, "@") {
+			return part
+		}
+	}
+	return value
+}
+
+func currentDeviceStorageID(ctx context.Context, client *whatsmeow.Client) string {
+	if inst, ok := whatsapp.DeviceFromContext(ctx); ok && inst != nil {
+		if jid := inst.JID(); jid != "" {
+			return jid
+		}
+	}
+	if client != nil && client.Store != nil && client.Store.ID != nil {
+		return client.Store.ID.ToNonAD().String()
+	}
+	return ""
 }
 
 func (s *Service) GetStatusViewers(ctx context.Context, req *bridgepb.GetStatusViewersRequest) (*bridgepb.GetStatusViewersResponse, error) {
