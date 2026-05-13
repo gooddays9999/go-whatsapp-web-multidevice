@@ -19,6 +19,10 @@ type DeviceInstance struct {
 	displayName     string
 	phoneNumber     string
 	jid             string
+	proxyAddress    string
+	userAgent       string
+	browserFamily   string
+	osName          string
 	createdAt       time.Time
 	onLoggedOut     func(deviceID string) // Callback for remote logout cleanup
 }
@@ -88,6 +92,30 @@ func (d *DeviceInstance) JID() string {
 	return d.jid
 }
 
+func (d *DeviceInstance) ProxyAddress() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.proxyAddress
+}
+
+func (d *DeviceInstance) UserAgent() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.userAgent
+}
+
+func (d *DeviceInstance) BrowserFamily() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.browserFamily
+}
+
+func (d *DeviceInstance) OSName() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.osName
+}
+
 func (d *DeviceInstance) CreatedAt() time.Time {
 	return d.createdAt
 }
@@ -106,6 +134,15 @@ func (d *DeviceInstance) SetChatStorage(repo domainChatStorage.IChatStorageRepos
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.chatStorageRepo = repo
+}
+
+func (d *DeviceInstance) SetEnvironment(proxyAddress, userAgent, browserFamily, osName string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.proxyAddress = proxyAddress
+	d.userAgent = userAgent
+	d.browserFamily = browserFamily
+	d.osName = osName
 }
 
 // IsConnected returns the live connection flag if a client exists.

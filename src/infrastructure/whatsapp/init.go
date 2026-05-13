@@ -70,8 +70,16 @@ func InitWaCLI(ctx context.Context, storeContainer, keysStoreContainer *sqlstore
 	}
 
 	if device == nil {
-		log.Errorf("No device found")
-		panic("No device found")
+		log.Infof("No existing device found; starting without a default WhatsApp client")
+		InitializeDeviceManager(storeContainer, keysStoreContainer, chatStorageRepo)
+
+		globalStateMu.Lock()
+		cli = nil
+		db = storeContainer
+		keysDB = keysStoreContainer
+		globalStateMu.Unlock()
+
+		return nil
 	}
 
 	// Configure device properties

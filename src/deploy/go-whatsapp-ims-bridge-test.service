@@ -1,0 +1,20 @@
+[Unit]
+Description=Go WhatsApp ims-compatible bridge test instance
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/go-whatsapp-ims-bridge
+Environment=INSTANCE_ID=go-whatsapp-ims-bridge-test
+Environment=NATS_URL=nats://127.0.0.1:4222
+Environment=BRIDGE_UA_FILE=/opt/go-whatsapp-ims-bridge/ua_US.txt
+Environment=UPLOAD_MEDIA_URL=http://127.0.0.1:8080/internal/media/upload
+Environment=UPLOAD_API_KEY=change-me
+ExecStart=/opt/go-whatsapp-ims-bridge/go-whatsapp-web bridge --grpc-port=29091 --metrics-port=29191 --ua-file=/opt/go-whatsapp-ims-bridge/ua_US.txt
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

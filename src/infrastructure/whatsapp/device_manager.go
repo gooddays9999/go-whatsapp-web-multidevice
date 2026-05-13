@@ -15,11 +15,19 @@ import (
 	fiberUtils "github.com/gofiber/fiber/v2/utils"
 	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
+
+type ClientEnvironment struct {
+	ProxyAddress  string
+	UserAgent     string
+	BrowserFamily string
+	OSName        string
+}
 
 // DeviceManager keeps a registry of active device instances.
 type DeviceManager struct {
@@ -149,7 +157,9 @@ func (m *DeviceManager) PurgeDevice(ctx context.Context, deviceID string) error 
 	}
 
 	// Attempt logout/disconnect if a client exists
+	targetJID := ""
 	if inst, ok := m.GetDevice(deviceID); ok && inst != nil {
+		targetJID = inst.JID()
 		if cli := inst.GetClient(); cli != nil {
 			if err := cli.Logout(ctx); err != nil {
 				logrus.WithError(err).Warnf("[DEVICE_MANAGER] logout failed for device %s", deviceID)
@@ -174,7 +184,7 @@ func (m *DeviceManager) PurgeDevice(ctx context.Context, deviceID string) error 
 			recordErr(err)
 		} else {
 			for _, dev := range devices {
-				if dev != nil && dev.ID != nil && dev.ID.String() == deviceID {
+				if deviceMatchesPurgeTarget(dev, deviceID, targetJID) {
 					if err := m.store.DeleteDevice(ctx, dev); err != nil {
 						logrus.WithError(err).Warnf("[DEVICE_MANAGER] failed to delete device %s from store", deviceID)
 						recordErr(err)
@@ -192,7 +202,7 @@ func (m *DeviceManager) PurgeDevice(ctx context.Context, deviceID string) error 
 			recordErr(err)
 		} else {
 			for _, dev := range devices {
-				if dev != nil && dev.ID != nil && dev.ID.String() == deviceID {
+				if deviceMatchesPurgeTarget(dev, deviceID, targetJID) {
 					if err := m.keys.DeleteDevice(ctx, dev); err != nil {
 						logrus.WithError(err).Warnf("[DEVICE_MANAGER] failed to delete device %s from keys store", deviceID)
 						recordErr(err)
@@ -206,6 +216,23 @@ func (m *DeviceManager) PurgeDevice(ctx context.Context, deviceID string) error 
 	// Remove from registry last
 	m.RemoveDevice(deviceID)
 	return firstErr
+}
+
+func deviceMatchesPurgeTarget(dev *store.Device, deviceID, targetJID string) bool {
+	if dev == nil || dev.ID == nil {
+		return false
+	}
+	devJID := dev.ID.ToNonAD().String()
+	if dev.ID.String() == deviceID || devJID == deviceID || devJID == targetJID || dev.ID.String() == targetJID {
+		return true
+	}
+	if parsed, err := types.ParseJID(targetJID); err == nil && parsed.User != "" && dev.ID.User == parsed.User {
+		return true
+	}
+	if parsed, err := types.ParseJID(deviceID); err == nil && parsed.User != "" && dev.ID.User == parsed.User {
+		return true
+	}
+	return false
 }
 
 // CreateDevice registers a new device placeholder so routes can be scoped strictly by device_id.
@@ -459,12 +486,26 @@ func (m *DeviceManager) EnsureDefault(client *DeviceInstance) {
 // EnsureClient returns a device instance with an initialized WhatsApp client.
 // It lazily creates the underlying store device and registers event handlers.
 func (m *DeviceManager) EnsureClient(ctx context.Context, deviceID string) (*DeviceInstance, error) {
+	return m.EnsureClientWithEnvironment(ctx, deviceID, ClientEnvironment{})
+}
+
+// EnsureClientWithEnvironment returns a device instance with an initialized WhatsApp client
+// and applies immutable bridge environment settings before the client connects.
+func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceID string, env ClientEnvironment) (*DeviceInstance, error) {
 	if m == nil {
 		return nil, fmt.Errorf("device manager not initialized")
 	}
 
 	inst := m.ensureInstance(deviceID)
+	if env.ProxyAddress != "" || env.UserAgent != "" || env.BrowserFamily != "" || env.OSName != "" {
+		inst.SetEnvironment(env.ProxyAddress, env.UserAgent, env.BrowserFamily, env.OSName)
+	}
 	if existing := inst.GetClient(); existing != nil {
+		if env.ProxyAddress != "" && !existing.IsConnected() {
+			if err := existing.SetProxyAddress(env.ProxyAddress); err != nil {
+				return nil, fmt.Errorf("failed to configure proxy: %w", err)
+			}
+		}
 		inst.UpdateStateFromClient()
 		return inst, nil
 	}
@@ -474,7 +515,7 @@ func (m *DeviceManager) EnsureClient(ctx context.Context, deviceID string) (*Dev
 		return nil, err
 	}
 
-	configureDeviceProps()
+	configureDeviceProps(env)
 
 	if err := m.configureKeysStore(ctx, storeDevice); err != nil {
 		return nil, fmt.Errorf("failed to configure keys store: %w", err)
@@ -484,6 +525,11 @@ func (m *DeviceManager) EnsureClient(ctx context.Context, deviceID string) (*Dev
 	client := whatsmeow.NewClient(storeDevice, newFilteredLogger(baseLogger))
 	client.EnableAutoReconnect = true
 	client.AutoTrustIdentity = true
+	if env.ProxyAddress != "" {
+		if err := client.SetProxyAddress(env.ProxyAddress); err != nil {
+			return nil, fmt.Errorf("failed to configure proxy: %w", err)
+		}
+	}
 
 	repo := inst.GetChatStorage()
 	if repo == nil {
@@ -500,6 +546,9 @@ func (m *DeviceManager) EnsureClient(ctx context.Context, deviceID string) (*Dev
 	})
 
 	inst.SetClient(client)
+	if env.ProxyAddress != "" || env.UserAgent != "" || env.BrowserFamily != "" || env.OSName != "" {
+		inst.SetEnvironment(env.ProxyAddress, env.UserAgent, env.BrowserFamily, env.OSName)
+	}
 	inst.UpdateStateFromClient()
 
 	return inst, nil
@@ -600,10 +649,34 @@ func (m *DeviceManager) configureKeysStore(ctx context.Context, device *store.De
 	return nil
 }
 
-func configureDeviceProps() {
+func configureDeviceProps(env ...ClientEnvironment) {
 	osName := fmt.Sprintf("%s %s", config.AppOs, config.AppVersion)
-	store.DeviceProps.PlatformType = &config.AppPlatform
+	platform := config.AppPlatform
+	if len(env) > 0 {
+		if env[0].OSName != "" {
+			osName = env[0].OSName
+		}
+		if env[0].BrowserFamily != "" {
+			platform = platformForBrowser(env[0].BrowserFamily)
+		}
+	}
+	store.DeviceProps.PlatformType = &platform
 	store.DeviceProps.Os = &osName
+}
+
+func platformForBrowser(browser string) waCompanionReg.DeviceProps_PlatformType {
+	switch strings.ToLower(strings.TrimSpace(browser)) {
+	case "chrome", "chromium":
+		return waCompanionReg.DeviceProps_CHROME
+	case "firefox":
+		return waCompanionReg.DeviceProps_FIREFOX
+	case "safari":
+		return waCompanionReg.DeviceProps_SAFARI
+	case "edge":
+		return waCompanionReg.DeviceProps_EDGE
+	default:
+		return config.AppPlatform
+	}
 }
 
 // StoreInfo returns configured store URIs for observability.

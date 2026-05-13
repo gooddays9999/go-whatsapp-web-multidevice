@@ -74,6 +74,7 @@ func handler(ctx context.Context, instance *DeviceInstance, rawEvt any) {
 	}
 
 	instance.UpdateStateFromClient()
+	notifyEventSinks(ctx, instance, rawEvt)
 }
 
 func handleDeleteForMe(ctx context.Context, evt *events.DeleteForMe, chatStorageRepo domainChatStorage.IChatStorageRepository, deviceID string, client *whatsmeow.Client) {

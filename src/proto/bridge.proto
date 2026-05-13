@@ -1,0 +1,769 @@
+syntax = "proto3";
+
+package bridge;
+
+option go_package = "github.com/aldinokemal/go-whatsapp-web-multidevice/proto;bridgepb";
+
+service WhatsAppBridge {
+    // ========== Account Connection ==========
+
+    // Connect account (restore from saved session)
+    rpc Connect(ConnectRequest) returns (ConnectResponse);
+
+    // Disconnect account
+    rpc Disconnect(DisconnectRequest) returns (DisconnectResponse);
+
+    // Get QR code (streaming, QR refreshes)
+    rpc GetQRCode(QRCodeRequest) returns (stream QRCodeResponse);
+
+    // Get link/pairing code (one-time)
+    rpc GetLinkCode(LinkCodeRequest) returns (LinkCodeResponse);
+
+    // ========== Message Operations ==========
+
+    // Send text message
+    rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+
+    // Send media message (image/video/document)
+    rpc SendMedia(SendMediaRequest) returns (SendMediaResponse);
+
+    // Send contact card (vCard)
+    rpc SendContact(SendContactRequest) returns (SendContactResponse);
+
+    // Get message status
+    rpc GetMessageStatus(MessageStatusRequest) returns (MessageStatusResponse);
+
+    // ========== Contact Operations ==========
+
+    // Get contacts list
+    rpc GetContacts(GetContactsRequest) returns (GetContactsResponse);
+
+    // Check if numbers are registered on WhatsApp
+    rpc CheckNumber(CheckNumberRequest) returns (CheckNumberResponse);
+
+    // Add contact to address book
+    rpc AddContact(AddContactRequest) returns (AddContactResponse);
+
+    // Get detailed contact information
+    rpc GetContactDetail(GetContactDetailRequest) returns (GetContactDetailResponse);
+
+    // ========== Profile Operations ==========
+
+    // Set profile picture
+    rpc SetProfilePicture(SetProfilePictureRequest) returns (SetProfilePictureResponse);
+
+    // Set profile status text
+    rpc SetStatus(SetStatusRequest) returns (SetStatusResponse);
+
+    // Set display name
+    rpc SetDisplayName(SetDisplayNameRequest) returns (SetDisplayNameResponse);
+
+    // ========== Group Operations ==========
+
+    // Get groups list
+    rpc GetGroups(GetGroupsRequest) returns (GetGroupsResponse);
+
+    // Get group members
+    rpc GetGroupMembers(GetGroupMembersRequest) returns (GetGroupMembersResponse);
+
+    // Create group
+    rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
+
+    // Update group info (name/description)
+    rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+
+    // Add members to group
+    rpc AddGroupMembers(AddGroupMembersRequest) returns (AddGroupMembersResponse);
+
+    // Remove members from group
+    rpc RemoveGroupMembers(RemoveGroupMembersRequest) returns (RemoveGroupMembersResponse);
+
+    // Promote members to admin
+    rpc PromoteGroupMembers(PromoteGroupMembersRequest) returns (PromoteGroupMembersResponse);
+
+    // Demote admins to regular members
+    rpc DemoteGroupMembers(DemoteGroupMembersRequest) returns (DemoteGroupMembersResponse);
+
+    // Leave group
+    rpc LeaveGroup(LeaveGroupRequest) returns (LeaveGroupResponse);
+
+    // ========== Moderation ==========
+
+    // Delete a message for everyone
+    rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse);
+
+    // Toggle admins-only messaging
+    rpc SetGroupAdminsOnly(SetGroupAdminsOnlyRequest) returns (SetGroupAdminsOnlyResponse);
+
+    // ========== Reactions ==========
+
+    // React to a message (emoji reaction)
+    rpc ReactToMessage(ReactToMessageRequest) returns (ReactToMessageResponse);
+
+    // Get reactions on a message
+    rpc GetMessageReactions(GetMessageReactionsRequest) returns (GetMessageReactionsResponse);
+
+    // ========== Status/Story Operations ==========
+
+    // Post a status/story
+    rpc SendStatus(SendStatusRequest) returns (SendStatusResponse);
+
+    // Comment on a status
+    rpc CommentStatus(CommentStatusRequest) returns (CommentStatusResponse);
+
+    // Like/react to a status
+    rpc LikeStatus(LikeStatusRequest) returns (LikeStatusResponse);
+
+    // Get status viewers (who viewed a status post)
+    rpc GetStatusViewers(GetStatusViewersRequest) returns (GetStatusViewersResponse);
+
+    // ========== Misc Operations ==========
+
+    // Join group via invite link
+    rpc JoinGroupByLink(JoinGroupByLinkRequest) returns (JoinGroupByLinkResponse);
+
+    // Close all browser tabs (cleanup)
+    rpc CloseAllTabs(CloseAllTabsRequest) returns (CloseAllTabsResponse);
+
+    // ========== Status Queries ==========
+
+    // Get account status
+    rpc GetAccountStatus(AccountStatusRequest) returns (AccountStatusResponse);
+
+    // Get connection state
+    rpc GetConnectionState(ConnectionStateRequest) returns (ConnectionStateResponse);
+
+    // Get account online statistics
+    rpc GetAccountStats(GetAccountStatsRequest) returns (GetAccountStatsResponse);
+
+    // Get bridge-wide stats: worker/environment counts and per-worker detail
+    rpc GetBridgeStats(GetBridgeStatsRequest) returns (GetBridgeStatsResponse);
+
+    // Get a single web server's current window usage stats
+    rpc GetWebServerStats(GetWebServerStatsRequest) returns (WebServerStats);
+
+    // Batch get current window usage stats for multiple web servers
+    rpc BatchGetWebServerStats(BatchGetWebServerStatsRequest) returns (BatchGetWebServerStatsResponse);
+}
+
+// ========== Request/Response Definitions ==========
+
+// Proxy configuration for browser isolation
+message ProxyConfig {
+    string type = 1;            // "socks5" or "http"
+    string host = 2;
+    int32 port = 3;
+    string username = 4;        // Optional
+    string password = 5;        // Optional
+}
+
+message ConnectRequest {
+    string account_id = 1;
+    string phone_number = 2;
+    string session_data = 3;    // Optional, for session restore
+    ProxyConfig proxy = 4;      // Optional, proxy for this account
+    string tenant_id = 5;       // Tenant ID for multi-tenant isolation
+    string bitbrowser_api_url = 6;  // Optional, override BitBrowser API URL for this account
+    string cdp_proxy_url = 7;      // Optional, CDP proxy URL for remote BitBrowser
+    int64 web_server_id = 8;       // Bound web_servers.id for capacity control
+    int32 max_concurrent_environments = 9; // Capacity configured on web_servers
+}
+
+message ConnectResponse {
+    bool success = 1;
+    string status = 2;          // connected/qr_pending/failed
+    string message = 3;
+}
+
+message QRCodeRequest {
+    string account_id = 1;
+    string phone_number = 2;
+}
+
+message QRCodeResponse {
+    string account_id = 1;
+    string qr_code = 2;         // base64 encoded QR image
+    string stage = 3;           // qr_generated/scanned/authenticated/failed
+    string message = 4;
+}
+
+message LinkCodeRequest {
+    string account_id = 1;
+    string phone_number = 2;
+    string bitbrowser_api_url = 3;
+    string cdp_proxy_url = 4;
+    int64 web_server_id = 5;
+    int32 max_concurrent_environments = 6;
+}
+
+message LinkCodeResponse {
+    string account_id = 1;
+    string link_code = 2;       // 8-char code (e.g., A3C12D7G)
+    int64 expires_at = 3;       // Expiration timestamp
+}
+
+message SendMessageRequest {
+    string account_id = 1;
+    string to = 2;              // Phone number (e.g., 8613800138000) or group JID
+    string type = 3;            // text
+    MessageContent content = 4;
+    string quoted_msg_id = 5;   // Optional, quoted message ID
+}
+
+message SendMessageResponse {
+    bool success = 1;
+    string message_id = 2;
+    string status = 3;          // sent/pending/failed
+    string error = 4;
+}
+
+message SendMediaRequest {
+    string account_id = 1;
+    string to = 2;
+    string type = 3;            // image/video/document/audio
+    string media_url = 4;       // Media file URL
+    string filename = 5;        // Filename (required for document)
+    string caption = 6;         // Optional media caption
+    string mime_type = 7;       // MIME type
+    bool send_audio_as_voice = 8; // Send audio as voice note (PTT)
+}
+
+message SendMediaResponse {
+    bool success = 1;
+    string message_id = 2;
+    string status = 3;
+    string error = 4;
+}
+
+message MessageContent {
+    string text = 1;
+}
+
+message GetContactsRequest {
+    string account_id = 1;
+}
+
+message GetContactsResponse {
+    repeated Contact contacts = 1;
+}
+
+message Contact {
+    string jid = 1;             // WhatsApp JID
+    string phone = 2;           // Phone number
+    string name = 3;            // Contact name
+    string push_name = 4;       // WhatsApp nickname
+    bool is_business = 5;       // Is business account
+    bool is_enterprise = 6;     // Is enterprise account
+    bool is_my_contact = 7;     // Is in my contacts
+}
+
+message GetGroupsRequest {
+    string account_id = 1;
+}
+
+message GetGroupsResponse {
+    repeated Group groups = 1;
+}
+
+message Group {
+    string jid = 1;             // Group JID
+    string name = 2;            // Group name
+    string description = 3;     // Group description
+    int32 participant_count = 4;// Member count
+    string owner = 5;           // Owner JID
+    int64 created_at = 6;       // Creation timestamp
+}
+
+message GetGroupMembersRequest {
+    string account_id = 1;
+    string group_jid = 2;
+}
+
+message GetGroupMembersResponse {
+    repeated GroupMember members = 1;
+}
+
+message GroupMember {
+    string jid = 1;
+    string phone = 2;
+    string name = 3;
+    bool is_admin = 4;
+    bool is_super_admin = 5;
+}
+
+message AccountStatusRequest {
+    string account_id = 1;
+}
+
+message AccountStatusResponse {
+    string account_id = 1;
+    string status = 2;          // online/unverified/browser_alive/offline
+    string phone_number = 3;
+    string name = 4;
+    string push_name = 5;
+    int64 last_seen = 6;
+    bool is_usable = 7;                     // Can this account send/receive messages right now?
+    string status_detail = 8;               // Human-readable status description
+    repeated BrowserWindow windows = 9;     // All BitBrowser windows for this account
+}
+
+message BrowserWindow {
+    string profile_id = 1;
+    int32 pid = 2;              // >0 means window is alive
+    bool is_current = 3;        // Whether this is the window used by current ims-bridge instance
+}
+
+message ConnectionStateRequest {
+    string account_id = 1;
+}
+
+message ConnectionStateResponse {
+    string account_id = 1;
+    string state = 2;           // CONNECTED/DISCONNECTED/CONNECTING/QR_PENDING
+    string worker_id = 3;       // Worker ID
+}
+
+message DisconnectRequest {
+    string account_id = 1;
+    bool clear_session = 2;     // Whether to clear session data
+    string close_mode = 3;      // immediate / deferred
+}
+
+message DisconnectResponse {
+    bool success = 1;
+}
+
+message CheckNumberRequest {
+    string account_id = 1;
+    repeated string phone_numbers = 2;
+}
+
+message CheckNumberResponse {
+    map<string, bool> results = 1;  // phone -> is_registered
+}
+
+
+message MessageStatusRequest {
+    string account_id = 1;
+    string message_id = 2;
+}
+
+message MessageStatusResponse {
+    string message_id = 1;
+    string status = 2;          // sent/delivered/read/failed
+    int64 timestamp = 3;
+}
+
+message CreateGroupRequest {
+    string account_id = 1;
+    string name = 2;
+    repeated string participants = 3;  // Initial member phone numbers
+    string avatar_url = 4;             // Optional group avatar URL
+}
+
+message CreateGroupResponse {
+    bool success = 1;
+    string group_jid = 2;
+    string error = 3;
+}
+
+message UpdateGroupRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    string name = 3;            // New group name (optional)
+    string description = 4;     // New group description (optional)
+}
+
+message UpdateGroupResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message AddGroupMembersRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    repeated string participants = 3;  // Phone numbers to add
+}
+
+message AddGroupMembersResponse {
+    bool success = 1;
+    repeated string added = 2;      // Successfully added
+    repeated string failed = 3;     // Failed to add
+    string error = 4;
+}
+
+message RemoveGroupMembersRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    repeated string participants = 3;  // Phone numbers to remove
+}
+
+message RemoveGroupMembersResponse {
+    bool success = 1;
+    repeated string removed = 2;    // Successfully removed
+    repeated string failed = 3;     // Failed to remove
+    string error = 4;
+}
+
+message PromoteGroupMembersRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    repeated string participants = 3;  // Phone numbers to promote
+}
+
+message PromoteGroupMembersResponse {
+    bool success = 1;
+    repeated string promoted = 2;   // Successfully promoted
+    repeated string failed = 3;     // Failed to promote
+    string error = 4;
+}
+
+message DemoteGroupMembersRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    repeated string participants = 3;  // Phone numbers to demote
+}
+
+message DemoteGroupMembersResponse {
+    bool success = 1;
+    repeated string demoted = 2;    // Successfully demoted
+    repeated string failed = 3;     // Failed to demote
+    string error = 4;
+}
+
+message LeaveGroupRequest {
+    string account_id = 1;
+    string group_jid = 2;
+}
+
+message LeaveGroupResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// ========== Send Contact ==========
+
+message SendContactRequest {
+    string account_id = 1;
+    string to = 2;
+    string contact_data = 3;    // vCard string, JSON with contactInfo, contact ID, or comma-separated IDs
+}
+
+message SendContactResponse {
+    bool success = 1;
+    string message_id = 2;
+    string status = 3;
+    string error = 4;
+}
+
+// ========== Add Contact ==========
+
+message AddContactRequest {
+    string account_id = 1;
+    string phone = 2;
+    string first_name = 3;
+    string last_name = 4;
+}
+
+message AddContactResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// ========== Get Contact Detail ==========
+
+message GetContactDetailRequest {
+    string account_id = 1;
+    string phone = 2;           // Phone number or JID
+}
+
+message GetContactDetailResponse {
+    ContactDetail contact = 1;
+}
+
+message ContactDetail {
+    string id = 1;
+    string number = 2;
+    string formatted_number = 3;
+    string country_code = 4;
+    string name = 5;
+    string push_name = 6;
+    string short_name = 7;
+    string verified_name = 8;
+    string about = 9;
+    string profile_pic_url = 10;
+    bool is_my_contact = 11;
+    bool is_wa_contact = 12;
+    bool is_business = 13;
+    bool is_enterprise = 14;
+    bool is_blocked = 15;
+}
+
+// ========== Profile Operations ==========
+
+message SetProfilePictureRequest {
+    string account_id = 1;
+    string image_url = 2;       // URL of the image to set as profile picture
+}
+
+message SetProfilePictureResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message SetStatusRequest {
+    string account_id = 1;
+    string status_text = 2;
+}
+
+message SetStatusResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message SetDisplayNameRequest {
+    string account_id = 1;
+    string display_name = 2;
+}
+
+message SetDisplayNameResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// ========== Statistics ==========
+
+message GetAccountStatsRequest {
+    string account_id = 1;
+}
+
+message GetAccountStatsResponse {
+    string account_id = 1;
+    int64 total_online_seconds = 2;     // Cumulative online time
+    int32 total_sessions = 3;           // Total session count
+    int64 current_session_seconds = 4;  // Current session duration (if online)
+    int64 last_connected_at = 5;        // Last connection timestamp
+    int64 last_disconnected_at = 6;     // Last disconnection timestamp
+    bool is_online = 7;                 // Current online status
+}
+
+message GetBridgeStatsRequest {
+    bool include_workers = 1;           // If true, include per-worker detail
+}
+
+message BridgeWorkerInfo {
+    string id = 1;
+    int32 pid = 2;
+    string status = 3;                  // spawning | ready | busy | unhealthy
+    int32 account_count = 4;
+    repeated string accounts = 5;
+    int64 started_at = 6;
+    int64 last_heartbeat = 7;
+    int64 memory_usage = 8;             // Bytes, 0 if unknown
+}
+
+message GetBridgeStatsResponse {
+    string instance_id = 1;
+    int32 total_workers = 2;            // All spawned workers (open environments)
+    int32 ready_workers = 3;            // Workers in 'ready' status
+    int32 total_accounts = 4;           // Accounts currently assigned to workers
+    repeated BridgeWorkerInfo workers = 5;
+}
+
+message WebServerStatSpec {
+    int64 web_server_id = 1;
+    string bitbrowser_api_url = 2;
+    int32 max_concurrent_environments = 3;
+}
+
+message GetWebServerStatsRequest {
+    WebServerStatSpec server = 1;
+}
+
+message BatchGetWebServerStatsRequest {
+    repeated WebServerStatSpec servers = 1;
+}
+
+message WebServerStats {
+    int64 web_server_id = 1;
+    string bitbrowser_api_url = 2;
+    int32 capacity = 3;
+    int32 opened_estimate = 4;
+    int32 reserved_opening = 5;
+    int32 opening_inflight = 6;
+    int32 actual_open_count = 7;
+    int64 last_reconciled_at = 8;
+    bool stale = 9;
+}
+
+message BatchGetWebServerStatsResponse {
+    repeated WebServerStats stats = 1;
+}
+
+// ========== Reactions ==========
+
+message ReactToMessageRequest {
+    string account_id = 1;
+    string message_id = 2;
+    string emoji = 3;               // Emoji to react with, empty string to remove
+}
+
+message ReactToMessageResponse {
+    bool success = 1;
+    string message_id = 2;
+    string emoji = 3;
+    string action = 4;              // "add" or "remove"
+    string error = 5;
+}
+
+message GetMessageReactionsRequest {
+    string account_id = 1;
+    string message_id = 2;
+}
+
+message ReactionSender {
+    string sender_id = 1;
+    string reaction = 2;
+    int64 timestamp = 3;
+}
+
+message ReactionGroup {
+    string emoji = 1;
+    string aggregate_emoji = 2;
+    bool has_reaction_by_me = 3;
+    repeated ReactionSender senders = 4;
+}
+
+message GetMessageReactionsResponse {
+    bool success = 1;
+    string message_id = 2;
+    bool has_reaction = 3;
+    repeated ReactionGroup reactions = 4;
+    string error = 5;
+}
+
+// ========== Status/Story ==========
+
+message SendStatusRequest {
+    string account_id = 1;
+    string content = 2;             // Text content
+    string media_url = 3;           // Optional media URL
+    string caption = 4;             // Optional media caption
+    string color = 5;               // Optional background color
+    bool send_video_as_gif = 6;
+    bool send_media_as_sticker = 7;
+    bool send_media_as_document = 8;
+}
+
+message SendStatusResponse {
+    bool success = 1;
+    string message_id = 2;
+    bool has_media = 3;
+    string error = 4;
+}
+
+message CommentStatusRequest {
+    string account_id = 1;
+    string message_id = 2;          // Status message ID (optional if user_id provided)
+    string comment = 3;
+    string user_id = 4;             // User whose latest status to comment on (optional if message_id provided)
+}
+
+message CommentStatusResponse {
+    bool success = 1;
+    string message_id = 2;
+    string target_user_id = 3;
+    string comment = 4;
+    string source = 5;              // "messageId" or "userId"
+    string status_message_id = 6;
+    string error = 7;
+}
+
+message LikeStatusRequest {
+    string account_id = 1;
+    string message_id = 2;          // Status message ID (optional if user_id provided)
+    string emoji = 3;               // Default: 👍
+    string user_id = 4;             // User whose latest status to like (optional if message_id provided)
+}
+
+message LikeStatusResponse {
+    bool success = 1;
+    string status_message_id = 2;
+    string target_user_id = 3;
+    string emoji = 4;
+    string action = 5;              // "add" or "remove"
+    string source = 6;              // "messageId" or "userId"
+    string error = 7;
+}
+
+// ========== Status Viewers ==========
+
+message GetStatusViewersRequest {
+    string account_id = 1;
+    string message_id = 2;          // Status message ID (external_id from status_posts)
+}
+
+message GetStatusViewersResponse {
+    bool success = 1;
+    repeated StatusViewer viewers = 2;
+    int32 total_count = 3;          // Number of viewers (read.length)
+    int32 remaining_count = 4;      // Number of people who haven't viewed (readRemaining)
+    string error = 5;
+}
+
+message StatusViewer {
+    string phone = 1;
+    string name = 2;
+    int64 viewed_at = 3;            // Unix timestamp (seconds)
+}
+
+// ========== Join Group by Link ==========
+
+message JoinGroupByLinkRequest {
+    string account_id = 1;
+    string invite_link = 2;         // Full URL or invite code
+}
+
+message JoinGroupByLinkResponse {
+    bool success = 1;
+    string invite_code = 2;
+    string invite_link = 3;
+    string group_id = 4;
+    string group_name = 5;
+    string error = 6;
+}
+
+// ========== Close All Tabs ==========
+
+message CloseAllTabsRequest {
+    string account_id = 1;
+}
+
+message CloseAllTabsResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// ========== Moderation ==========
+
+message DeleteMessageRequest {
+    string account_id = 1;
+    string chat_id = 2;
+    string message_id = 3;
+}
+
+message DeleteMessageResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message SetGroupAdminsOnlyRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    bool admins_only = 3;
+}
+
+message SetGroupAdminsOnlyResponse {
+    bool success = 1;
+    string error = 2;
+}
