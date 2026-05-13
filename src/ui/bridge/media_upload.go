@@ -13,7 +13,7 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 )
 
-func (s *Service) uploadMedia(filePath, msgID, msgType string, instance *whatsapp.DeviceInstance, mimeType string) error {
+func (s *Service) uploadMedia(filePath, msgID, msgType, accountID string, instance *whatsapp.DeviceInstance, mimeType string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func (s *Service) uploadMedia(filePath, msgID, msgType string, instance *whatsap
 		"msg":                "",
 		"id":                 msgID,
 		"thirdAppUserId":     instance.JID(),
-		"account_id":         instance.ID(),
+		"account_id":         accountID,
 		"external_msg_id":    msgID,
 	}
 	for key, value := range fields {

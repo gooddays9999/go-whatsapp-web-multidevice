@@ -20,7 +20,7 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 	if instance == nil {
 		return
 	}
-	accountID := instance.ID()
+	accountID := s.eventAccountID(instance)
 	switch evt := rawEvt.(type) {
 	case *events.Connected:
 		s.markConnected(accountID)
@@ -36,7 +36,7 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 		s.markDisconnected(accountID)
 		s.publish("account.logout", accountID, map[string]any{"reason": "logged_out"})
 	case *events.Message:
-		s.handleMessageEvent(ctx, instance, evt)
+		s.handleMessageEvent(ctx, accountID, instance, evt)
 	case *events.Receipt:
 		s.handleReceiptEvent(accountID, evt)
 	case *events.GroupInfo:
@@ -46,30 +46,30 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 	}
 }
 
-func (s *Service) handleMessageEvent(ctx context.Context, instance *whatsapp.DeviceInstance, evt *events.Message) {
+func (s *Service) handleMessageEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Message) {
 	msg := utils.UnwrapMessage(evt.Message)
 	if protocol := msg.GetProtocolMessage(); protocol != nil && protocol.GetType().String() == "REVOKE" {
 		if key := protocol.GetKey(); key != nil {
-			s.publish("message.revoked", instance.ID(), map[string]any{"messageId": key.GetID(), "revokedBy": evt.Info.Sender.String()})
+			s.publish("message.revoked", accountID, map[string]any{"messageId": key.GetID(), "revokedBy": normalizedEventJID(ctx, instance, evt.Info.Sender).String()})
 		}
 		return
 	}
 	if reaction := msg.GetReactionMessage(); reaction != nil {
-		s.publish("message.status", instance.ID(), map[string]any{"messageId": reaction.GetKey().GetID(), "status": "reaction"})
+		s.publish("message.status", accountID, map[string]any{"messageId": reaction.GetKey().GetID(), "status": "reaction"})
 		return
 	}
 
-	message := s.toWhatsAppMessage(instance, evt)
-	s.publish("message.received", instance.ID(), map[string]any{
+	message := s.toWhatsAppMessage(ctx, accountID, instance, evt)
+	s.publish("message.received", accountID, map[string]any{
 		"message": message,
 		"source":  "live",
 	})
 	if downloadable := downloadableMessage(msg); downloadable != nil {
-		go s.downloadAndPublishMedia(ctx, instance, evt, downloadable, message)
+		go s.downloadAndPublishMedia(ctx, accountID, instance, evt, downloadable, message)
 	}
 }
 
-func (s *Service) toWhatsAppMessage(instance *whatsapp.DeviceInstance, evt *events.Message) map[string]any {
+func (s *Service) toWhatsAppMessage(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Message) map[string]any {
 	msg := utils.BuildEventMessage(evt)
 	unwrapped := utils.UnwrapMessage(evt.Message)
 	mediaType, filename, _, _, _, _, _ := utils.ExtractMediaInfo(unwrapped)
@@ -77,37 +77,49 @@ func (s *Service) toWhatsAppMessage(instance *whatsapp.DeviceInstance, evt *even
 	if content == "" {
 		content = utils.ExtractMediaCaption(unwrapped)
 	}
-	from := evt.Info.Sender.ToNonAD().String()
-	if from == "" || evt.Info.Sender.IsEmpty() {
-		from = evt.Info.Chat.ToNonAD().String()
+	chatJID := normalizedEventJID(ctx, instance, evt.Info.Chat).ToNonAD()
+	senderJID := normalizedEventJID(ctx, instance, evt.Info.Sender).ToNonAD()
+	if senderJID.IsEmpty() {
+		senderJID = chatJID
+	}
+	from := senderJID.String()
+	if from == "" {
+		from = chatJID.String()
 	}
 	to := ""
 	if evt.Info.IsFromMe && instance.JID() != "" {
-		from = instance.JID()
-		to = evt.Info.Chat.ToNonAD().String()
+		from = normalizedJIDString(instance.JID())
+		to = chatJID.String()
 	}
-	return map[string]any{
+	payload := map[string]any{
 		"id":            evt.Info.ID,
-		"accountId":     instance.ID(),
-		"chatId":        evt.Info.Chat.ToNonAD().String(),
+		"accountId":     accountID,
+		"chatId":        chatJID.String(),
 		"from":          from,
 		"to":            to,
 		"type":          bridgeMessageType(mediaType, unwrapped),
 		"content":       map[string]any{"text": content},
-		"timestamp":     evt.Info.Timestamp.Unix(),
-		"isGroup":       evt.Info.Chat.Server == types.GroupServer,
+		"timestamp":     evt.Info.Timestamp.UnixMilli(),
+		"isGroup":       chatJID.Server == types.GroupServer,
 		"isFromMe":      evt.Info.IsFromMe,
 		"quotedMessage": msg.QuotedMessage,
 		"mimetype":      mediaMime(unwrapped),
-		"author":        evt.Info.Sender.ToNonAD().String(),
+		"author":        senderJID.String(),
 		"hasMedia":      mediaType != "",
 		"senderName":    evt.Info.PushName,
-		"senderPhone":   strings.TrimSuffix(evt.Info.Sender.User, "@s.whatsapp.net"),
+		"senderPhone":   senderJID.User,
 		"filename":      filename,
 	}
+	if evt.Info.Sender.Server == types.HiddenUserServer {
+		payload["fromLid"] = evt.Info.Sender.ToNonAD().String()
+	}
+	if evt.Info.Chat.Server == types.HiddenUserServer {
+		payload["chatLid"] = evt.Info.Chat.ToNonAD().String()
+	}
+	return payload
 }
 
-func (s *Service) downloadAndPublishMedia(ctx context.Context, instance *whatsapp.DeviceInstance, evt *events.Message, media whatsmeow.DownloadableMessage, message map[string]any) {
+func (s *Service) downloadAndPublishMedia(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Message, media whatsmeow.DownloadableMessage, message map[string]any) {
 	client := instance.GetClient()
 	if client == nil {
 		return
@@ -122,16 +134,99 @@ func (s *Service) downloadAndPublishMedia(ctx context.Context, instance *whatsap
 		return
 	}
 	message["mediaLocalPath"] = extracted.MediaPath
-	s.publish("message.media_ready", instance.ID(), map[string]any{
+	s.publish("message.media_ready", accountID, map[string]any{
 		"messageId":      evt.Info.ID,
 		"mediaLocalPath": extracted.MediaPath,
 		"mimetype":       extracted.MimeType,
 	})
 	if s.cfg.UploadMediaURL != "" {
-		if err := s.uploadMedia(extracted.MediaPath, evt.Info.ID, bridgeMessageType("", utils.UnwrapMessage(evt.Message)), instance, extracted.MimeType); err != nil {
+		if err := s.uploadMedia(extracted.MediaPath, evt.Info.ID, bridgeMessageType("", utils.UnwrapMessage(evt.Message)), accountID, instance, extracted.MimeType); err != nil {
 			logrus.WithError(err).Warn("failed to upload incoming media")
 		}
 	}
+}
+
+func (s *Service) eventAccountID(instance *whatsapp.DeviceInstance) string {
+	if instance == nil {
+		return ""
+	}
+	rawID := strings.TrimSpace(instance.ID())
+	if rawID == "" || !strings.Contains(rawID, "@") {
+		return rawID
+	}
+
+	targets := map[string]struct{}{}
+	addTarget := func(value string) {
+		if normalized := normalizedJIDString(value); normalized != "" {
+			targets[normalized] = struct{}{}
+		}
+	}
+	addTarget(rawID)
+	addTarget(instance.JID())
+	if client := instance.GetClient(); client != nil && client.Store != nil && client.Store.ID != nil {
+		addTarget(client.Store.ID.ToNonAD().String())
+	}
+	if len(targets) == 0 {
+		return rawID
+	}
+
+	if s.deps.DeviceManager != nil {
+		for _, inst := range s.deps.DeviceManager.ListDevices() {
+			if inst == nil {
+				continue
+			}
+			deviceID := strings.TrimSpace(inst.ID())
+			if deviceID == "" || strings.Contains(deviceID, "@") {
+				continue
+			}
+			if _, ok := targets[normalizedJIDString(inst.JID())]; ok {
+				return deviceID
+			}
+			if client := inst.GetClient(); client != nil && client.Store != nil && client.Store.ID != nil {
+				if _, ok := targets[normalizedJIDString(client.Store.ID.ToNonAD().String())]; ok {
+					return deviceID
+				}
+			}
+		}
+	}
+
+	if s.deps.ChatStorageRepo != nil {
+		if records, err := s.deps.ChatStorageRepo.ListDeviceRecords(); err == nil {
+			for _, rec := range records {
+				if rec == nil {
+					continue
+				}
+				deviceID := strings.TrimSpace(rec.DeviceID)
+				if deviceID == "" || strings.Contains(deviceID, "@") {
+					continue
+				}
+				if _, ok := targets[normalizedJIDString(rec.JID)]; ok {
+					return deviceID
+				}
+			}
+		}
+	}
+
+	return rawID
+}
+
+func normalizedEventJID(ctx context.Context, instance *whatsapp.DeviceInstance, jid types.JID) types.JID {
+	if instance == nil {
+		return jid
+	}
+	return whatsapp.NormalizeJIDFromLID(ctx, jid, instance.GetClient())
+}
+
+func normalizedJIDString(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	jid, err := types.ParseJID(value)
+	if err != nil || jid.IsEmpty() {
+		return value
+	}
+	return jid.ToNonAD().String()
 }
 
 func (s *Service) handleReceiptEvent(accountID string, evt *events.Receipt) {
