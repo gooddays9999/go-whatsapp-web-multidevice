@@ -1,8 +1,11 @@
 package bridge
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"strings"
@@ -11,8 +14,15 @@ import (
 	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
+	"github.com/disintegration/imaging"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
+	_ "golang.org/x/image/webp"
+)
+
+const (
+	profilePictureMaxDimension = 640
+	profilePictureMaxBytes     = 100 * 1024
 )
 
 func (s *Service) GetContacts(ctx context.Context, req *bridgepb.GetContactsRequest) (*bridgepb.GetContactsResponse, error) {
@@ -151,8 +161,16 @@ func (s *Service) SetProfilePicture(ctx context.Context, req *bridgepb.SetProfil
 	if err != nil {
 		return &bridgepb.SetProfilePictureResponse{Success: false, Error: err.Error()}, nil
 	}
-	if _, err := client.SetGroupPhoto(scoped, types.JID{}, data); err != nil {
+	photo, err := prepareProfilePictureJPEG(data)
+	if err != nil {
 		return &bridgepb.SetProfilePictureResponse{Success: false, Error: err.Error()}, nil
+	}
+	pictureID, err := client.SetGroupPhoto(scoped, types.JID{}, photo)
+	if err != nil {
+		return &bridgepb.SetProfilePictureResponse{Success: false, Error: err.Error()}, nil
+	}
+	if pictureID == "" {
+		return &bridgepb.SetProfilePictureResponse{Success: false, Error: "empty picture id from WhatsApp"}, nil
 	}
 	return &bridgepb.SetProfilePictureResponse{Success: true}, nil
 }
@@ -176,6 +194,9 @@ func (s *Service) SetDisplayName(ctx context.Context, req *bridgepb.SetDisplayNa
 	}
 	if err := s.deps.UserUsecase.ChangePushName(scoped, domainUser.ChangePushNameRequest{PushName: req.GetDisplayName()}); err != nil {
 		return &bridgepb.SetDisplayNameResponse{Success: false, Error: err.Error()}, nil
+	}
+	if inst, ok := whatsapp.DeviceFromContext(scoped); ok && inst != nil {
+		inst.UpdateStateFromClient()
 	}
 	return &bridgepb.SetDisplayNameResponse{Success: true}, nil
 }
@@ -355,4 +376,57 @@ func downloadBytes(rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, 50*1024*1024))
+}
+
+func prepareProfilePictureJPEG(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty image")
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("decode image: %w", err)
+	}
+	img = cropProfilePicture(img)
+	if img.Bounds().Dx() > profilePictureMaxDimension || img.Bounds().Dy() > profilePictureMaxDimension {
+		img = imaging.Resize(img, profilePictureMaxDimension, profilePictureMaxDimension, imaging.Lanczos)
+	}
+	return encodeProfilePictureJPEG(img, 80, 0)
+}
+
+func cropProfilePicture(img image.Image) image.Image {
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	if width == height {
+		return img
+	}
+	size := width
+	if height < size {
+		size = height
+	}
+	left := bounds.Min.X + (width-size)/2
+	top := bounds.Min.Y + (height-size)/2
+	return imaging.Crop(img, image.Rect(left, top, left+size, top+size))
+}
+
+func encodeProfilePictureJPEG(img image.Image, quality, depth int) ([]byte, error) {
+	if depth > 12 {
+		return nil, fmt.Errorf("image cannot be compressed enough to meet WhatsApp requirements")
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+		return nil, fmt.Errorf("encode JPEG: %w", err)
+	}
+	if buf.Len() <= profilePictureMaxBytes {
+		return buf.Bytes(), nil
+	}
+	if quality > 30 {
+		return encodeProfilePictureJPEG(img, quality-10, depth+1)
+	}
+	bounds := img.Bounds()
+	nextSize := int(float64(bounds.Dx()) * 0.85)
+	if nextSize < 96 {
+		return nil, fmt.Errorf("image cannot be compressed below %d bytes", profilePictureMaxBytes)
+	}
+	return encodeProfilePictureJPEG(imaging.Resize(img, nextSize, nextSize, imaging.Lanczos), 80, depth+1)
 }

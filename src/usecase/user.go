@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"strings"
 	"sync"
 	"time"
 
@@ -379,9 +380,21 @@ func (service serviceUser) ChangePushName(ctx context.Context, request domainUse
 	}
 	utils.MustLogin(client)
 
-	err = client.SendAppState(ctx, appstate.BuildSettingPushName(request.PushName))
+	pushName := strings.TrimSpace(request.PushName)
+	if pushName == "" {
+		return fmt.Errorf("push_name is required")
+	}
+
+	err = client.SendAppState(ctx, appstate.BuildSettingPushName(pushName))
 	if err != nil {
 		return err
+	}
+	client.Store.PushName = pushName
+	if err = client.Store.Save(ctx); err != nil {
+		return fmt.Errorf("save push name: %w", err)
+	}
+	if err = client.SendPresence(ctx, types.PresenceAvailable); err != nil {
+		return fmt.Errorf("send presence with updated push name: %w", err)
 	}
 	return nil
 }

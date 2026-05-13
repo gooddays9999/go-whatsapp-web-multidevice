@@ -1,6 +1,11 @@
 package bridge
 
-import "testing"
+import (
+	"bytes"
+	"image"
+	"image/png"
+	"testing"
+)
 
 func TestLegacyContactChatID(t *testing.T) {
 	tests := []struct {
@@ -42,5 +47,45 @@ func TestLegacyContactNumber(t *testing.T) {
 				t.Fatalf("legacyContactNumber(%q) = %q, want %q", tt.phone, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestPrepareProfilePictureJPEG(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 1200, 800))
+	var input bytes.Buffer
+	if err := png.Encode(&input, src); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+
+	output, err := prepareProfilePictureJPEG(input.Bytes())
+	if err != nil {
+		t.Fatalf("prepareProfilePictureJPEG() error = %v", err)
+	}
+	if len(output) == 0 {
+		t.Fatal("prepareProfilePictureJPEG() returned empty output")
+	}
+	if len(output) > profilePictureMaxBytes {
+		t.Fatalf("output size = %d, want <= %d", len(output), profilePictureMaxBytes)
+	}
+
+	got, format, err := image.Decode(bytes.NewReader(output))
+	if err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if format != "jpeg" {
+		t.Fatalf("format = %q, want jpeg", format)
+	}
+	bounds := got.Bounds()
+	if bounds.Dx() != bounds.Dy() {
+		t.Fatalf("output dimensions = %dx%d, want square", bounds.Dx(), bounds.Dy())
+	}
+	if bounds.Dx() > profilePictureMaxDimension {
+		t.Fatalf("output dimension = %d, want <= %d", bounds.Dx(), profilePictureMaxDimension)
+	}
+}
+
+func TestPrepareProfilePictureJPEGRejectsInvalidImage(t *testing.T) {
+	if _, err := prepareProfilePictureJPEG([]byte("not an image")); err == nil {
+		t.Fatal("prepareProfilePictureJPEG() error = nil, want error")
 	}
 }
