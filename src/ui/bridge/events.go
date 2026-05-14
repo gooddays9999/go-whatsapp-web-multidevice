@@ -64,9 +64,26 @@ func (s *Service) handleMessageEvent(ctx context.Context, accountID string, inst
 		"message": message,
 		"source":  "live",
 	})
+	if evt.Info.IsFromMe && evt.Info.ID != "" {
+		s.publish("message.status", accountID, outgoingSentStatusEvent(message, evt))
+	}
 	if downloadable := downloadableMessage(msg); downloadable != nil {
 		go s.downloadAndPublishMedia(ctx, accountID, instance, evt, downloadable, message)
 	}
+}
+
+func outgoingSentStatusEvent(message map[string]any, evt *events.Message) map[string]any {
+	payload := map[string]any{
+		"messageId": evt.Info.ID,
+		"status":    "sent",
+		"fromMe":    true,
+	}
+	for _, key := range []string{"chatId", "from", "to"} {
+		if value, ok := message[key].(string); ok && value != "" {
+			payload[key] = value
+		}
+	}
+	return payload
 }
 
 func (s *Service) toWhatsAppMessage(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Message) map[string]any {
