@@ -137,8 +137,29 @@ func (s *Service) publish(eventType, accountID string, data map[string]any) {
 	}
 	data["type"] = eventType
 	data["accountId"] = accountID
+	if accountID != "" {
+		if _, ok := data["tenantId"]; !ok {
+			if tenantID := s.eventTenantID(accountID); tenantID != "" {
+				data["tenantId"] = tenantID
+			}
+		}
+	}
 	data["timestamp"] = time.Now().UnixMilli()
 	s.publisher.Publish(context.Background(), eventType, data)
+}
+
+func (s *Service) eventTenantID(accountID string) string {
+	if s == nil || s.envStore == nil || accountID == "" {
+		return ""
+	}
+	env, err := s.envStore.Get(context.Background(), accountID)
+	if err != nil || env == nil {
+		if err != nil {
+			logrus.WithError(err).WithField("account_id", accountID).Debug("failed to load bridge environment tenant")
+		}
+		return ""
+	}
+	return env.TenantID
 }
 
 func (s *Service) heartbeatLoop(ctx context.Context) {

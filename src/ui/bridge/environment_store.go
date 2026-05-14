@@ -94,7 +94,22 @@ func (s *EnvironmentStore) GetOrCreate(ctx context.Context, accountID, tenantID 
 		return nil, false, fmt.Errorf("account_id is required")
 	}
 	existing, err := s.Get(ctx, accountID)
-	if err != nil || existing != nil {
+	if err != nil {
+		return nil, false, err
+	}
+	if existing != nil {
+		if tenantID != "" && existing.TenantID != tenantID {
+			now := time.Now()
+			if _, err := s.db.ExecContext(ctx, `
+				UPDATE bridge_environments
+				SET tenant_id = ?, updated_at = ?
+				WHERE account_id = ?
+			`, tenantID, now, accountID); err != nil {
+				return nil, false, err
+			}
+			existing.TenantID = tenantID
+			existing.UpdatedAt = now
+		}
 		return existing, false, err
 	}
 

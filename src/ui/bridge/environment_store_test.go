@@ -66,6 +66,32 @@ func TestEnvironmentStoreBindsProxyAndUAOnce(t *testing.T) {
 	if second.UserAgent != first.UserAgent {
 		t.Fatalf("UA changed after second Connect")
 	}
+	if second.TenantID != "tenant" {
+		t.Fatalf("tenant changed unexpectedly to %q", second.TenantID)
+	}
+
+	secondUpdated, created, err := store.GetOrCreate(ctx, "acc-1", "tenant-2", &bridgepb.ProxyConfig{
+		Type: "http", Host: "10.0.0.2", Port: 8081,
+	}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created {
+		t.Fatalf("expected existing environment when only tenant changes")
+	}
+	if secondUpdated.TenantID != "tenant-2" {
+		t.Fatalf("tenant not updated: got %q, want tenant-2", secondUpdated.TenantID)
+	}
+	secondUpdatedURL, err := secondUpdated.ProxyURL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondUpdatedURL != proxyURL {
+		t.Fatalf("proxy changed after tenant update: %q -> %q", proxyURL, secondUpdatedURL)
+	}
+	if secondUpdated.UserAgent != first.UserAgent {
+		t.Fatalf("UA changed after tenant update")
+	}
 
 	if err := store.Delete(ctx, "acc-1"); err != nil {
 		t.Fatal(err)

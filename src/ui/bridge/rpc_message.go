@@ -226,23 +226,128 @@ func (s *Service) ReactToMessage(ctx context.Context, req *bridgepb.ReactToMessa
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	msg, _ := s.deps.ChatStorageRepo.GetMessageByID(req.GetMessageId())
-	if msg == nil {
-		return nil, grpcError(fmt.Errorf("message not found: %s", req.GetMessageId()))
+	inst, _ := whatsapp.DeviceFromContext(scoped)
+	client := inst.GetClient()
+	msg, err := s.resolveReactionTargetMessage(scoped, client, req.GetMessageId())
+	if err != nil {
+		return nil, grpcError(err)
 	}
 	resp, err := s.deps.MessageUsecase.ReactMessage(scoped, domainMessage.ReactionRequest{
-		MessageID: req.GetMessageId(),
+		MessageID: msg.ID,
 		Phone:     msg.ChatJID,
 		Emoji:     req.GetEmoji(),
 	})
 	if err != nil {
-		return &bridgepb.ReactToMessageResponse{Success: false, MessageId: req.GetMessageId(), Emoji: req.GetEmoji(), Error: err.Error()}, nil
+		return &bridgepb.ReactToMessageResponse{Success: false, MessageId: msg.ID, Emoji: req.GetEmoji(), Error: err.Error()}, nil
 	}
 	action := "add"
 	if req.GetEmoji() == "" {
 		action = "remove"
 	}
 	return &bridgepb.ReactToMessageResponse{Success: true, MessageId: resp.MessageID, Emoji: req.GetEmoji(), Action: action}, nil
+}
+
+func (s *Service) resolveReactionTargetMessage(ctx context.Context, client *whatsmeow.Client, rawMessageID string) (*domainChatStorage.Message, error) {
+	if s.deps.ChatStorageRepo == nil {
+		return nil, fmt.Errorf("chat storage is not available")
+	}
+	rawMessageID = strings.TrimSpace(rawMessageID)
+	if rawMessageID == "" {
+		return nil, fmt.Errorf("message_id is required")
+	}
+
+	msg, err := s.deps.ChatStorageRepo.GetMessageByID(rawMessageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find message: %w", err)
+	}
+	if msg != nil {
+		return msg, nil
+	}
+	if !looksLikeLegacyReactionRecipient(rawMessageID) {
+		return nil, fmt.Errorf("message not found: %s", rawMessageID)
+	}
+
+	chatJID, err := parseLegacyReactionRecipientJID(rawMessageID)
+	if err != nil {
+		return nil, fmt.Errorf("message not found: %s", rawMessageID)
+	}
+	if client != nil {
+		chatJID = whatsapp.NormalizeJIDFromLID(ctx, chatJID, client)
+	}
+	chatJID = chatJID.ToNonAD()
+
+	deviceID := currentDeviceStorageID(ctx, client)
+	if deviceID == "" {
+		return nil, fmt.Errorf("unable to resolve current account device")
+	}
+	msg, err = findLatestIncomingReactionTarget(s.deps.ChatStorageRepo, deviceID, chatJID.String(), rawMessageID)
+	if err != nil {
+		return nil, err
+	}
+	logrus.WithFields(logrus.Fields{
+		"legacy_message_id": rawMessageID,
+		"resolved_message":  msg.ID,
+		"chat_jid":          msg.ChatJID,
+	}).Info("resolved legacy reaction recipient to latest incoming message")
+	return msg, nil
+}
+
+func looksLikeLegacyReactionRecipient(raw string) bool {
+	value := strings.TrimSpace(raw)
+	if value == "" || strings.Contains(value, "_") {
+		return false
+	}
+	lower := strings.ToLower(value)
+	for _, suffix := range []string{"@c.us", "@s.whatsapp.net", "@lid", "@g.us"} {
+		if strings.Contains(lower, suffix) {
+			return true
+		}
+	}
+
+	digits := 0
+	for i, r := range value {
+		switch {
+		case r >= '0' && r <= '9':
+			digits++
+		case r == '+' && i == 0:
+		case r == ' ' || r == '-' || r == '(' || r == ')' || r == '.':
+		default:
+			return false
+		}
+	}
+	return digits >= 5
+}
+
+func parseLegacyReactionRecipientJID(raw string) (types.JID, error) {
+	value := strings.TrimSpace(raw)
+	if !strings.Contains(value, "@") {
+		value = legacyContactNumber(value)
+	}
+	return parseStatusUserJID(value)
+}
+
+type reactionTargetMessageStore interface {
+	GetMessageByID(id string) (*domainChatStorage.Message, error)
+	GetMessages(filter *domainChatStorage.MessageFilter) ([]*domainChatStorage.Message, error)
+}
+
+func findLatestIncomingReactionTarget(repo reactionTargetMessageStore, deviceID, chatJID, legacyInput string) (*domainChatStorage.Message, error) {
+	isFromMe := false
+	messages, err := repo.GetMessages(&domainChatStorage.MessageFilter{
+		DeviceID: deviceID,
+		ChatJID:  chatJID,
+		Limit:    50,
+		IsFromMe: &isFromMe,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to find latest incoming message for %s: %w", legacyInput, err)
+	}
+	for _, msg := range messages {
+		if msg != nil && msg.ID != "" && !msg.IsFromMe {
+			return msg, nil
+		}
+	}
+	return nil, fmt.Errorf("message not found: %s", legacyInput)
 }
 
 func (s *Service) GetMessageReactions(ctx context.Context, req *bridgepb.GetMessageReactionsRequest) (*bridgepb.GetMessageReactionsResponse, error) {

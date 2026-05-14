@@ -6,7 +6,9 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
+	"time"
 
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
@@ -123,11 +125,145 @@ func TestStatusReplyTargetFromMessageMatchesIMSFields(t *testing.T) {
 	}
 }
 
+func TestLooksLikeLegacyReactionRecipient(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{name: "bare phone", raw: "15812781311", want: true},
+		{name: "formatted phone", raw: "+1 (581) 278-1311", want: true},
+		{name: "legacy jid", raw: "15812781311@c.us", want: true},
+		{name: "whatsmeow jid", raw: "15812781311@s.whatsapp.net", want: true},
+		{name: "group jid", raw: "120363123456789@g.us", want: true},
+		{name: "short hex message id", raw: "3EB08396C9C4B98BC66C45", want: false},
+		{name: "serialized web message id", raw: "false_15812781311@c.us_3EB08396C9C4B98BC66C45", want: false},
+		{name: "empty", raw: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := looksLikeLegacyReactionRecipient(tt.raw); got != tt.want {
+				t.Fatalf("looksLikeLegacyReactionRecipient(%q) = %v, want %v", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindLatestIncomingReactionTargetUsesLatestIncomingForDevice(t *testing.T) {
+	now := time.Now()
+	repo := &reactionTargetTestStore{messages: []*domainChatStorage.Message{
+		{
+			ID:        "old-incoming",
+			DeviceID:  "16723028367@s.whatsapp.net",
+			ChatJID:   "15812781311@s.whatsapp.net",
+			Sender:    "15812781311@s.whatsapp.net",
+			Timestamp: now.Add(-3 * time.Minute),
+			IsFromMe:  false,
+		},
+		{
+			ID:        "newer-from-me",
+			DeviceID:  "16723028367@s.whatsapp.net",
+			ChatJID:   "15812781311@s.whatsapp.net",
+			Sender:    "16723028367@s.whatsapp.net",
+			Timestamp: now.Add(-2 * time.Minute),
+			IsFromMe:  true,
+		},
+		{
+			ID:        "wanted-incoming",
+			DeviceID:  "16723028367@s.whatsapp.net",
+			ChatJID:   "15812781311@s.whatsapp.net",
+			Sender:    "15812781311@s.whatsapp.net",
+			Timestamp: now.Add(-1 * time.Minute),
+			IsFromMe:  false,
+		},
+		{
+			ID:        "other-device-incoming",
+			DeviceID:  "15812781311@s.whatsapp.net",
+			ChatJID:   "15812781311@s.whatsapp.net",
+			Sender:    "15812781311@s.whatsapp.net",
+			Timestamp: now,
+			IsFromMe:  false,
+		},
+	}}
+
+	msg, err := findLatestIncomingReactionTarget(repo, "16723028367@s.whatsapp.net", "15812781311@s.whatsapp.net", "15812781311")
+	if err != nil {
+		t.Fatalf("findLatestIncomingReactionTarget() error = %v", err)
+	}
+	if msg.ID != "wanted-incoming" {
+		t.Fatalf("message id = %q, want wanted-incoming", msg.ID)
+	}
+}
+
+func TestParseLegacyReactionRecipientJID(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want string
+	}{
+		{raw: "15812781311", want: "15812781311@s.whatsapp.net"},
+		{raw: "+1 (581) 278-1311", want: "15812781311@s.whatsapp.net"},
+		{raw: "15812781311@c.us", want: "15812781311@s.whatsapp.net"},
+		{raw: "15812781311@s.whatsapp.net", want: "15812781311@s.whatsapp.net"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			jid, err := parseLegacyReactionRecipientJID(tt.raw)
+			if err != nil {
+				t.Fatalf("parseLegacyReactionRecipientJID() error = %v", err)
+			}
+			if got := jid.String(); got != tt.want {
+				t.Fatalf("jid = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeStatusMediaMIMEFallsBackToURLWithoutDot(t *testing.T) {
 	got := normalizeStatusMediaMIME("application/octet-stream", "http://example.test/media/20260511/1D2455QYD(163)mp4", []byte("not enough to sniff"))
 	if got != "video/mp4" {
 		t.Fatalf("mime = %q, want video/mp4", got)
 	}
+}
+
+type reactionTargetTestStore struct {
+	messages []*domainChatStorage.Message
+}
+
+func (r *reactionTargetTestStore) GetMessageByID(id string) (*domainChatStorage.Message, error) {
+	for _, msg := range r.messages {
+		if msg != nil && msg.ID == id {
+			return msg, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *reactionTargetTestStore) GetMessages(filter *domainChatStorage.MessageFilter) ([]*domainChatStorage.Message, error) {
+	var out []*domainChatStorage.Message
+	for _, msg := range r.messages {
+		if msg == nil {
+			continue
+		}
+		if filter.DeviceID != "" && msg.DeviceID != filter.DeviceID {
+			continue
+		}
+		if filter.ChatJID != "" && msg.ChatJID != filter.ChatJID {
+			continue
+		}
+		if filter.IsFromMe != nil && msg.IsFromMe != *filter.IsFromMe {
+			continue
+		}
+		out = append(out, msg)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Timestamp.After(out[j].Timestamp)
+	})
+	if filter.Limit > 0 && len(out) > filter.Limit {
+		out = out[:filter.Limit]
+	}
+	return out, nil
 }
 
 func TestDownloadStatusMediaAcceptsInferredVideoType(t *testing.T) {
