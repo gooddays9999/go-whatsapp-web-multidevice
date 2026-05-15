@@ -23,10 +23,11 @@ import (
 )
 
 type ClientEnvironment struct {
-	ProxyAddress  string
-	UserAgent     string
-	BrowserFamily string
-	OSName        string
+	ProxyAddress    string
+	ProxyConfigured bool
+	UserAgent       string
+	BrowserFamily   string
+	OSName          string
 }
 
 // DeviceManager keeps a registry of active device instances.
@@ -490,19 +491,19 @@ func (m *DeviceManager) EnsureClient(ctx context.Context, deviceID string) (*Dev
 }
 
 // EnsureClientWithEnvironment returns a device instance with an initialized WhatsApp client
-// and applies immutable bridge environment settings before the client connects.
+// and applies bridge environment settings before the client connects.
 func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceID string, env ClientEnvironment) (*DeviceInstance, error) {
 	if m == nil {
 		return nil, fmt.Errorf("device manager not initialized")
 	}
 
 	inst := m.ensureInstance(deviceID)
-	if env.ProxyAddress != "" || env.UserAgent != "" || env.BrowserFamily != "" || env.OSName != "" {
+	if env.ProxyConfigured || env.UserAgent != "" || env.BrowserFamily != "" || env.OSName != "" {
 		inst.SetEnvironment(env.ProxyAddress, env.UserAgent, env.BrowserFamily, env.OSName)
 	}
 	if existing := inst.GetClient(); existing != nil {
 		existing.SetForceActiveDeliveryReceipts(true)
-		if env.ProxyAddress != "" && !existing.IsConnected() {
+		if env.ProxyConfigured {
 			if err := existing.SetProxyAddress(env.ProxyAddress); err != nil {
 				return nil, fmt.Errorf("failed to configure proxy: %w", err)
 			}
@@ -527,7 +528,7 @@ func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceI
 	client.EnableAutoReconnect = true
 	client.AutoTrustIdentity = true
 	client.SetForceActiveDeliveryReceipts(true)
-	if env.ProxyAddress != "" {
+	if env.ProxyConfigured {
 		if err := client.SetProxyAddress(env.ProxyAddress); err != nil {
 			return nil, fmt.Errorf("failed to configure proxy: %w", err)
 		}
@@ -548,7 +549,7 @@ func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceI
 	})
 
 	inst.SetClient(client)
-	if env.ProxyAddress != "" || env.UserAgent != "" || env.BrowserFamily != "" || env.OSName != "" {
+	if env.ProxyConfigured || env.UserAgent != "" || env.BrowserFamily != "" || env.OSName != "" {
 		inst.SetEnvironment(env.ProxyAddress, env.UserAgent, env.BrowserFamily, env.OSName)
 	}
 	inst.UpdateStateFromClient()

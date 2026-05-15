@@ -27,15 +27,16 @@
 - `GetBridgeStats` 返回一个 Go 伪 worker。
 - `GetWebServerStats` 用当前账号连接数估算打开数。
 
-## 代理与 UA 环境绑定
+## 代理与 UA 环境
 
-账号环境创建时一次性绑定代理和 UA：
+代理以平台数据库当前配置为准，由调用方在 `ConnectRequest.proxy` 传入：
 
-1. 首次 `Connect(account_id, proxy)` 时，如果环境不存在，保存 `proxy` 并从 UA 池为该账号稳定选择一个 UA。
-2. 后续同一 `account_id` 再 `Connect`，即使传了不同 `proxy`，也继续使用首次保存的代理和 UA。
-3. `SendMessage`、`SendMedia`、`GetAccountStatus` 等接口不读取代理参数。
-4. 需要换代理或 UA 时，先调用 `Disconnect(clear_session=true)` 清除环境，再重新 `Connect`。
-5. `GetQRCode`、`GetLinkCode` 如果环境不存在，会用全局默认代理和 UA 池创建环境；当前测试服未配置默认代理时即无代理创建。
+1. 每次 `Connect(account_id, proxy)` 都会用本次传入的 `proxy` 覆盖 `bridge_environments` 中保存的代理。
+2. 如果 `ConnectRequest.proxy` 为空，则该账号环境代理会被清空，后续连接不走代理。
+3. 已有 client 在下一次 `Connect()` / 重连前会重新应用保存的代理；如果 `Connect` 发现代理变化且当前 client 已连接，会先断开再按新代理连接。
+4. `SendMessage`、`SendMedia`、`GetAccountStatus` 等接口不接受代理参数，只使用最近一次 `Connect` 写入的账号代理。
+5. UA 仍按 `account_id` 稳定选择并持久化；普通代理变更不会改变 UA。需要重建 UA 时才调用 `Disconnect(clear_session=true)`。
+6. `GetQRCode`、`GetLinkCode` 如果环境不存在，会用全局默认代理和 UA 池创建环境；正常平台流程应先调用 `Connect` 写入数据库当前代理。
 
 代理支持：
 
@@ -56,7 +57,7 @@ UA 池：
 
 | RPC | 说明 | 关键入参 | 关键出参 |
 | --- | --- | --- | --- |
-| `Connect` | 连接或恢复账号；首次创建环境时绑定代理和 UA | `account_id`, `tenant_id`, `proxy` | `success`, `status`, `message` |
+| `Connect` | 连接或恢复账号；用本次传入代理覆盖账号环境代理，UA 保持稳定 | `account_id`, `tenant_id`, `proxy` | `success`, `status`, `message` |
 | `Disconnect` | 断开账号；可清 session | `account_id`, `clear_session`, `close_mode` | `success` |
 | `GetQRCode` | 服务端流式返回 QR 登录码 | `account_id`, `phone_number` | `account_id`, `qr_code`, `stage`, `message` |
 | `GetLinkCode` | 生成手机号配对码 | `account_id`, `phone_number` | `account_id`, `link_code`, `expires_at` |
@@ -280,7 +281,7 @@ grpcurl -plaintext \
   list bridge.WhatsAppBridge
 ```
 
-首次连接并绑定 SOCKS5 代理：
+连接并写入/覆盖 SOCKS5 代理：
 
 ```bash
 grpcurl -plaintext \
@@ -328,7 +329,7 @@ grpcurl -plaintext \
   bridge.WhatsAppBridge.SendMessage
 ```
 
-清 session 并允许重新绑定代理/UA：
+清 session 并重建 UA 与账号环境：
 
 ```bash
 grpcurl -plaintext \

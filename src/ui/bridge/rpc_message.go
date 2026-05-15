@@ -52,10 +52,11 @@ func (s *Service) accountContext(ctx context.Context, accountID string) (context
 		return nil, err
 	}
 	inst, err := s.deps.DeviceManager.EnsureClientWithEnvironment(ctx, accountID, whatsapp.ClientEnvironment{
-		ProxyAddress:  proxyURL,
-		UserAgent:     env.UserAgent,
-		BrowserFamily: env.BrowserFamily,
-		OSName:        env.OSName,
+		ProxyAddress:    proxyURL,
+		ProxyConfigured: true,
+		UserAgent:       env.UserAgent,
+		BrowserFamily:   env.BrowserFamily,
+		OSName:          env.OSName,
 	})
 	if err != nil {
 		return nil, err

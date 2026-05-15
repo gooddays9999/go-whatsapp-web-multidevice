@@ -98,31 +98,42 @@ func (s *EnvironmentStore) GetOrCreate(ctx context.Context, accountID, tenantID 
 		return nil, false, err
 	}
 	if existing != nil {
+		updated := false
 		if tenantID != "" && existing.TenantID != tenantID {
+			existing.TenantID = tenantID
+			updated = true
+		}
+		if allowRequestProxy {
+			proxy := normalizeProxySpec(proxySpecFromRequest(requestProxy))
+			if _, err := proxy.URL(); err != nil {
+				return nil, false, err
+			}
+			if !existing.hasProxy(proxy) {
+				existing.applyProxy(proxy)
+				updated = true
+			}
+		}
+		if updated {
 			now := time.Now()
 			if _, err := s.db.ExecContext(ctx, `
 				UPDATE bridge_environments
-				SET tenant_id = ?, updated_at = ?
+				SET tenant_id = ?, proxy_type = ?, proxy_host = ?, proxy_port = ?,
+				    proxy_username = ?, proxy_password = ?, updated_at = ?
 				WHERE account_id = ?
-			`, tenantID, now, accountID); err != nil {
+			`, existing.TenantID, existing.ProxyType, existing.ProxyHost, existing.ProxyPort,
+				existing.ProxyUsername, existing.ProxyPassword, now, accountID); err != nil {
 				return nil, false, err
 			}
-			existing.TenantID = tenantID
 			existing.UpdatedAt = now
 		}
 		return existing, false, err
 	}
 
 	proxy := s.cfg.DefaultProxy
-	if allowRequestProxy && requestProxy != nil && (requestProxy.GetType() != "" || requestProxy.GetHost() != "") {
-		proxy = ProxySpec{
-			Type:     requestProxy.GetType(),
-			Host:     requestProxy.GetHost(),
-			Port:     requestProxy.GetPort(),
-			Username: requestProxy.GetUsername(),
-			Password: requestProxy.GetPassword(),
-		}
+	if allowRequestProxy {
+		proxy = proxySpecFromRequest(requestProxy)
 	}
+	proxy = normalizeProxySpec(proxy)
 	if _, err := proxy.URL(); err != nil {
 		return nil, false, err
 	}
@@ -170,6 +181,56 @@ func (e BridgeEnvironment) ProxyURL() (string, error) {
 		Username: e.ProxyUsername,
 		Password: e.ProxyPassword,
 	}.URL()
+}
+
+func (e BridgeEnvironment) ProxySummary() string {
+	if strings.TrimSpace(e.ProxyType) == "" && strings.TrimSpace(e.ProxyHost) == "" {
+		return ""
+	}
+	auth := ""
+	if e.ProxyUsername != "" {
+		auth = e.ProxyUsername + "@"
+	}
+	return fmt.Sprintf("%s://%s%s:%d", e.ProxyType, auth, e.ProxyHost, e.ProxyPort)
+}
+
+func (e *BridgeEnvironment) hasProxy(proxy ProxySpec) bool {
+	return e.ProxyType == proxy.Type &&
+		e.ProxyHost == proxy.Host &&
+		e.ProxyPort == proxy.Port &&
+		e.ProxyUsername == proxy.Username &&
+		e.ProxyPassword == proxy.Password
+}
+
+func (e *BridgeEnvironment) applyProxy(proxy ProxySpec) {
+	e.ProxyType = proxy.Type
+	e.ProxyHost = proxy.Host
+	e.ProxyPort = proxy.Port
+	e.ProxyUsername = proxy.Username
+	e.ProxyPassword = proxy.Password
+}
+
+func proxySpecFromRequest(req *bridgepb.ProxyConfig) ProxySpec {
+	if req == nil {
+		return ProxySpec{}
+	}
+	return ProxySpec{
+		Type:     req.GetType(),
+		Host:     req.GetHost(),
+		Port:     req.GetPort(),
+		Username: req.GetUsername(),
+		Password: req.GetPassword(),
+	}
+}
+
+func normalizeProxySpec(proxy ProxySpec) ProxySpec {
+	return ProxySpec{
+		Type:     strings.ToLower(strings.TrimSpace(proxy.Type)),
+		Host:     strings.TrimSpace(proxy.Host),
+		Port:     proxy.Port,
+		Username: proxy.Username,
+		Password: proxy.Password,
+	}
 }
 
 func (p ProxySpec) URL() (string, error) {

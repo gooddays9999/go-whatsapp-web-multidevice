@@ -11,7 +11,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestEnvironmentStoreBindsProxyAndUAOnce(t *testing.T) {
+func TestEnvironmentStoreUsesLatestConnectProxyAndKeepsUA(t *testing.T) {
 	ctx := context.Background()
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
@@ -60,8 +60,8 @@ func TestEnvironmentStoreBindsProxyAndUAOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if secondURL != proxyURL {
-		t.Fatalf("proxy changed after second Connect: %q -> %q", proxyURL, secondURL)
+	if secondURL != "http://10.0.0.1:8080" {
+		t.Fatalf("proxy was not updated from latest Connect: got %q", secondURL)
 	}
 	if second.UserAgent != first.UserAgent {
 		t.Fatalf("UA changed after second Connect")
@@ -86,11 +86,29 @@ func TestEnvironmentStoreBindsProxyAndUAOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if secondUpdatedURL != proxyURL {
-		t.Fatalf("proxy changed after tenant update: %q -> %q", proxyURL, secondUpdatedURL)
+	if secondUpdatedURL != "http://10.0.0.2:8081" {
+		t.Fatalf("proxy was not updated with tenant update: got %q", secondUpdatedURL)
 	}
 	if secondUpdated.UserAgent != first.UserAgent {
 		t.Fatalf("UA changed after tenant update")
+	}
+
+	cleared, created, err := store.GetOrCreate(ctx, "acc-1", "tenant-2", nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created {
+		t.Fatalf("expected existing environment when clearing proxy")
+	}
+	clearedURL, err := cleared.ProxyURL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if clearedURL != "" {
+		t.Fatalf("expected proxy to be cleared when Connect has no proxy, got %q", clearedURL)
+	}
+	if cleared.UserAgent != first.UserAgent {
+		t.Fatalf("UA changed after proxy clear")
 	}
 
 	if err := store.Delete(ctx, "acc-1"); err != nil {

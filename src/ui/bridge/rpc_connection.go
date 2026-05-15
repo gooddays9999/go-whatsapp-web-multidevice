@@ -8,6 +8,7 @@ import (
 
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
+	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow"
 )
 
@@ -21,10 +22,11 @@ func (s *Service) ensureClient(ctx context.Context, accountID, tenantID string, 
 		return nil, nil, nil, err
 	}
 	inst, err := s.deps.DeviceManager.EnsureClientWithEnvironment(ctx, accountID, whatsapp.ClientEnvironment{
-		ProxyAddress:  proxyURL,
-		UserAgent:     env.UserAgent,
-		BrowserFamily: env.BrowserFamily,
-		OSName:        env.OSName,
+		ProxyAddress:    proxyURL,
+		ProxyConfigured: true,
+		UserAgent:       env.UserAgent,
+		BrowserFamily:   env.BrowserFamily,
+		OSName:          env.OSName,
 	})
 	if err != nil {
 		return nil, nil, nil, err
@@ -40,11 +42,27 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 	if req.GetAccountId() == "" {
 		return nil, grpcError(fmt.Errorf("account_id is required"))
 	}
-	inst, client, _, err := s.ensureClient(ctx, req.GetAccountId(), req.GetTenantId(), req.GetProxy(), true)
+	var oldProxyURL string
+	var hadOldEnv bool
+	if oldEnv, err := s.envStore.Get(ctx, req.GetAccountId()); err == nil && oldEnv != nil {
+		hadOldEnv = true
+		oldProxyURL, _ = oldEnv.ProxyURL()
+	}
+	inst, client, env, err := s.ensureClient(ctx, req.GetAccountId(), req.GetTenantId(), req.GetProxy(), true)
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	if client.Store != nil && client.Store.ID != nil && !client.IsConnected() {
+	newProxyURL, _ := env.ProxyURL()
+	proxyChanged := hadOldEnv && oldProxyURL != newProxyURL
+	logrus.WithFields(logrus.Fields{
+		"account_id": req.GetAccountId(),
+		"proxy":      env.ProxySummary(),
+		"changed":    proxyChanged,
+	}).Info("bridge connect using account proxy")
+	if client.Store != nil && client.Store.ID != nil && (proxyChanged || !client.IsConnected()) {
+		if proxyChanged && client.IsConnected() {
+			client.Disconnect()
+		}
 		inst.SetState("connecting")
 		if err := client.Connect(); err != nil {
 			return &bridgepb.ConnectResponse{Success: false, Status: "failed", Message: err.Error()}, nil
