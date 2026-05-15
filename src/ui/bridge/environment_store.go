@@ -105,13 +105,22 @@ func (s *EnvironmentStore) GetOrCreate(ctx context.Context, accountID, tenantID 
 		}
 		if allowRequestProxy {
 			proxy := normalizeProxySpec(proxySpecFromRequest(requestProxy))
-			if _, err := proxy.URL(); err != nil {
-				return nil, false, err
+			if proxy.IsEmpty() {
+				if !existing.proxyConfigured() {
+					return nil, false, fmt.Errorf("proxy is required for account environment")
+				}
+			} else {
+				if _, err := proxy.URL(); err != nil {
+					return nil, false, err
+				}
+				if !existing.hasProxy(proxy) {
+					existing.applyProxy(proxy)
+					updated = true
+				}
 			}
-			if !existing.hasProxy(proxy) {
-				existing.applyProxy(proxy)
-				updated = true
-			}
+		}
+		if !existing.proxyConfigured() {
+			return nil, false, fmt.Errorf("proxy is required for account environment")
 		}
 		if updated {
 			now := time.Now()
@@ -134,6 +143,9 @@ func (s *EnvironmentStore) GetOrCreate(ctx context.Context, accountID, tenantID 
 		proxy = proxySpecFromRequest(requestProxy)
 	}
 	proxy = normalizeProxySpec(proxy)
+	if proxy.IsEmpty() {
+		return nil, false, fmt.Errorf("proxy is required for account environment")
+	}
 	if _, err := proxy.URL(); err != nil {
 		return nil, false, err
 	}
@@ -202,6 +214,12 @@ func (e *BridgeEnvironment) hasProxy(proxy ProxySpec) bool {
 		e.ProxyPassword == proxy.Password
 }
 
+func (e *BridgeEnvironment) proxyConfigured() bool {
+	return strings.TrimSpace(e.ProxyType) != "" &&
+		strings.TrimSpace(e.ProxyHost) != "" &&
+		e.ProxyPort > 0
+}
+
 func (e *BridgeEnvironment) applyProxy(proxy ProxySpec) {
 	e.ProxyType = proxy.Type
 	e.ProxyHost = proxy.Host
@@ -231,6 +249,14 @@ func normalizeProxySpec(proxy ProxySpec) ProxySpec {
 		Username: proxy.Username,
 		Password: proxy.Password,
 	}
+}
+
+func (p ProxySpec) IsEmpty() bool {
+	return strings.TrimSpace(p.Type) == "" &&
+		strings.TrimSpace(p.Host) == "" &&
+		p.Port == 0 &&
+		p.Username == "" &&
+		p.Password == ""
 }
 
 func (p ProxySpec) URL() (string, error) {

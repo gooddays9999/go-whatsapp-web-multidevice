@@ -93,26 +93,29 @@ func TestEnvironmentStoreUsesLatestConnectProxyAndKeepsUA(t *testing.T) {
 		t.Fatalf("UA changed after tenant update")
 	}
 
-	cleared, created, err := store.GetOrCreate(ctx, "acc-1", "tenant-2", nil, true)
+	preserved, created, err := store.GetOrCreate(ctx, "acc-1", "tenant-2", nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if created {
-		t.Fatalf("expected existing environment when clearing proxy")
+		t.Fatalf("expected existing environment when Connect omits proxy")
 	}
-	clearedURL, err := cleared.ProxyURL()
+	preservedURL, err := preserved.ProxyURL()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if clearedURL != "" {
-		t.Fatalf("expected proxy to be cleared when Connect has no proxy, got %q", clearedURL)
+	if preservedURL != "http://10.0.0.2:8081" {
+		t.Fatalf("expected existing proxy to be preserved when Connect has no proxy, got %q", preservedURL)
 	}
-	if cleared.UserAgent != first.UserAgent {
-		t.Fatalf("UA changed after proxy clear")
+	if preserved.UserAgent != first.UserAgent {
+		t.Fatalf("UA changed after proxy preserve")
 	}
 
 	if err := store.Delete(ctx, "acc-1"); err != nil {
 		t.Fatal(err)
+	}
+	if _, _, err := store.GetOrCreate(ctx, "acc-1", "tenant", nil, true); err == nil {
+		t.Fatalf("expected new environment without proxy to fail")
 	}
 	third, created, err := store.GetOrCreate(ctx, "acc-1", "tenant", &bridgepb.ProxyConfig{
 		Type: "http", Host: "10.0.0.1", Port: 8080,

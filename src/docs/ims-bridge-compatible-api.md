@@ -31,12 +31,13 @@
 
 代理以平台数据库当前配置为准，由调用方在 `ConnectRequest.proxy` 传入：
 
-1. 每次 `Connect(account_id, proxy)` 都会用本次传入的 `proxy` 覆盖 `bridge_environments` 中保存的代理。
-2. 如果 `ConnectRequest.proxy` 为空，则该账号环境代理会被清空，后续连接不走代理。
-3. 已有 client 在下一次 `Connect()` / 重连前会重新应用保存的代理；如果 `Connect` 发现代理变化且当前 client 已连接，会先断开再按新代理连接。
-4. `SendMessage`、`SendMedia`、`GetAccountStatus` 等接口不接受代理参数，只使用最近一次 `Connect` 写入的账号代理。
-5. UA 仍按 `account_id` 稳定选择并持久化；普通代理变更不会改变 UA。需要重建 UA 时才调用 `Disconnect(clear_session=true)`。
-6. `GetQRCode`、`GetLinkCode` 如果环境不存在，会用全局默认代理和 UA 池创建环境；正常平台流程应先调用 `Connect` 写入数据库当前代理。
+1. 每次 `Connect(account_id, proxy)` 都会用本次传入的非空 `proxy` 覆盖 `bridge_environments` 中保存的代理。
+2. 如果 `ConnectRequest.proxy` 为空但该账号已有保存代理，则继续复用保存代理，不会清空代理。
+3. 如果账号没有保存代理，且本次 `Connect` / 登录流程也没有传入代理，则直接失败；不允许无代理登录或重连。
+4. 已有 client 在下一次 `Connect()` / 重连前会重新应用保存的代理；如果 `Connect` 发现代理变化且当前 client 已连接，会先断开再按新代理连接。
+5. `SendMessage`、`SendMedia`、`GetAccountStatus` 等接口不接受代理参数，只使用账号环境中保存的代理。
+6. UA 仍按 `account_id` 稳定选择并持久化；普通代理变更不会改变 UA。需要重建 UA 时才调用 `Disconnect(clear_session=true)`。
+7. `GetQRCode`、`GetLinkCode` 如果环境不存在，会用全局默认代理和 UA 池创建环境；没有全局默认代理时会失败。正常平台流程应先调用 `Connect` 写入数据库当前代理。
 
 代理支持：
 
