@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -119,6 +120,7 @@ func (s *Service) startGRPC(ctx context.Context) error {
 	s.grpcServer = grpc.NewServer(
 		grpc.MaxRecvMsgSize(50*1024*1024),
 		grpc.MaxSendMsgSize(50*1024*1024),
+		grpc.UnaryInterceptor(unaryPanicRecoveryInterceptor),
 	)
 	bridgepb.RegisterWhatsAppBridgeServer(s.grpcServer, s)
 	go func() {
@@ -129,6 +131,29 @@ func (s *Service) startGRPC(ctx context.Context) error {
 	}()
 	logrus.Infof("ims-compatible gRPC bridge listening on %s", addr)
 	return s.grpcServer.Serve(lis)
+}
+
+func unaryPanicRecoveryInterceptor(
+	ctx context.Context,
+	req any,
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler,
+) (resp any, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logrus.WithFields(logrus.Fields{
+				"method": info.FullMethod,
+				"panic":  fmt.Sprint(recovered),
+				"stack":  string(debug.Stack()),
+			}).Error("recovered bridge gRPC panic")
+			if recoveredErr, ok := recovered.(error); ok {
+				err = grpcError(recoveredErr)
+				return
+			}
+			err = grpcError(fmt.Errorf("%v", recovered))
+		}
+	}()
+	return handler(ctx, req)
 }
 
 func (s *Service) publish(eventType, accountID string, data map[string]any) {

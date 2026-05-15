@@ -22,7 +22,7 @@ func grpcError(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case strings.Contains(msg, "not found"):
 		return status.Error(codes.NotFound, err.Error())
-	case strings.Contains(msg, "not connected"), strings.Contains(msg, "not logged in"), strings.Contains(msg, "wa cli"):
+	case strings.Contains(msg, "not connected"), strings.Contains(msg, "not connect"), strings.Contains(msg, "not logged in"), strings.Contains(msg, "wa cli"):
 		return status.Error(codes.NotFound, err.Error())
 	case strings.Contains(msg, "timeout"):
 		return status.Error(codes.DeadlineExceeded, err.Error())

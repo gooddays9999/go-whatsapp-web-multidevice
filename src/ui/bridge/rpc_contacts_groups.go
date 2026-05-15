@@ -84,19 +84,34 @@ func (s *Service) GetContactDetail(ctx context.Context, req *bridgepb.GetContact
 
 	var contactName, pushName, verifiedName string
 	var isMyContact bool
+	var canQueryRemote bool
 	if inst, ok := whatsapp.DeviceFromContext(scoped); ok && inst != nil {
-		if client := inst.GetClient(); client != nil && client.Store != nil && client.Store.Contacts != nil && !jid.IsEmpty() {
-			if contact, err := client.Store.Contacts.GetContact(scoped, jid); err == nil && contact.Found {
-				isMyContact = true
-				contactName = firstNonEmpty(contact.FullName, contact.FirstName)
-				pushName = contact.PushName
-				verifiedName = contact.BusinessName
+		if client := inst.GetClient(); client != nil {
+			canQueryRemote = client.IsConnected() && client.IsLoggedIn()
+			if client.Store != nil && client.Store.Contacts != nil && !jid.IsEmpty() {
+				if contact, err := client.Store.Contacts.GetContact(scoped, jid); err == nil && contact.Found {
+					isMyContact = true
+					contactName = firstNonEmpty(contact.FullName, contact.FirstName)
+					pushName = contact.PushName
+					verifiedName = contact.BusinessName
+				}
 			}
 		}
 	}
 
-	info, _ := s.deps.UserUsecase.Info(scoped, domainUser.InfoRequest{Phone: req.GetPhone()})
-	avatar, _ := s.deps.UserUsecase.Avatar(scoped, domainUser.AvatarRequest{Phone: req.GetPhone(), IsPreview: true})
+	profilePicURL := ""
+	isWaContact := isMyContact
+	if canQueryRemote {
+		info, _ := s.deps.UserUsecase.Info(scoped, domainUser.InfoRequest{Phone: req.GetPhone()})
+		avatar, _ := s.deps.UserUsecase.Avatar(scoped, domainUser.AvatarRequest{Phone: req.GetPhone(), IsPreview: true})
+		profilePicURL = avatar.URL
+		if len(info.Data) > 0 {
+			isWaContact = true
+			contactName = firstNonEmpty(contactName, info.Data[0].Name)
+			pushName = firstNonEmpty(pushName, info.Data[0].Name)
+			verifiedName = firstNonEmpty(verifiedName, info.Data[0].VerifiedName)
+		}
+	}
 	detail := &bridgepb.ContactDetail{
 		Id:              legacyID,
 		Number:          number,
@@ -104,14 +119,9 @@ func (s *Service) GetContactDetail(ctx context.Context, req *bridgepb.GetContact
 		Name:            contactName,
 		PushName:        pushName,
 		VerifiedName:    verifiedName,
-		ProfilePicUrl:   avatar.URL,
+		ProfilePicUrl:   profilePicURL,
 		IsMyContact:     isMyContact,
-		IsWaContact:     len(info.Data) > 0,
-	}
-	if len(info.Data) > 0 {
-		detail.Name = firstNonEmpty(detail.Name, info.Data[0].Name)
-		detail.PushName = firstNonEmpty(detail.PushName, info.Data[0].Name)
-		detail.VerifiedName = firstNonEmpty(detail.VerifiedName, info.Data[0].VerifiedName)
+		IsWaContact:     isWaContact,
 	}
 	return &bridgepb.GetContactDetailResponse{Contact: detail}, nil
 }
