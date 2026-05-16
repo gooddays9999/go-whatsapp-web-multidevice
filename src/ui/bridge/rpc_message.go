@@ -366,8 +366,15 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	inst, _ := whatsapp.DeviceFromContext(scoped)
 	client := inst.GetClient()
 
+	release, err := s.acquireStatusSendSlot(scoped)
+	if err != nil {
+		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
+	}
+	defer release()
+
 	recipientCount, err := ensureStatusRecipients(scoped, client)
 	if err != nil {
+		s.handleStatusSendFailure(req.GetAccountId(), inst, err)
 		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
 	}
 	msg, hasMedia, err := buildStatusMessage(scoped, client, req)
@@ -383,6 +390,7 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	}).Info("sending WhatsApp status")
 	ts, err := client.SendMessage(scoped, types.StatusBroadcastJID, msg)
 	if err != nil {
+		s.handleStatusSendFailure(req.GetAccountId(), inst, err)
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"account_id": req.GetAccountId(),
 			"kind":       statusMessageKind(msg),
@@ -398,6 +406,122 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 		"recipients": recipientCount,
 	}).Info("WhatsApp status send acknowledged")
 	return &bridgepb.SendStatusResponse{Success: true, MessageId: ts.ID, HasMedia: hasMedia}, nil
+}
+
+func (s *Service) acquireStatusSendSlot(ctx context.Context) (func(), error) {
+	if s == nil || s.statusSendSlots == nil {
+		return func() {}, nil
+	}
+	select {
+	case s.statusSendSlots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("status send queued cancelled: %w", ctx.Err())
+	}
+
+	released := false
+	release := func() {
+		if released {
+			return
+		}
+		released = true
+		<-s.statusSendSlots
+	}
+
+	if s.cfg.StatusSendMinInterval > 0 {
+		s.statusSendMu.Lock()
+		wait := s.lastStatusSend.Add(s.cfg.StatusSendMinInterval).Sub(time.Now())
+		if wait > 0 {
+			timer := time.NewTimer(wait)
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				if !timer.Stop() {
+					<-timer.C
+				}
+				s.statusSendMu.Unlock()
+				release()
+				return nil, fmt.Errorf("status send delayed cancelled: %w", ctx.Err())
+			}
+		}
+		s.lastStatusSend = time.Now()
+		s.statusSendMu.Unlock()
+	}
+
+	return release, nil
+}
+
+func (s *Service) handleStatusSendFailure(accountID string, inst *whatsapp.DeviceInstance, err error) {
+	if !isDisconnectedSendError(err) || inst == nil {
+		return
+	}
+	state := inst.UpdateStateFromClient()
+	logrus.WithError(err).WithFields(logrus.Fields{
+		"account_id": accountID,
+		"state":      state,
+	}).Warn("WhatsApp websocket disconnected during status send, scheduling reconnect")
+	if !cachedConnected(state) {
+		s.markDisconnected(accountID)
+	}
+	s.scheduleReconnect(accountID, "status send websocket disconnected")
+}
+
+func isDisconnectedSendError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, pattern := range []string{
+		"websocket disconnected",
+		"not connected",
+		"connection closed",
+		"use of closed network connection",
+		"broken pipe",
+	} {
+		if strings.Contains(msg, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) scheduleReconnect(accountID, reason string) {
+	if s == nil || accountID == "" {
+		return
+	}
+	s.mu.Lock()
+	if _, ok := s.reconnecting[accountID]; ok {
+		s.mu.Unlock()
+		return
+	}
+	s.reconnecting[accountID] = time.Now()
+	s.mu.Unlock()
+
+	go func() {
+		defer func() {
+			s.mu.Lock()
+			delete(s.reconnecting, accountID)
+			s.mu.Unlock()
+		}()
+
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+		<-timer.C
+
+		timeout := s.connectTimeout()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout+5*time.Second)
+		defer cancel()
+		if _, err := s.accountContext(ctx, accountID); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"account_id": accountID,
+				"reason":     reason,
+			}).Warn("scheduled WhatsApp reconnect failed")
+			return
+		}
+		logrus.WithFields(logrus.Fields{
+			"account_id": accountID,
+			"reason":     reason,
+		}).Info("scheduled WhatsApp reconnect completed")
+	}()
 }
 
 func ensureStatusRecipients(ctx context.Context, client *whatsmeow.Client) (int, error) {

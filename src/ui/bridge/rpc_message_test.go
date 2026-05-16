@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/png"
 	"net/http"
@@ -21,6 +22,15 @@ func TestBuildStatusMessageRejectsEmptyText(t *testing.T) {
 	_, _, err := buildStatusMessage(t.Context(), nil, &bridgepb.SendStatusRequest{})
 	if err == nil {
 		t.Fatal("buildStatusMessage() error = nil, want error")
+	}
+}
+
+func TestIsDisconnectedSendError(t *testing.T) {
+	if !isDisconnectedSendError(errors.New("websocket disconnected before message send returned response")) {
+		t.Fatal("websocket disconnected error should trigger reconnect")
+	}
+	if isDisconnectedSendError(errors.New("rate limited by WhatsApp")) {
+		t.Fatal("non-connection error should not trigger reconnect")
 	}
 }
 

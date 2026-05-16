@@ -10,17 +10,19 @@ import (
 )
 
 type Config struct {
-	GRPCPort          int
-	MetricsPort       int
-	InstanceID        string
-	NATSURL           string
-	UAFilePath        string
-	HeartbeatInterval time.Duration
-	ConnectTimeout    time.Duration
-	MediaDownloadPath string
-	UploadMediaURL    string
-	UploadAPIKey      string
-	DefaultProxy      ProxySpec
+	GRPCPort              int
+	MetricsPort           int
+	InstanceID            string
+	NATSURL               string
+	UAFilePath            string
+	HeartbeatInterval     time.Duration
+	ConnectTimeout        time.Duration
+	StatusSendConcurrency int
+	StatusSendMinInterval time.Duration
+	MediaDownloadPath     string
+	UploadMediaURL        string
+	UploadAPIKey          string
+	DefaultProxy          ProxySpec
 }
 
 type configFile struct {
@@ -30,8 +32,10 @@ type configFile struct {
 		InstanceID  string `yaml:"instance_id"`
 	} `yaml:"server"`
 	Worker struct {
-		HeartbeatInterval int `yaml:"heartbeat_interval"`
-		ConnectTimeout    int `yaml:"connect_timeout"`
+		HeartbeatInterval       int `yaml:"heartbeat_interval"`
+		ConnectTimeout          int `yaml:"connect_timeout"`
+		StatusSendConcurrency   int `yaml:"status_send_concurrency"`
+		StatusSendMinIntervalMS int `yaml:"status_send_min_interval_ms"`
 	} `yaml:"worker"`
 	NATS struct {
 		URL string `yaml:"url"`
@@ -57,16 +61,18 @@ type ProxySpec struct {
 
 func LoadConfig() Config {
 	cfg := Config{
-		GRPCPort:          9091,
-		MetricsPort:       9191,
-		InstanceID:        "ims-bridge-go",
-		NATSURL:           "nats://localhost:4222",
-		UAFilePath:        "/Users/eric/Downloads/ua_US.txt",
-		HeartbeatInterval: 30 * time.Second,
-		ConnectTimeout:    45 * time.Second,
-		MediaDownloadPath: "/tmp/media",
-		UploadMediaURL:    "http://localhost:8080/internal/media/upload",
-		UploadAPIKey:      "",
+		GRPCPort:              9091,
+		MetricsPort:           9191,
+		InstanceID:            "ims-bridge-go",
+		NATSURL:               "nats://localhost:4222",
+		UAFilePath:            "/Users/eric/Downloads/ua_US.txt",
+		HeartbeatInterval:     30 * time.Second,
+		ConnectTimeout:        45 * time.Second,
+		StatusSendConcurrency: 1,
+		StatusSendMinInterval: 1500 * time.Millisecond,
+		MediaDownloadPath:     "/tmp/media",
+		UploadMediaURL:        "http://localhost:8080/internal/media/upload",
+		UploadAPIKey:          "",
 	}
 
 	if path := os.Getenv("CONFIG_PATH"); path != "" {
@@ -97,6 +103,12 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	}
 	if fileCfg.Worker.ConnectTimeout > 0 {
 		cfg.ConnectTimeout = time.Duration(fileCfg.Worker.ConnectTimeout) * time.Second
+	}
+	if fileCfg.Worker.StatusSendConcurrency > 0 {
+		cfg.StatusSendConcurrency = fileCfg.Worker.StatusSendConcurrency
+	}
+	if fileCfg.Worker.StatusSendMinIntervalMS > 0 {
+		cfg.StatusSendMinInterval = time.Duration(fileCfg.Worker.StatusSendMinIntervalMS) * time.Millisecond
 	}
 	if fileCfg.NATS.URL != "" {
 		cfg.NATSURL = fileCfg.NATS.URL
@@ -141,6 +153,16 @@ func applyEnvOverrides(cfg *Config) {
 	if value := os.Getenv("BRIDGE_CONNECT_TIMEOUT"); value != "" {
 		if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
 			cfg.ConnectTimeout = time.Duration(seconds) * time.Second
+		}
+	}
+	if value := os.Getenv("BRIDGE_STATUS_SEND_CONCURRENCY"); value != "" {
+		if concurrency, err := strconv.Atoi(value); err == nil && concurrency > 0 {
+			cfg.StatusSendConcurrency = concurrency
+		}
+	}
+	if value := os.Getenv("BRIDGE_STATUS_SEND_MIN_INTERVAL_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds >= 0 {
+			cfg.StatusSendMinInterval = time.Duration(milliseconds) * time.Millisecond
 		}
 	}
 	if value := os.Getenv("UPLOAD_MEDIA_URL"); value != "" {

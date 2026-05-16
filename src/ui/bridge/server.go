@@ -45,9 +45,13 @@ type Service struct {
 	startedAt  time.Time
 	workerID   string
 
-	mu        sync.RWMutex
-	connected map[string]time.Time
-	statuses  map[string]string
+	mu              sync.RWMutex
+	connected       map[string]time.Time
+	statuses        map[string]string
+	reconnecting    map[string]time.Time
+	statusSendSlots chan struct{}
+	statusSendMu    sync.Mutex
+	lastStatusSend  time.Time
 }
 
 func NewService(cfg Config, deps Dependencies) (*Service, error) {
@@ -62,17 +66,22 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 	if err := envStore.Init(context.Background()); err != nil {
 		return nil, err
 	}
+	if cfg.StatusSendConcurrency <= 0 {
+		cfg.StatusSendConcurrency = 1
+	}
 	workerID := fmt.Sprintf("%s-%d", cfg.InstanceID, os.Getpid())
 	service := &Service{
-		cfg:       cfg,
-		deps:      deps,
-		envStore:  envStore,
-		uaPool:    uaPool,
-		publisher: NewNATSPublisher(cfg.NATSURL),
-		startedAt: time.Now(),
-		workerID:  workerID,
-		connected: make(map[string]time.Time),
-		statuses:  make(map[string]string),
+		cfg:             cfg,
+		deps:            deps,
+		envStore:        envStore,
+		uaPool:          uaPool,
+		publisher:       NewNATSPublisher(cfg.NATSURL),
+		startedAt:       time.Now(),
+		workerID:        workerID,
+		connected:       make(map[string]time.Time),
+		statuses:        make(map[string]string),
+		reconnecting:    make(map[string]time.Time),
+		statusSendSlots: make(chan struct{}, cfg.StatusSendConcurrency),
 	}
 	return service, nil
 }
