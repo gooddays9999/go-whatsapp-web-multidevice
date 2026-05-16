@@ -3,6 +3,7 @@ package bridge
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -365,53 +366,167 @@ func (s *Service) GetMessageReactions(ctx context.Context, req *bridgepb.GetMess
 }
 
 func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusRequest) (*bridgepb.SendStatusResponse, error) {
-	scoped, err := s.accountContext(ctx, req.GetAccountId())
-	if err != nil {
-		return nil, grpcError(err)
+	accountID := req.GetAccountId()
+	accountTimeout := statusTimeout(s.cfg.StatusAccountContextTimeout, 12*time.Second)
+	accountStart := logStatusStageStart(accountID, "accountContext", accountTimeout)
+	accountCtx, accountCancel := context.WithTimeout(ctx, accountTimeout)
+	scoped, err := s.accountContext(accountCtx, accountID)
+	var inst *whatsapp.DeviceInstance
+	if err == nil {
+		inst, _ = whatsapp.DeviceFromContext(scoped)
 	}
-	inst, _ := whatsapp.DeviceFromContext(scoped)
+	accountCancel()
+	if err != nil {
+		stageErr := statusStageError("accountContext", accountTimeout, err)
+		logStatusStageFailure(accountID, "accountContext", accountStart, stageErr, nil)
+		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
+	}
+	logStatusStageSuccess(accountID, "accountContext", accountStart, nil)
+
+	if inst == nil {
+		err := fmt.Errorf("status accountContext failed: account device instance missing")
+		logStatusStageFailure(accountID, "accountContext", accountStart, err, nil)
+		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
+	}
 	client := inst.GetClient()
 
-	release, err := s.acquireStatusSendSlot(scoped)
+	queueTimeout := statusTimeout(s.cfg.StatusSendQueueTimeout, 5*time.Second)
+	queueStart := logStatusStageStart(accountID, "queue", queueTimeout)
+	queueCtx, queueCancel := statusDeviceContext(ctx, inst, queueTimeout)
+	release, err := s.acquireStatusSendSlot(queueCtx)
+	queueCancel()
 	if err != nil {
-		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
+		stageErr := statusStageError("queue", queueTimeout, err)
+		logStatusStageFailure(accountID, "queue", queueStart, stageErr, nil)
+		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
 	defer release()
+	logStatusStageSuccess(accountID, "queue", queueStart, nil)
 
-	recipientCount, err := ensureStatusRecipients(scoped, client)
+	recipientTimeout := statusTimeout(s.cfg.StatusRecipientTimeout, 8*time.Second)
+	recipientStart := logStatusStageStart(accountID, "ensureStatusRecipients", recipientTimeout)
+	recipientCtx, recipientCancel := statusDeviceContext(ctx, inst, recipientTimeout)
+	recipientCount, err := ensureStatusRecipients(recipientCtx, client)
+	recipientCancel()
 	if err != nil {
-		s.handleStatusSendFailure(req.GetAccountId(), inst, err)
-		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
+		s.handleStatusSendFailure(accountID, inst, err)
+		stageErr := statusStageError("ensureStatusRecipients", recipientTimeout, err)
+		logStatusStageFailure(accountID, "ensureStatusRecipients", recipientStart, stageErr, nil)
+		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
-	msg, hasMedia, err := buildStatusMessage(scoped, client, req)
+	logStatusStageSuccess(accountID, "ensureStatusRecipients", recipientStart, logrus.Fields{"recipients": recipientCount})
+
+	buildTimeout := statusTimeout(s.cfg.StatusBuildTimeout, 30*time.Second)
+	buildStart := logStatusStageStart(accountID, "buildMessage", buildTimeout)
+	buildCtx, buildCancel := statusDeviceContext(ctx, inst, buildTimeout)
+	msg, hasMedia, err := buildStatusMessage(buildCtx, client, req)
+	buildCancel()
 	if err != nil {
-		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
+		stageErr := statusStageError("buildMessage", buildTimeout, err)
+		logStatusStageFailure(accountID, "buildMessage", buildStart, stageErr, nil)
+		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
+	logStatusStageSuccess(accountID, "buildMessage", buildStart, logrus.Fields{
+		"kind":      statusMessageKind(msg),
+		"has_media": hasMedia,
+	})
 
 	logrus.WithFields(logrus.Fields{
-		"account_id": req.GetAccountId(),
+		"account_id": accountID,
 		"kind":       statusMessageKind(msg),
 		"has_media":  hasMedia,
 		"recipients": recipientCount,
 	}).Info("sending WhatsApp status")
-	ts, err := client.SendMessage(scoped, types.StatusBroadcastJID, msg)
+	sendTimeout := statusTimeout(s.cfg.StatusMessageTimeout, 25*time.Second)
+	sendStart := logStatusStageStart(accountID, "SendMessage", sendTimeout)
+	sendCtx, sendCancel := statusDeviceContext(ctx, inst, sendTimeout)
+	ts, err := client.SendMessage(sendCtx, types.StatusBroadcastJID, msg)
+	sendCancel()
 	if err != nil {
-		s.handleStatusSendFailure(req.GetAccountId(), inst, err)
-		logrus.WithError(err).WithFields(logrus.Fields{
-			"account_id": req.GetAccountId(),
+		s.handleStatusSendFailure(accountID, inst, err)
+		stageErr := statusStageError("SendMessage", sendTimeout, err)
+		logStatusStageFailure(accountID, "SendMessage", sendStart, stageErr, logrus.Fields{
 			"kind":       statusMessageKind(msg),
 			"recipients": recipientCount,
-		}).Warn("failed to send WhatsApp status")
-		return &bridgepb.SendStatusResponse{Success: false, Error: err.Error()}, nil
+		})
+		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
+	logStatusStageSuccess(accountID, "SendMessage", sendStart, logrus.Fields{
+		"kind":       statusMessageKind(msg),
+		"message_id": string(ts.ID),
+		"recipients": recipientCount,
+	})
 	logrus.WithFields(logrus.Fields{
-		"account_id": req.GetAccountId(),
+		"account_id": accountID,
 		"kind":       statusMessageKind(msg),
 		"message_id": string(ts.ID),
 		"server_ts":  ts.Timestamp,
 		"recipients": recipientCount,
 	}).Info("WhatsApp status send acknowledged")
 	return &bridgepb.SendStatusResponse{Success: true, MessageId: ts.ID, HasMedia: hasMedia}, nil
+}
+
+func statusTimeout(value, fallback time.Duration) time.Duration {
+	if value > 0 {
+		return value
+	}
+	return fallback
+}
+
+func statusDeviceContext(parent context.Context, inst *whatsapp.DeviceInstance, timeout time.Duration) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	if inst != nil {
+		ctx = whatsapp.ContextWithDevice(ctx, inst)
+	}
+	return ctx, cancel
+}
+
+func statusStageError(stage string, timeout time.Duration, err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("status %s timed out after %s: %w", stage, timeout, err)
+	case errors.Is(err, context.Canceled):
+		return fmt.Errorf("status %s cancelled after %s: %w", stage, timeout, err)
+	default:
+		return fmt.Errorf("status %s failed: %w", stage, err)
+	}
+}
+
+func logStatusStageStart(accountID, stage string, timeout time.Duration) time.Time {
+	start := time.Now()
+	logrus.WithFields(logrus.Fields{
+		"account_id": accountID,
+		"stage":      stage,
+		"timeout_ms": timeout.Milliseconds(),
+	}).Info("WhatsApp status stage started")
+	return start
+}
+
+func logStatusStageSuccess(accountID, stage string, start time.Time, fields logrus.Fields) {
+	logFields := logrus.Fields{
+		"account_id":  accountID,
+		"stage":       stage,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	for key, value := range fields {
+		logFields[key] = value
+	}
+	logrus.WithFields(logFields).Info("WhatsApp status stage completed")
+}
+
+func logStatusStageFailure(accountID, stage string, start time.Time, err error, fields logrus.Fields) {
+	logFields := logrus.Fields{
+		"account_id":  accountID,
+		"stage":       stage,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	for key, value := range fields {
+		logFields[key] = value
+	}
+	logrus.WithError(err).WithFields(logFields).Warn("WhatsApp status stage failed")
 }
 
 func (s *Service) acquireStatusSendSlot(ctx context.Context) (func(), error) {

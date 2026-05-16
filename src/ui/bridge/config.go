@@ -10,19 +10,24 @@ import (
 )
 
 type Config struct {
-	GRPCPort              int
-	MetricsPort           int
-	InstanceID            string
-	NATSURL               string
-	UAFilePath            string
-	HeartbeatInterval     time.Duration
-	ConnectTimeout        time.Duration
-	StatusSendConcurrency int
-	StatusSendMinInterval time.Duration
-	MediaDownloadPath     string
-	UploadMediaURL        string
-	UploadAPIKey          string
-	DefaultProxy          ProxySpec
+	GRPCPort                    int
+	MetricsPort                 int
+	InstanceID                  string
+	NATSURL                     string
+	UAFilePath                  string
+	HeartbeatInterval           time.Duration
+	ConnectTimeout              time.Duration
+	StatusSendConcurrency       int
+	StatusSendMinInterval       time.Duration
+	StatusSendQueueTimeout      time.Duration
+	StatusAccountContextTimeout time.Duration
+	StatusRecipientTimeout      time.Duration
+	StatusBuildTimeout          time.Duration
+	StatusMessageTimeout        time.Duration
+	MediaDownloadPath           string
+	UploadMediaURL              string
+	UploadAPIKey                string
+	DefaultProxy                ProxySpec
 }
 
 type configFile struct {
@@ -32,10 +37,15 @@ type configFile struct {
 		InstanceID  string `yaml:"instance_id"`
 	} `yaml:"server"`
 	Worker struct {
-		HeartbeatInterval       int `yaml:"heartbeat_interval"`
-		ConnectTimeout          int `yaml:"connect_timeout"`
-		StatusSendConcurrency   int `yaml:"status_send_concurrency"`
-		StatusSendMinIntervalMS int `yaml:"status_send_min_interval_ms"`
+		HeartbeatInterval             int `yaml:"heartbeat_interval"`
+		ConnectTimeout                int `yaml:"connect_timeout"`
+		StatusSendConcurrency         int `yaml:"status_send_concurrency"`
+		StatusSendMinIntervalMS       int `yaml:"status_send_min_interval_ms"`
+		StatusSendQueueTimeoutMS      int `yaml:"status_send_queue_timeout_ms"`
+		StatusAccountContextTimeoutMS int `yaml:"status_account_context_timeout_ms"`
+		StatusRecipientTimeoutMS      int `yaml:"status_recipient_timeout_ms"`
+		StatusBuildTimeoutMS          int `yaml:"status_build_timeout_ms"`
+		StatusMessageTimeoutMS        int `yaml:"status_message_timeout_ms"`
 	} `yaml:"worker"`
 	NATS struct {
 		URL string `yaml:"url"`
@@ -61,18 +71,23 @@ type ProxySpec struct {
 
 func LoadConfig() Config {
 	cfg := Config{
-		GRPCPort:              9091,
-		MetricsPort:           9191,
-		InstanceID:            "ims-bridge-go",
-		NATSURL:               "nats://localhost:4222",
-		UAFilePath:            "/Users/eric/Downloads/ua_US.txt",
-		HeartbeatInterval:     30 * time.Second,
-		ConnectTimeout:        45 * time.Second,
-		StatusSendConcurrency: 1,
-		StatusSendMinInterval: 1500 * time.Millisecond,
-		MediaDownloadPath:     "/tmp/media",
-		UploadMediaURL:        "http://localhost:8080/internal/media/upload",
-		UploadAPIKey:          "",
+		GRPCPort:                    9091,
+		MetricsPort:                 9191,
+		InstanceID:                  "ims-bridge-go",
+		NATSURL:                     "nats://localhost:4222",
+		UAFilePath:                  "/Users/eric/Downloads/ua_US.txt",
+		HeartbeatInterval:           30 * time.Second,
+		ConnectTimeout:              45 * time.Second,
+		StatusSendConcurrency:       1,
+		StatusSendMinInterval:       1500 * time.Millisecond,
+		StatusSendQueueTimeout:      5 * time.Second,
+		StatusAccountContextTimeout: 12 * time.Second,
+		StatusRecipientTimeout:      8 * time.Second,
+		StatusBuildTimeout:          30 * time.Second,
+		StatusMessageTimeout:        25 * time.Second,
+		MediaDownloadPath:           "/tmp/media",
+		UploadMediaURL:              "http://localhost:8080/internal/media/upload",
+		UploadAPIKey:                "",
 	}
 
 	if path := os.Getenv("CONFIG_PATH"); path != "" {
@@ -109,6 +124,21 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	}
 	if fileCfg.Worker.StatusSendMinIntervalMS > 0 {
 		cfg.StatusSendMinInterval = time.Duration(fileCfg.Worker.StatusSendMinIntervalMS) * time.Millisecond
+	}
+	if fileCfg.Worker.StatusSendQueueTimeoutMS > 0 {
+		cfg.StatusSendQueueTimeout = time.Duration(fileCfg.Worker.StatusSendQueueTimeoutMS) * time.Millisecond
+	}
+	if fileCfg.Worker.StatusAccountContextTimeoutMS > 0 {
+		cfg.StatusAccountContextTimeout = time.Duration(fileCfg.Worker.StatusAccountContextTimeoutMS) * time.Millisecond
+	}
+	if fileCfg.Worker.StatusRecipientTimeoutMS > 0 {
+		cfg.StatusRecipientTimeout = time.Duration(fileCfg.Worker.StatusRecipientTimeoutMS) * time.Millisecond
+	}
+	if fileCfg.Worker.StatusBuildTimeoutMS > 0 {
+		cfg.StatusBuildTimeout = time.Duration(fileCfg.Worker.StatusBuildTimeoutMS) * time.Millisecond
+	}
+	if fileCfg.Worker.StatusMessageTimeoutMS > 0 {
+		cfg.StatusMessageTimeout = time.Duration(fileCfg.Worker.StatusMessageTimeoutMS) * time.Millisecond
 	}
 	if fileCfg.NATS.URL != "" {
 		cfg.NATSURL = fileCfg.NATS.URL
@@ -163,6 +193,31 @@ func applyEnvOverrides(cfg *Config) {
 	if value := os.Getenv("BRIDGE_STATUS_SEND_MIN_INTERVAL_MS"); value != "" {
 		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds >= 0 {
 			cfg.StatusSendMinInterval = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_STATUS_SEND_QUEUE_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.StatusSendQueueTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_STATUS_ACCOUNT_CONTEXT_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.StatusAccountContextTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_STATUS_RECIPIENT_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.StatusRecipientTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_STATUS_BUILD_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.StatusBuildTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_STATUS_MESSAGE_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.StatusMessageTimeout = time.Duration(milliseconds) * time.Millisecond
 		}
 	}
 	if value := os.Getenv("UPLOAD_MEDIA_URL"); value != "" {
