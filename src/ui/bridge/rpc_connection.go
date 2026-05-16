@@ -228,11 +228,16 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	}
 	inst, ok := s.deps.DeviceManager.GetDevice(req.GetAccountId())
 	if !ok || inst == nil {
+		if s.canScheduleReconnect(ctx, req.GetAccountId(), nil) {
+			s.scheduleReconnect(req.GetAccountId(), "status check missing in-memory client")
+			return &bridgepb.AccountStatusResponse{AccountId: req.GetAccountId(), Status: "connecting", StatusDetail: "Reconnect scheduled", IsUsable: false}, nil
+		}
 		return &bridgepb.AccountStatusResponse{AccountId: req.GetAccountId(), Status: "offline", StatusDetail: "Account not connected", IsUsable: false}, nil
 	}
 	status := "offline"
 	detail := "Account offline"
 	usable := false
+	inst.UpdateStateFromClient()
 	snapshot := inst.Snapshot()
 	switch {
 	case cachedLoggedIn(snapshot.State):
@@ -248,6 +253,14 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	case snapshot.LastConnectError != "":
 		detail = snapshot.LastConnectError
 	}
+	if status == "offline" && s.canScheduleReconnect(ctx, req.GetAccountId(), inst) {
+		status = "connecting"
+		detail = "Auto reconnect in progress"
+		if !autoReconnectEnabled(inst) {
+			s.scheduleReconnect(req.GetAccountId(), "status check disconnected client")
+			detail = "Reconnect scheduled"
+		}
+	}
 	return &bridgepb.AccountStatusResponse{
 		AccountId:    req.GetAccountId(),
 		Status:       status,
@@ -259,6 +272,46 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 		StatusDetail: detail,
 		Windows:      []*bridgepb.BrowserWindow{},
 	}, nil
+}
+
+func (s *Service) canScheduleReconnect(ctx context.Context, accountID string, inst *whatsapp.DeviceInstance) bool {
+	if s == nil || accountID == "" {
+		return false
+	}
+	if inst != nil {
+		client := inst.GetClient()
+		if client != nil && client.Store != nil && client.Store.ID != nil {
+			return true
+		}
+	}
+	env, err := s.envStore.Get(ctx, accountID)
+	if err != nil || env == nil {
+		return false
+	}
+	proxyURL, err := env.ProxyURL()
+	if err != nil {
+		return false
+	}
+	created, err := s.deps.DeviceManager.EnsureClientWithEnvironment(ctx, accountID, whatsapp.ClientEnvironment{
+		ProxyAddress:    proxyURL,
+		ProxyConfigured: true,
+		UserAgent:       env.UserAgent,
+		BrowserFamily:   env.BrowserFamily,
+		OSName:          env.OSName,
+	})
+	if err != nil || created == nil {
+		return false
+	}
+	client := created.GetClient()
+	return client != nil && client.Store != nil && client.Store.ID != nil
+}
+
+func autoReconnectEnabled(inst *whatsapp.DeviceInstance) bool {
+	if inst == nil {
+		return false
+	}
+	client := inst.GetClient()
+	return client != nil && client.EnableAutoReconnect
 }
 
 func (s *Service) GetConnectionState(ctx context.Context, req *bridgepb.ConnectionStateRequest) (*bridgepb.ConnectionStateResponse, error) {

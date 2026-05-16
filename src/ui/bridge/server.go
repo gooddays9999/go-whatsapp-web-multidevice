@@ -91,6 +91,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.publish("bridge.started", "", map[string]any{"instanceId": s.cfg.InstanceID})
 	s.publish("worker.ready", "", map[string]any{"workerId": s.workerID, "pid": os.Getpid()})
 	go s.heartbeatLoop(ctx)
+	go s.restorePersistedAccounts(ctx)
 
 	if err := s.startHTTP(ctx); err != nil {
 		return err

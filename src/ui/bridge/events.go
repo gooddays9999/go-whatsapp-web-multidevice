@@ -30,6 +30,22 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 			"connectedAt": time.Now().UnixMilli(),
 			"verified":    instance.IsLoggedIn(),
 		})
+	case *events.Disconnected:
+		state := instance.UpdateStateFromClient()
+		if autoReconnectEnabled(instance) {
+			logrus.WithFields(logrus.Fields{
+				"account_id": accountID,
+				"state":      state,
+			}).Debug("WhatsApp websocket disconnected, auto reconnect enabled")
+			return
+		}
+		if s.canScheduleReconnect(ctx, accountID, instance) {
+			logrus.WithFields(logrus.Fields{
+				"account_id": accountID,
+				"state":      state,
+			}).Warn("WhatsApp websocket disconnected, scheduling reconnect")
+			s.scheduleReconnect(accountID, "whatsapp disconnected event")
+		}
 	case *events.PairSuccess:
 		s.publish("account.authenticated", accountID, map[string]any{"phoneNumber": evt.ID.User})
 	case *events.LoggedOut:

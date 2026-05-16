@@ -89,6 +89,45 @@ func (s *EnvironmentStore) Get(ctx context.Context, accountID string) (*BridgeEn
 	return &env, nil
 }
 
+func (s *EnvironmentStore) List(ctx context.Context) ([]*BridgeEnvironment, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT account_id, tenant_id, proxy_type, proxy_host, proxy_port, proxy_username, proxy_password,
+		       user_agent, browser_family, os_name, created_at, updated_at
+		FROM bridge_environments
+		ORDER BY account_id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	envs := make([]*BridgeEnvironment, 0)
+	for rows.Next() {
+		var env BridgeEnvironment
+		if err := rows.Scan(
+			&env.AccountID,
+			&env.TenantID,
+			&env.ProxyType,
+			&env.ProxyHost,
+			&env.ProxyPort,
+			&env.ProxyUsername,
+			&env.ProxyPassword,
+			&env.UserAgent,
+			&env.BrowserFamily,
+			&env.OSName,
+			&env.CreatedAt,
+			&env.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		envs = append(envs, &env)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return envs, nil
+}
+
 func (s *EnvironmentStore) GetOrCreate(ctx context.Context, accountID, tenantID string, requestProxy *bridgepb.ProxyConfig, allowRequestProxy bool) (*BridgeEnvironment, bool, error) {
 	if accountID == "" {
 		return nil, false, fmt.Errorf("account_id is required")
