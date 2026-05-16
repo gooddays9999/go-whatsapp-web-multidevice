@@ -31,7 +31,7 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 			"verified":    instance.IsLoggedIn(),
 		})
 	case *events.Disconnected:
-		state := instance.UpdateStateFromClient()
+		state := instance.MarkDisconnected()
 		if autoReconnectEnabled(instance) {
 			logrus.WithFields(logrus.Fields{
 				"account_id": accountID,

@@ -237,7 +237,6 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	status := "offline"
 	detail := "Account offline"
 	usable := false
-	inst.UpdateStateFromClient()
 	snapshot := inst.Snapshot()
 	switch {
 	case cachedLoggedIn(snapshot.State):

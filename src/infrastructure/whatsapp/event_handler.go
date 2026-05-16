@@ -73,8 +73,20 @@ func handler(ctx context.Context, instance *DeviceInstance, rawEvt any) {
 		handleCallOffer(ctx, evt, chatStorageRepo, instance.JID(), client)
 	}
 
-	instance.UpdateStateFromClient()
+	refreshStateFromEvent(instance, rawEvt)
 	notifyEventSinks(ctx, instance, rawEvt)
+}
+
+func refreshStateFromEvent(instance *DeviceInstance, rawEvt any) {
+	if instance == nil {
+		return
+	}
+	switch rawEvt.(type) {
+	case *events.Disconnected, *events.LoggedOut:
+		instance.MarkDisconnected()
+	case *events.Connected, *events.PushNameSetting, *events.PairSuccess, *events.AppStateSyncComplete:
+		instance.UpdateStateFromLoginFlag()
+	}
 }
 
 func handleDeleteForMe(ctx context.Context, evt *events.DeleteForMe, chatStorageRepo domainChatStorage.IChatStorageRepository, deviceID string, client *whatsmeow.Client) {
@@ -183,7 +195,7 @@ func handleConnectionEvents(_ context.Context, client *whatsmeow.Client, instanc
 		return
 	}
 	if instance != nil {
-		instance.UpdateStateFromClient()
+		instance.UpdateStateFromLoginFlag()
 
 		// Persist updated JID/DisplayName to database after successful connection
 		// Skip if instance.ID looks like a JID (auto-created device) to avoid recreating deleted duplicates

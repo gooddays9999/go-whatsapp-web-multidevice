@@ -94,6 +94,34 @@ func (d *DeviceInstance) SetState(state domainDevice.DeviceState) {
 	d.mu.Unlock()
 }
 
+func (d *DeviceInstance) MarkDisconnected() domainDevice.DeviceState {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.state = domainDevice.DeviceStateDisconnected
+	d.refreshIdentityLocked()
+	return d.state
+}
+
+func (d *DeviceInstance) UpdateStateFromLoginFlag() domainDevice.DeviceState {
+	d.mu.RLock()
+	client := d.client
+	d.mu.RUnlock()
+	loggedIn := false
+	if client != nil {
+		loggedIn = client.IsLoggedIn()
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if loggedIn {
+		d.state = domainDevice.DeviceStateLoggedIn
+	} else {
+		d.state = domainDevice.DeviceStateConnected
+	}
+	d.refreshIdentityLocked()
+	return d.state
+}
+
 func (d *DeviceInstance) State() domainDevice.DeviceState {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
