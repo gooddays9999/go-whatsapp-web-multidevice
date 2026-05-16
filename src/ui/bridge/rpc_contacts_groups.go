@@ -86,8 +86,8 @@ func (s *Service) GetContactDetail(ctx context.Context, req *bridgepb.GetContact
 	var isMyContact bool
 	var canQueryRemote bool
 	if inst, ok := whatsapp.DeviceFromContext(scoped); ok && inst != nil {
+		canQueryRemote = cachedLoggedIn(inst.Snapshot().State)
 		if client := inst.GetClient(); client != nil {
-			canQueryRemote = client.IsConnected() && client.IsLoggedIn()
 			if client.Store != nil && client.Store.Contacts != nil && !jid.IsEmpty() {
 				if contact, err := client.Store.Contacts.GetContact(scoped, jid); err == nil && contact.Found {
 					isMyContact = true

@@ -1,7 +1,11 @@
 package whatsapp
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
@@ -9,9 +13,27 @@ import (
 	"go.mau.fi/whatsmeow"
 )
 
+var ErrDeviceConnectInProgress = errors.New("device connect already in progress")
+
+type DeviceSnapshot struct {
+	State            domainDevice.DeviceState
+	DisplayName      string
+	PhoneNumber      string
+	JID              string
+	ProxyAddress     string
+	UserAgent        string
+	BrowserFamily    string
+	OSName           string
+	Connecting       bool
+	ConnectingSince  time.Time
+	LastConnectAt    time.Time
+	LastConnectError string
+}
+
 // DeviceInstance bundles a WhatsApp client with device metadata and scoped storage.
 type DeviceInstance struct {
 	mu              sync.RWMutex
+	connectMu       sync.Mutex
 	id              string
 	client          *whatsmeow.Client
 	chatStorageRepo domainChatStorage.IChatStorageRepository
@@ -24,6 +46,10 @@ type DeviceInstance struct {
 	browserFamily   string
 	osName          string
 	createdAt       time.Time
+	connecting      bool
+	connectingSince time.Time
+	lastConnectAt   time.Time
+	lastConnectErr  string
 	onLoggedOut     func(deviceID string) // Callback for remote logout cleanup
 }
 
@@ -72,6 +98,25 @@ func (d *DeviceInstance) State() domainDevice.DeviceState {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.state
+}
+
+func (d *DeviceInstance) Snapshot() DeviceSnapshot {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return DeviceSnapshot{
+		State:            d.state,
+		DisplayName:      d.displayName,
+		PhoneNumber:      d.phoneNumber,
+		JID:              d.jid,
+		ProxyAddress:     d.proxyAddress,
+		UserAgent:        d.userAgent,
+		BrowserFamily:    d.browserFamily,
+		OSName:           d.osName,
+		Connecting:       d.connecting,
+		ConnectingSince:  d.connectingSince,
+		LastConnectAt:    d.lastConnectAt,
+		LastConnectError: d.lastConnectErr,
+	}
 }
 
 func (d *DeviceInstance) DisplayName() string {
@@ -167,15 +212,116 @@ func (d *DeviceInstance) IsLoggedIn() bool {
 	return client.IsLoggedIn()
 }
 
+func (d *DeviceInstance) ConnectWithTimeout(ctx context.Context, timeout time.Duration, reason string) error {
+	if d == nil {
+		return fmt.Errorf("device instance is nil")
+	}
+	if timeout <= 0 {
+		timeout = 45 * time.Second
+	}
+	if !d.connectMu.TryLock() {
+		return ErrDeviceConnectInProgress
+	}
+	defer d.connectMu.Unlock()
+
+	d.mu.Lock()
+	client := d.client
+	now := time.Now()
+	d.connecting = true
+	d.connectingSince = now
+	d.lastConnectAt = now
+	d.lastConnectErr = ""
+	d.state = domainDevice.DeviceStateConnecting
+	d.mu.Unlock()
+
+	defer func() {
+		d.mu.Lock()
+		d.connecting = false
+		d.connectingSince = time.Time{}
+		d.mu.Unlock()
+	}()
+
+	if client == nil {
+		err := fmt.Errorf("account client is nil")
+		d.recordConnectResult(err)
+		return err
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	connectCtx, cancelConnect := context.WithCancel(context.Background())
+	var timedOut atomic.Bool
+	timer := time.AfterFunc(timeout, func() {
+		timedOut.Store(true)
+		cancelConnect()
+	})
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancelConnect()
+		case <-done:
+		}
+	}()
+	err := client.ConnectContext(connectCtx)
+	close(done)
+	if !timer.Stop() && timedOut.Load() {
+		// The timer already cancelled the connection attempt.
+	} else if err != nil {
+		cancelConnect()
+	}
+	if errors.Is(err, whatsmeow.ErrAlreadyConnected) {
+		err = nil
+	}
+	if err == nil && timedOut.Load() {
+		err = fmt.Errorf("connect timeout after %s: %w", timeout, context.DeadlineExceeded)
+	}
+	if err == nil && ctx.Err() != nil {
+		err = fmt.Errorf("connect cancelled: %w", ctx.Err())
+	}
+	if err != nil {
+		if timedOut.Load() {
+			err = fmt.Errorf("connect timeout after %s: %w", timeout, context.DeadlineExceeded)
+		} else if ctx.Err() != nil {
+			err = fmt.Errorf("connect cancelled: %w", ctx.Err())
+		}
+		d.recordConnectResult(err)
+		d.SetState(domainDevice.DeviceStateDisconnected)
+		return err
+	}
+
+	state := d.UpdateStateFromClient()
+	if state == domainDevice.DeviceStateDisconnected {
+		err = fmt.Errorf("connect returned without an active websocket")
+		if reason != "" {
+			err = fmt.Errorf("%s: %w", reason, err)
+		}
+		d.recordConnectResult(err)
+		return err
+	}
+	d.recordConnectResult(nil)
+	return nil
+}
+
 // UpdateStateFromClient refreshes the snapshot state based on the client flags.
 func (d *DeviceInstance) UpdateStateFromClient() domainDevice.DeviceState {
+	d.mu.RLock()
+	client := d.client
+	d.mu.RUnlock()
+	connected := false
+	loggedIn := false
+	if client != nil {
+		connected = client.IsConnected()
+		loggedIn = client.IsLoggedIn()
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
-
 	switch {
-	case d.client != nil && d.client.IsLoggedIn():
+	case connected && loggedIn:
 		d.state = domainDevice.DeviceStateLoggedIn
-	case d.client != nil && d.client.IsConnected():
+	case connected:
 		d.state = domainDevice.DeviceStateConnected
 	default:
 		d.state = domainDevice.DeviceStateDisconnected
@@ -183,6 +329,16 @@ func (d *DeviceInstance) UpdateStateFromClient() domainDevice.DeviceState {
 
 	d.refreshIdentityLocked()
 	return d.state
+}
+
+func (d *DeviceInstance) recordConnectResult(err error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err != nil {
+		d.lastConnectErr = err.Error()
+		return
+	}
+	d.lastConnectErr = ""
 }
 
 func (d *DeviceInstance) refreshIdentityLocked() {

@@ -16,6 +16,7 @@ type Config struct {
 	NATSURL           string
 	UAFilePath        string
 	HeartbeatInterval time.Duration
+	ConnectTimeout    time.Duration
 	MediaDownloadPath string
 	UploadMediaURL    string
 	UploadAPIKey      string
@@ -30,6 +31,7 @@ type configFile struct {
 	} `yaml:"server"`
 	Worker struct {
 		HeartbeatInterval int `yaml:"heartbeat_interval"`
+		ConnectTimeout    int `yaml:"connect_timeout"`
 	} `yaml:"worker"`
 	NATS struct {
 		URL string `yaml:"url"`
@@ -61,6 +63,7 @@ func LoadConfig() Config {
 		NATSURL:           "nats://localhost:4222",
 		UAFilePath:        "/Users/eric/Downloads/ua_US.txt",
 		HeartbeatInterval: 30 * time.Second,
+		ConnectTimeout:    45 * time.Second,
 		MediaDownloadPath: "/tmp/media",
 		UploadMediaURL:    "http://localhost:8080/internal/media/upload",
 		UploadAPIKey:      "",
@@ -91,6 +94,9 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	}
 	if fileCfg.Worker.HeartbeatInterval > 0 {
 		cfg.HeartbeatInterval = time.Duration(fileCfg.Worker.HeartbeatInterval) * time.Second
+	}
+	if fileCfg.Worker.ConnectTimeout > 0 {
+		cfg.ConnectTimeout = time.Duration(fileCfg.Worker.ConnectTimeout) * time.Second
 	}
 	if fileCfg.NATS.URL != "" {
 		cfg.NATSURL = fileCfg.NATS.URL
@@ -131,6 +137,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := os.Getenv("BRIDGE_UA_FILE"); value != "" {
 		cfg.UAFilePath = value
+	}
+	if value := os.Getenv("BRIDGE_CONNECT_TIMEOUT"); value != "" {
+		if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+			cfg.ConnectTimeout = time.Duration(seconds) * time.Second
+		}
 	}
 	if value := os.Getenv("UPLOAD_MEDIA_URL"); value != "" {
 		cfg.UploadMediaURL = value

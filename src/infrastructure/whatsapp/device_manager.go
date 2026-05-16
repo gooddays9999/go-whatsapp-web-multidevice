@@ -502,13 +502,15 @@ func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceI
 		inst.SetEnvironment(env.ProxyAddress, env.UserAgent, env.BrowserFamily, env.OSName)
 	}
 	if existing := inst.GetClient(); existing != nil {
+		if env.ProxyConfigured {
+			existing.EnableAutoReconnect = false
+		}
 		existing.SetForceActiveDeliveryReceipts(true)
 		if env.ProxyConfigured {
 			if err := existing.SetProxyAddress(env.ProxyAddress); err != nil {
 				return nil, fmt.Errorf("failed to configure proxy: %w", err)
 			}
 		}
-		inst.UpdateStateFromClient()
 		return inst, nil
 	}
 
@@ -525,7 +527,7 @@ func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceI
 
 	baseLogger := waLog.Stdout(fmt.Sprintf("Client-%s", deviceID), config.WhatsappLogLevel, true)
 	client := whatsmeow.NewClient(storeDevice, newFilteredLogger(baseLogger))
-	client.EnableAutoReconnect = true
+	client.EnableAutoReconnect = !env.ProxyConfigured
 	client.AutoTrustIdentity = true
 	client.SetForceActiveDeliveryReceipts(true)
 	if env.ProxyConfigured {

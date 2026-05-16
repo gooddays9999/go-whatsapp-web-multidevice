@@ -2,15 +2,32 @@ package bridge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
+	domainDevice "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/device"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow"
 )
+
+func (s *Service) connectTimeout() time.Duration {
+	if s != nil && s.cfg.ConnectTimeout > 0 {
+		return s.cfg.ConnectTimeout
+	}
+	return 45 * time.Second
+}
+
+func cachedConnected(state domainDevice.DeviceState) bool {
+	return state == domainDevice.DeviceStateConnected || state == domainDevice.DeviceStateLoggedIn
+}
+
+func cachedLoggedIn(state domainDevice.DeviceState) bool {
+	return state == domainDevice.DeviceStateLoggedIn
+}
 
 func (s *Service) ensureClient(ctx context.Context, accountID, tenantID string, proxy *bridgepb.ProxyConfig, allowRequestProxy bool) (*whatsapp.DeviceInstance, *whatsmeow.Client, *BridgeEnvironment, error) {
 	env, _, err := s.envStore.GetOrCreate(ctx, accountID, tenantID, proxy, allowRequestProxy)
@@ -59,16 +76,21 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 		"proxy":      env.ProxySummary(),
 		"changed":    proxyChanged,
 	}).Info("bridge connect using account proxy")
-	if client.Store != nil && client.Store.ID != nil && (proxyChanged || !client.IsConnected()) {
-		if proxyChanged && client.IsConnected() {
+	snapshot := inst.Snapshot()
+	if client.Store != nil && client.Store.ID != nil && (proxyChanged || !cachedConnected(snapshot.State)) {
+		if proxyChanged && cachedConnected(snapshot.State) {
 			client.Disconnect()
 		}
 		inst.SetState("connecting")
-		if err := client.Connect(); err != nil {
+		if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge connect"); err != nil {
+			if errors.Is(err, whatsapp.ErrDeviceConnectInProgress) {
+				return &bridgepb.ConnectResponse{Success: true, Status: "connecting", Message: "Connection already in progress"}, nil
+			}
 			return &bridgepb.ConnectResponse{Success: false, Status: "failed", Message: err.Error()}, nil
 		}
 	}
-	if client.IsConnected() && client.IsLoggedIn() {
+	snapshot = inst.Snapshot()
+	if cachedLoggedIn(snapshot.State) {
 		s.markConnected(req.GetAccountId())
 		s.publish("account.connected", req.GetAccountId(), map[string]any{
 			"phoneNumber": inst.PhoneNumber(),
@@ -81,7 +103,10 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 	if client.Store == nil || client.Store.ID == nil {
 		return &bridgepb.ConnectResponse{Success: true, Status: "qr_pending", Message: "QR login required"}, nil
 	}
-	return &bridgepb.ConnectResponse{Success: true, Status: "connecting", Message: "Connection started"}, nil
+	if snapshot.Connecting || snapshot.State == domainDevice.DeviceStateConnecting {
+		return &bridgepb.ConnectResponse{Success: true, Status: "connecting", Message: "Connection started"}, nil
+	}
+	return &bridgepb.ConnectResponse{Success: true, Status: string(snapshot.State), Message: "Connection state refreshed"}, nil
 }
 
 func (s *Service) Disconnect(ctx context.Context, req *bridgepb.DisconnectRequest) (*bridgepb.DisconnectResponse, error) {
@@ -130,10 +155,9 @@ func (s *Service) GetQRCode(req *bridgepb.QRCodeRequest, stream bridgepb.WhatsAp
 	if err != nil {
 		return grpcError(err)
 	}
-	if err := client.Connect(); err != nil {
+	if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge qr connect"); err != nil {
 		return grpcError(err)
 	}
-	inst.SetState("connecting")
 	for evt := range ch {
 		switch evt.Event {
 		case "code":
@@ -169,17 +193,25 @@ func (s *Service) GetLinkCode(ctx context.Context, req *bridgepb.LinkCodeRequest
 	if req.GetAccountId() == "" || req.GetPhoneNumber() == "" {
 		return nil, grpcError(fmt.Errorf("account_id and phone_number are required"))
 	}
-	_, client, _, err := s.ensureClient(ctx, req.GetAccountId(), "", nil, false)
+	inst, client, _, err := s.ensureClient(ctx, req.GetAccountId(), "", nil, false)
 	if err != nil {
 		return nil, grpcError(err)
 	}
 	if client.IsLoggedIn() {
 		return nil, grpcError(fmt.Errorf("account already logged in"))
 	}
-	if !client.IsConnected() {
-		if err := client.Connect(); err != nil {
+	snapshot := inst.Snapshot()
+	if !cachedConnected(snapshot.State) {
+		if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge link code connect"); err != nil {
+			if errors.Is(err, whatsapp.ErrDeviceConnectInProgress) {
+				return nil, grpcError(fmt.Errorf("connection already in progress"))
+			}
 			return nil, grpcError(err)
 		}
+		snapshot = inst.Snapshot()
+	}
+	if !cachedConnected(snapshot.State) {
+		return nil, grpcError(fmt.Errorf("account connection is not ready"))
 	}
 	code, err := client.PairPhone(ctx, req.GetPhoneNumber(), true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 	if err != nil {
@@ -198,24 +230,30 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	if !ok || inst == nil {
 		return &bridgepb.AccountStatusResponse{AccountId: req.GetAccountId(), Status: "offline", StatusDetail: "Account not connected", IsUsable: false}, nil
 	}
-	inst.UpdateStateFromClient()
 	status := "offline"
 	detail := "Account offline"
 	usable := false
-	if inst.IsConnected() && inst.IsLoggedIn() {
+	snapshot := inst.Snapshot()
+	switch {
+	case cachedLoggedIn(snapshot.State):
 		status = "online"
 		detail = "Worker connected, client verified"
 		usable = true
-	} else if inst.IsConnected() {
+	case cachedConnected(snapshot.State):
 		status = "qr_pending"
 		detail = "Connected but not authenticated"
+	case snapshot.Connecting || snapshot.State == domainDevice.DeviceStateConnecting:
+		status = "connecting"
+		detail = "Connection attempt in progress"
+	case snapshot.LastConnectError != "":
+		detail = snapshot.LastConnectError
 	}
 	return &bridgepb.AccountStatusResponse{
 		AccountId:    req.GetAccountId(),
 		Status:       status,
-		PhoneNumber:  inst.PhoneNumber(),
-		Name:         inst.DisplayName(),
-		PushName:     inst.DisplayName(),
+		PhoneNumber:  snapshot.PhoneNumber,
+		Name:         snapshot.DisplayName,
+		PushName:     snapshot.DisplayName,
 		LastSeen:     0,
 		IsUsable:     usable,
 		StatusDetail: detail,
@@ -229,10 +267,13 @@ func (s *Service) GetConnectionState(ctx context.Context, req *bridgepb.Connecti
 	}
 	state := "DISCONNECTED"
 	if inst, ok := s.deps.DeviceManager.GetDevice(req.GetAccountId()); ok && inst != nil {
-		if inst.IsConnected() && inst.IsLoggedIn() {
+		snapshot := inst.Snapshot()
+		if cachedLoggedIn(snapshot.State) {
 			state = "CONNECTED"
-		} else if inst.IsConnected() {
+		} else if cachedConnected(snapshot.State) {
 			state = "QR_PENDING"
+		} else if snapshot.Connecting || snapshot.State == domainDevice.DeviceStateConnecting {
+			state = "CONNECTING"
 		}
 	}
 	return &bridgepb.ConnectionStateResponse{AccountId: req.GetAccountId(), State: state, WorkerId: s.workerID}, nil
