@@ -122,6 +122,24 @@ func (d *DeviceInstance) UpdateStateFromLoginFlag() domainDevice.DeviceState {
 	return d.state
 }
 
+func (d *DeviceInstance) RefreshLoggedInFromClient() domainDevice.DeviceState {
+	d.mu.RLock()
+	client := d.client
+	d.mu.RUnlock()
+	loggedIn := false
+	if client != nil {
+		loggedIn = client.IsLoggedIn()
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if loggedIn {
+		d.state = domainDevice.DeviceStateLoggedIn
+	}
+	d.refreshIdentityLocked()
+	return d.state
+}
+
 func (d *DeviceInstance) State() domainDevice.DeviceState {
 	d.mu.RLock()
 	defer d.mu.RUnlock()

@@ -76,10 +76,12 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 		"proxy":      env.ProxySummary(),
 		"changed":    proxyChanged,
 	}).Info("bridge connect using account proxy")
+	inst.RefreshLoggedInFromClient()
 	snapshot := inst.Snapshot()
-	if client.Store != nil && client.Store.ID != nil && (proxyChanged || !cachedConnected(snapshot.State)) {
-		if proxyChanged && cachedConnected(snapshot.State) {
+	if client.Store != nil && client.Store.ID != nil && (proxyChanged || !cachedLoggedIn(snapshot.State)) {
+		if cachedConnected(snapshot.State) {
 			client.Disconnect()
+			inst.MarkDisconnected()
 		}
 		inst.SetState("connecting")
 		if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge connect"); err != nil {
@@ -237,15 +239,22 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	status := "offline"
 	detail := "Account offline"
 	usable := false
+	inst.RefreshLoggedInFromClient()
 	snapshot := inst.Snapshot()
+	client := inst.GetClient()
+	hasSession := client != nil && client.Store != nil && client.Store.ID != nil
 	switch {
 	case cachedLoggedIn(snapshot.State):
 		status = "online"
 		detail = "Worker connected, client verified"
 		usable = true
-	case cachedConnected(snapshot.State):
+	case cachedConnected(snapshot.State) && !hasSession:
 		status = "qr_pending"
 		detail = "Connected but not authenticated"
+	case cachedConnected(snapshot.State) && hasSession:
+		status = "connecting"
+		detail = "Session reconnect in progress"
+		s.scheduleReconnect(req.GetAccountId(), "status check unauthenticated session")
 	case snapshot.Connecting || snapshot.State == domainDevice.DeviceStateConnecting:
 		status = "connecting"
 		detail = "Connection attempt in progress"
@@ -319,11 +328,16 @@ func (s *Service) GetConnectionState(ctx context.Context, req *bridgepb.Connecti
 	}
 	state := "DISCONNECTED"
 	if inst, ok := s.deps.DeviceManager.GetDevice(req.GetAccountId()); ok && inst != nil {
+		inst.RefreshLoggedInFromClient()
 		snapshot := inst.Snapshot()
+		client := inst.GetClient()
+		hasSession := client != nil && client.Store != nil && client.Store.ID != nil
 		if cachedLoggedIn(snapshot.State) {
 			state = "CONNECTED"
-		} else if cachedConnected(snapshot.State) {
+		} else if cachedConnected(snapshot.State) && !hasSession {
 			state = "QR_PENDING"
+		} else if cachedConnected(snapshot.State) && hasSession {
+			state = "CONNECTING"
 		} else if snapshot.Connecting || snapshot.State == domainDevice.DeviceStateConnecting {
 			state = "CONNECTING"
 		}

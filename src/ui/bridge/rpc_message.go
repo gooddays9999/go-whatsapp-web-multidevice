@@ -65,12 +65,18 @@ func (s *Service) accountContext(ctx context.Context, accountID string) (context
 	if client == nil || client.Store == nil || client.Store.ID == nil {
 		return nil, fmt.Errorf("account not connected")
 	}
-	if !cachedConnected(inst.Snapshot().State) {
+	state := inst.RefreshLoggedInFromClient()
+	if !cachedLoggedIn(state) && cachedConnected(state) {
+		client.Disconnect()
+		state = inst.MarkDisconnected()
+	}
+	if !cachedConnected(state) {
 		if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge account context connect"); err != nil {
 			return nil, err
 		}
+		state = inst.RefreshLoggedInFromClient()
 	}
-	if !cachedLoggedIn(inst.Snapshot().State) {
+	if !cachedLoggedIn(state) {
 		return nil, fmt.Errorf("account not logged in")
 	}
 	return whatsapp.ContextWithDevice(ctx, inst), nil
