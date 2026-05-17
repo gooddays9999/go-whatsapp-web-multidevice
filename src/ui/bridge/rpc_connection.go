@@ -30,7 +30,7 @@ func cachedLoggedIn(state domainDevice.DeviceState) bool {
 }
 
 func (s *Service) ensureClient(ctx context.Context, accountID, tenantID string, proxy *bridgepb.ProxyConfig, allowRequestProxy bool) (*whatsapp.DeviceInstance, *whatsmeow.Client, *BridgeEnvironment, error) {
-	env, _, err := s.envStore.GetOrCreate(ctx, accountID, tenantID, proxy, allowRequestProxy)
+	env, _, err := s.environmentForAccount(ctx, accountID, tenantID, proxy, allowRequestProxy)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -286,15 +286,25 @@ func (s *Service) canScheduleReconnect(ctx context.Context, accountID string, in
 	if s == nil || accountID == "" {
 		return false
 	}
+	var env *BridgeEnvironment
+	var err error
+	if s.accountProxyStore != nil {
+		env, _, err = s.environmentForAccount(ctx, accountID, "", nil, false)
+		if err != nil {
+			return false
+		}
+	}
 	if inst != nil {
 		client := inst.GetClient()
 		if client != nil && client.Store != nil && client.Store.ID != nil {
 			return true
 		}
 	}
-	env, err := s.envStore.Get(ctx, accountID)
-	if err != nil || env == nil {
-		return false
+	if env == nil {
+		env, err = s.envStore.Get(ctx, accountID)
+		if err != nil || env == nil {
+			return false
+		}
 	}
 	proxyURL, err := env.ProxyURL()
 	if err != nil {

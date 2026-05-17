@@ -29,6 +29,7 @@ type Config struct {
 	MediaDownloadPath           string
 	UploadMediaURL              string
 	UploadAPIKey                string
+	AccountDBDSN                string
 	DefaultProxy                ProxySpec
 }
 
@@ -62,6 +63,9 @@ type configFile struct {
 	UA struct {
 		FilePath string `yaml:"file_path"`
 	} `yaml:"ua"`
+	AccountDB struct {
+		DSN string `yaml:"dsn"`
+	} `yaml:"account_db"`
 	Proxy ProxySpec `yaml:"proxy"`
 }
 
@@ -167,6 +171,9 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	if fileCfg.UA.FilePath != "" {
 		cfg.UAFilePath = fileCfg.UA.FilePath
 	}
+	if fileCfg.AccountDB.DSN != "" {
+		cfg.AccountDBDSN = fileCfg.AccountDB.DSN
+	}
 	if fileCfg.Proxy.Type != "" || fileCfg.Proxy.Host != "" {
 		cfg.DefaultProxy = fileCfg.Proxy
 	}
@@ -247,6 +254,12 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := os.Getenv("UPLOAD_API_KEY"); value != "" {
 		cfg.UploadAPIKey = value
+	}
+	if value := os.Getenv("BRIDGE_ACCOUNT_DB_DSN"); value != "" {
+		cfg.AccountDBDSN = value
+	}
+	if value := os.Getenv("ACCOUNT_DB_DSN"); value != "" {
+		cfg.AccountDBDSN = value
 	}
 }
 

@@ -41,7 +41,7 @@ func (s *Service) accountContext(ctx context.Context, accountID string) (context
 	if accountID == "" {
 		return nil, fmt.Errorf("account_id is required")
 	}
-	env, err := s.envStore.Get(ctx, accountID)
+	env, _, err := s.environmentForAccount(ctx, accountID, "", nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -802,7 +802,7 @@ func (s *Service) recycleAccountClient(ctx context.Context, accountID string) er
 	if s == nil || s.envStore == nil || s.deps.DeviceManager == nil {
 		return fmt.Errorf("bridge service is not ready")
 	}
-	env, err := s.envStore.Get(ctx, accountID)
+	env, _, err := s.environmentForAccount(ctx, accountID, "", nil, false)
 	if err != nil {
 		return err
 	}

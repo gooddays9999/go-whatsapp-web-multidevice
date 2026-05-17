@@ -35,15 +35,16 @@ type Dependencies struct {
 type Service struct {
 	bridgepb.UnimplementedWhatsAppBridgeServer
 
-	cfg        Config
-	deps       Dependencies
-	envStore   *EnvironmentStore
-	uaPool     *UAPool
-	publisher  *NATSPublisher
-	grpcServer *grpc.Server
-	httpServer *http.Server
-	startedAt  time.Time
-	workerID   string
+	cfg               Config
+	deps              Dependencies
+	envStore          *EnvironmentStore
+	uaPool            *UAPool
+	publisher         *NATSPublisher
+	accountProxyStore *AccountProxyStore
+	grpcServer        *grpc.Server
+	httpServer        *http.Server
+	startedAt         time.Time
+	workerID          string
 
 	mu              sync.RWMutex
 	connected       map[string]time.Time
@@ -69,19 +70,29 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 	if cfg.StatusSendConcurrency <= 0 {
 		cfg.StatusSendConcurrency = 1
 	}
+	var accountProxyStore *AccountProxyStore
+	if cfg.AccountDBDSN != "" {
+		store, err := NewAccountProxyStore(cfg.AccountDBDSN)
+		if err != nil {
+			return nil, err
+		}
+		accountProxyStore = store
+		logrus.Info("bridge account database proxy resolver enabled")
+	}
 	workerID := fmt.Sprintf("%s-%d", cfg.InstanceID, os.Getpid())
 	service := &Service{
-		cfg:             cfg,
-		deps:            deps,
-		envStore:        envStore,
-		uaPool:          uaPool,
-		publisher:       NewNATSPublisher(cfg.NATSURL),
-		startedAt:       time.Now(),
-		workerID:        workerID,
-		connected:       make(map[string]time.Time),
-		statuses:        make(map[string]string),
-		reconnecting:    make(map[string]time.Time),
-		statusSendSlots: make(chan struct{}, cfg.StatusSendConcurrency),
+		cfg:               cfg,
+		deps:              deps,
+		envStore:          envStore,
+		uaPool:            uaPool,
+		publisher:         NewNATSPublisher(cfg.NATSURL),
+		accountProxyStore: accountProxyStore,
+		startedAt:         time.Now(),
+		workerID:          workerID,
+		connected:         make(map[string]time.Time),
+		statuses:          make(map[string]string),
+		reconnecting:      make(map[string]time.Time),
+		statusSendSlots:   make(chan struct{}, cfg.StatusSendConcurrency),
 	}
 	return service, nil
 }
@@ -103,6 +114,9 @@ func (s *Service) Shutdown(ctx context.Context) {
 	whatsapp.UnregisterEventSink("ims-bridge")
 	if s.publisher != nil {
 		s.publisher.Close()
+	}
+	if s.accountProxyStore != nil {
+		_ = s.accountProxyStore.Close()
 	}
 	if s.grpcServer != nil {
 		done := make(chan struct{})

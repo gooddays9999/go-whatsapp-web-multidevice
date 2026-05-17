@@ -59,6 +59,12 @@ func (s *Service) restorePersistedAccounts(ctx context.Context) {
 }
 
 func (s *Service) restorePersistedAccount(parent context.Context, env *BridgeEnvironment) {
+	resolvedEnv, _, err := s.environmentForAccount(parent, env.AccountID, env.TenantID, nil, false)
+	if err != nil {
+		logrus.WithError(err).WithField("account_id", env.AccountID).Warn("skipping bridge environment restore without current account proxy")
+		return
+	}
+	env = resolvedEnv
 	proxyURL, err := env.ProxyURL()
 	if err != nil {
 		logrus.WithError(err).WithField("account_id", env.AccountID).Warn("skipping bridge environment restore with invalid proxy")
