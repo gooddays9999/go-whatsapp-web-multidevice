@@ -490,6 +490,22 @@ func (m *DeviceManager) EnsureClient(ctx context.Context, deviceID string) (*Dev
 	return m.EnsureClientWithEnvironment(ctx, deviceID, ClientEnvironment{})
 }
 
+// RecreateClientWithEnvironment drops the in-memory WhatsApp client for a device
+// and builds a fresh client from the persisted store/session.
+func (m *DeviceManager) RecreateClientWithEnvironment(ctx context.Context, deviceID string, env ClientEnvironment) (*DeviceInstance, error) {
+	if m == nil {
+		return nil, fmt.Errorf("device manager not initialized")
+	}
+	inst := m.ensureInstance(deviceID)
+	if existing := inst.GetClient(); existing != nil {
+		existing.EnableAutoReconnect = false
+		existing.Disconnect()
+	}
+	inst.SetClient(nil)
+	inst.SetState(domainDevice.DeviceStateDisconnected)
+	return m.EnsureClientWithEnvironment(ctx, deviceID, env)
+}
+
 // EnsureClientWithEnvironment returns a device instance with an initialized WhatsApp client
 // and applies bridge environment settings before the client connects.
 func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceID string, env ClientEnvironment) (*DeviceInstance, error) {

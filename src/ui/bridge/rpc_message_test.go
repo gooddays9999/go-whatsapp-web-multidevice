@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"image"
 	"image/png"
@@ -31,6 +32,21 @@ func TestIsDisconnectedSendError(t *testing.T) {
 	}
 	if isDisconnectedSendError(errors.New("rate limited by WhatsApp")) {
 		t.Fatal("non-connection error should not trigger reconnect")
+	}
+}
+
+func TestShouldRecycleStatusClient(t *testing.T) {
+	if !shouldRecycleStatusClient("ensureStatusRecipients", context.DeadlineExceeded) {
+		t.Fatal("recipient timeout should recycle status client")
+	}
+	if !shouldRecycleStatusClient("SendMessage", context.Canceled) {
+		t.Fatal("send cancellation should recycle status client")
+	}
+	if shouldRecycleStatusClient("queue", context.DeadlineExceeded) {
+		t.Fatal("queue timeout should not recycle status client")
+	}
+	if shouldRecycleStatusClient("buildMessage", errors.New("status content or media_url is required")) {
+		t.Fatal("validation error should not recycle status client")
 	}
 }
 

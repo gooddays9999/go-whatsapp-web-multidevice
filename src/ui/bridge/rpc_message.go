@@ -379,6 +379,7 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	if err != nil {
 		stageErr := statusStageError("accountContext", accountTimeout, err)
 		logStatusStageFailure(accountID, "accountContext", accountStart, stageErr, nil)
+		s.handleStatusStageFailure(accountID, nil, "accountContext", err)
 		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
 	logStatusStageSuccess(accountID, "accountContext", accountStart, nil)
@@ -398,6 +399,7 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	if err != nil {
 		stageErr := statusStageError("queue", queueTimeout, err)
 		logStatusStageFailure(accountID, "queue", queueStart, stageErr, nil)
+		s.handleStatusStageFailure(accountID, inst, "queue", err)
 		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
 	defer release()
@@ -409,9 +411,9 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	recipientCount, err := ensureStatusRecipients(recipientCtx, client)
 	recipientCancel()
 	if err != nil {
-		s.handleStatusSendFailure(accountID, inst, err)
 		stageErr := statusStageError("ensureStatusRecipients", recipientTimeout, err)
 		logStatusStageFailure(accountID, "ensureStatusRecipients", recipientStart, stageErr, nil)
+		s.handleStatusStageFailure(accountID, inst, "ensureStatusRecipients", err)
 		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
 	logStatusStageSuccess(accountID, "ensureStatusRecipients", recipientStart, logrus.Fields{"recipients": recipientCount})
@@ -424,6 +426,7 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	if err != nil {
 		stageErr := statusStageError("buildMessage", buildTimeout, err)
 		logStatusStageFailure(accountID, "buildMessage", buildStart, stageErr, nil)
+		s.handleStatusStageFailure(accountID, inst, "buildMessage", err)
 		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
 	logStatusStageSuccess(accountID, "buildMessage", buildStart, logrus.Fields{
@@ -443,12 +446,12 @@ func (s *Service) SendStatus(ctx context.Context, req *bridgepb.SendStatusReques
 	ts, err := client.SendMessage(sendCtx, types.StatusBroadcastJID, msg)
 	sendCancel()
 	if err != nil {
-		s.handleStatusSendFailure(accountID, inst, err)
 		stageErr := statusStageError("SendMessage", sendTimeout, err)
 		logStatusStageFailure(accountID, "SendMessage", sendStart, stageErr, logrus.Fields{
 			"kind":       statusMessageKind(msg),
 			"recipients": recipientCount,
 		})
+		s.handleStatusStageFailure(accountID, inst, "SendMessage", err)
 		return &bridgepb.SendStatusResponse{Success: false, Error: stageErr.Error()}, nil
 	}
 	logStatusStageSuccess(accountID, "SendMessage", sendStart, logrus.Fields{
@@ -571,16 +574,54 @@ func (s *Service) acquireStatusSendSlot(ctx context.Context) (func(), error) {
 	return release, nil
 }
 
+func (s *Service) handleStatusStageFailure(accountID string, inst *whatsapp.DeviceInstance, stage string, err error) {
+	switch {
+	case shouldRecycleStatusClient(stage, err):
+		if inst != nil {
+			state := inst.MarkDisconnected()
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"account_id": accountID,
+				"stage":      stage,
+				"state":      state,
+			}).Warn("WhatsApp status stage timed out, recycling account client")
+		} else {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"account_id": accountID,
+				"stage":      stage,
+			}).Warn("WhatsApp status stage timed out, recycling account client")
+		}
+		s.markDisconnected(accountID)
+		s.scheduleClientRecycle(accountID, "status "+stage+" timeout")
+	case isDisconnectedSendError(err):
+		s.handleStatusSendFailure(accountID, inst, err)
+	}
+}
+
+func shouldRecycleStatusClient(stage string, err error) bool {
+	if err == nil {
+		return false
+	}
+	switch stage {
+	case "accountContext", "ensureStatusRecipients", "SendMessage":
+	default:
+		return false
+	}
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
 func (s *Service) handleStatusSendFailure(accountID string, inst *whatsapp.DeviceInstance, err error) {
-	if !isDisconnectedSendError(err) || inst == nil {
+	if !isDisconnectedSendError(err) {
 		return
 	}
-	state := inst.UpdateStateFromClient()
+	state := ""
+	if inst != nil {
+		state = string(inst.UpdateStateFromClient())
+	}
 	logrus.WithError(err).WithFields(logrus.Fields{
 		"account_id": accountID,
 		"state":      state,
 	}).Warn("WhatsApp websocket disconnected during status send, scheduling reconnect")
-	if !cachedConnected(state) {
+	if inst == nil || !cachedConnected(inst.State()) {
 		s.markDisconnected(accountID)
 	}
 	s.scheduleReconnect(accountID, "status send websocket disconnected")
@@ -606,6 +647,14 @@ func isDisconnectedSendError(err error) bool {
 }
 
 func (s *Service) scheduleReconnect(accountID, reason string) {
+	s.scheduleReconnectWithMode(accountID, reason, false)
+}
+
+func (s *Service) scheduleClientRecycle(accountID, reason string) {
+	s.scheduleReconnectWithMode(accountID, reason, true)
+}
+
+func (s *Service) scheduleReconnectWithMode(accountID, reason string, recycle bool) {
 	if s == nil || accountID == "" {
 		return
 	}
@@ -631,18 +680,70 @@ func (s *Service) scheduleReconnect(accountID, reason string) {
 		timeout := s.connectTimeout()
 		ctx, cancel := context.WithTimeout(context.Background(), timeout+5*time.Second)
 		defer cancel()
-		if _, err := s.accountContext(ctx, accountID); err != nil {
+		var err error
+		if recycle {
+			err = s.recycleAccountClient(ctx, accountID)
+		} else {
+			_, err = s.accountContext(ctx, accountID)
+		}
+		if err != nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
 				"account_id": accountID,
 				"reason":     reason,
+				"recycle":    recycle,
 			}).Warn("scheduled WhatsApp reconnect failed")
 			return
 		}
 		logrus.WithFields(logrus.Fields{
 			"account_id": accountID,
 			"reason":     reason,
+			"recycle":    recycle,
 		}).Info("scheduled WhatsApp reconnect completed")
 	}()
+}
+
+func (s *Service) recycleAccountClient(ctx context.Context, accountID string) error {
+	if s == nil || s.envStore == nil || s.deps.DeviceManager == nil {
+		return fmt.Errorf("bridge service is not ready")
+	}
+	env, err := s.envStore.Get(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if env == nil {
+		return fmt.Errorf("account not connected")
+	}
+	proxyURL, err := env.ProxyURL()
+	if err != nil {
+		return err
+	}
+	inst, err := s.deps.DeviceManager.RecreateClientWithEnvironment(ctx, accountID, whatsapp.ClientEnvironment{
+		ProxyAddress:    proxyURL,
+		ProxyConfigured: true,
+		UserAgent:       env.UserAgent,
+		BrowserFamily:   env.BrowserFamily,
+		OSName:          env.OSName,
+	})
+	if err != nil {
+		return err
+	}
+	if inst == nil || inst.GetClient() == nil {
+		return fmt.Errorf("account client is nil after recycle")
+	}
+	if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge account client recycle"); err != nil {
+		return err
+	}
+	if !cachedLoggedIn(inst.RefreshLoggedInFromClient()) {
+		return fmt.Errorf("account not logged in after client recycle")
+	}
+	s.markConnected(accountID)
+	s.publish("account.connected", accountID, map[string]any{
+		"phoneNumber": inst.PhoneNumber(),
+		"workerId":    s.workerID,
+		"connectedAt": time.Now().UnixMilli(),
+		"verified":    true,
+	})
+	return nil
 }
 
 func ensureStatusRecipients(ctx context.Context, client *whatsmeow.Client) (int, error) {
