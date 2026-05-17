@@ -48,6 +48,12 @@ func TestShouldRecycleStatusClient(t *testing.T) {
 	if shouldRecycleStatusClient("buildMessage", errors.New("status content or media_url is required")) {
 		t.Fatal("validation error should not recycle status client")
 	}
+	if !shouldRecycleAccountClient(context.DeadlineExceeded) {
+		t.Fatal("account operation deadline should recycle account client")
+	}
+	if shouldRecycleAccountClient(errors.New("rate limited by WhatsApp")) {
+		t.Fatal("business error should not recycle account client")
+	}
 }
 
 func TestBuildStatusMessageUsesExtendedText(t *testing.T) {

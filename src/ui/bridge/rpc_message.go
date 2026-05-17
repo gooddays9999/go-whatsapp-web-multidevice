@@ -89,17 +89,26 @@ func (s *Service) SendMessage(ctx context.Context, req *bridgepb.SendMessageRequ
 		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetTo(), "error": err.Error()})
 		return nil, grpcError(err)
 	}
-	resp, err := s.deps.SendUsecase.SendText(scoped, domainSend.MessageRequest{
+	inst, _ := whatsapp.DeviceFromContext(scoped)
+	timeout := statusTimeout(s.cfg.MessageSendTimeout, 25*time.Second)
+	start := logAccountOperationStart(req.GetAccountId(), "SendMessage", timeout, logrus.Fields{"to": req.GetTo()})
+	sendCtx, cancel := statusDeviceContext(ctx, inst, timeout)
+	resp, err := s.deps.SendUsecase.SendText(sendCtx, domainSend.MessageRequest{
 		BaseRequest:    domainSend.BaseRequest{Phone: req.GetTo()},
 		Message:        req.GetContent().GetText(),
 		ReplyMessageID: optionalString(req.GetQuotedMsgId()),
 	})
+	cancel()
 	if err != nil {
-		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetTo(), "error": err.Error()})
-		return &bridgepb.SendMessageResponse{Success: false, Status: "failed", Error: err.Error()}, nil
+		stageErr := accountOperationError("SendMessage", timeout, err)
+		logAccountOperationFailure(req.GetAccountId(), "SendMessage", start, stageErr, logrus.Fields{"to": req.GetTo()})
+		s.handleAccountOperationFailure(req.GetAccountId(), inst, "SendMessage", err)
+		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetTo(), "error": stageErr.Error()})
+		return &bridgepb.SendMessageResponse{Success: false, Status: "failed", Error: stageErr.Error()}, nil
 	}
 	s.markRecentIncomingAsRead(scoped, req.GetTo())
 	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": resp.MessageID, "to": req.GetTo()})
+	logAccountOperationSuccess(req.GetAccountId(), "SendMessage", start, logrus.Fields{"to": req.GetTo(), "message_id": resp.MessageID})
 	return &bridgepb.SendMessageResponse{Success: true, MessageId: resp.MessageID, Status: "sent"}, nil
 }
 
@@ -240,18 +249,26 @@ func (s *Service) ReactToMessage(ctx context.Context, req *bridgepb.ReactToMessa
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	resp, err := s.deps.MessageUsecase.ReactMessage(scoped, domainMessage.ReactionRequest{
+	timeout := statusTimeout(s.cfg.MessageReactionTimeout, 15*time.Second)
+	start := logAccountOperationStart(req.GetAccountId(), "ReactToMessage", timeout, logrus.Fields{"message_id": msg.ID})
+	reactCtx, cancel := statusDeviceContext(ctx, inst, timeout)
+	resp, err := s.deps.MessageUsecase.ReactMessage(reactCtx, domainMessage.ReactionRequest{
 		MessageID: msg.ID,
 		Phone:     msg.ChatJID,
 		Emoji:     req.GetEmoji(),
 	})
+	cancel()
 	if err != nil {
-		return &bridgepb.ReactToMessageResponse{Success: false, MessageId: msg.ID, Emoji: req.GetEmoji(), Error: err.Error()}, nil
+		stageErr := accountOperationError("ReactToMessage", timeout, err)
+		logAccountOperationFailure(req.GetAccountId(), "ReactToMessage", start, stageErr, logrus.Fields{"message_id": msg.ID})
+		s.handleAccountOperationFailure(req.GetAccountId(), inst, "ReactToMessage", err)
+		return &bridgepb.ReactToMessageResponse{Success: false, MessageId: msg.ID, Emoji: req.GetEmoji(), Error: stageErr.Error()}, nil
 	}
 	action := "add"
 	if req.GetEmoji() == "" {
 		action = "remove"
 	}
+	logAccountOperationSuccess(req.GetAccountId(), "ReactToMessage", start, logrus.Fields{"message_id": msg.ID, "action": action})
 	return &bridgepb.ReactToMessageResponse{Success: true, MessageId: resp.MessageID, Emoji: req.GetEmoji(), Action: action}, nil
 }
 
@@ -498,6 +515,58 @@ func statusStageError(stage string, timeout time.Duration, err error) error {
 	}
 }
 
+func accountOperationError(operation string, timeout time.Duration, err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("%s timed out after %s: %w", operation, timeout, err)
+	case errors.Is(err, context.Canceled):
+		return fmt.Errorf("%s cancelled after %s: %w", operation, timeout, err)
+	default:
+		return fmt.Errorf("%s failed: %w", operation, err)
+	}
+}
+
+func logAccountOperationStart(accountID, operation string, timeout time.Duration, fields logrus.Fields) time.Time {
+	start := time.Now()
+	logFields := logrus.Fields{
+		"account_id": accountID,
+		"operation":  operation,
+		"timeout_ms": timeout.Milliseconds(),
+	}
+	for key, value := range fields {
+		logFields[key] = value
+	}
+	logrus.WithFields(logFields).Info("WhatsApp account operation started")
+	return start
+}
+
+func logAccountOperationSuccess(accountID, operation string, start time.Time, fields logrus.Fields) {
+	logFields := logrus.Fields{
+		"account_id":  accountID,
+		"operation":   operation,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	for key, value := range fields {
+		logFields[key] = value
+	}
+	logrus.WithFields(logFields).Info("WhatsApp account operation completed")
+}
+
+func logAccountOperationFailure(accountID, operation string, start time.Time, err error, fields logrus.Fields) {
+	logFields := logrus.Fields{
+		"account_id":  accountID,
+		"operation":   operation,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	for key, value := range fields {
+		logFields[key] = value
+	}
+	logrus.WithError(err).WithFields(logFields).Warn("WhatsApp account operation failed")
+}
+
 func logStatusStageStart(accountID, stage string, timeout time.Duration) time.Time {
 	start := time.Now()
 	logrus.WithFields(logrus.Fields{
@@ -597,6 +666,29 @@ func (s *Service) handleStatusStageFailure(accountID string, inst *whatsapp.Devi
 	}
 }
 
+func (s *Service) handleAccountOperationFailure(accountID string, inst *whatsapp.DeviceInstance, operation string, err error) {
+	switch {
+	case shouldRecycleAccountClient(err):
+		if inst != nil {
+			state := inst.MarkDisconnected()
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"account_id": accountID,
+				"operation":  operation,
+				"state":      state,
+			}).Warn("WhatsApp account operation timed out, recycling account client")
+		} else {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"account_id": accountID,
+				"operation":  operation,
+			}).Warn("WhatsApp account operation timed out, recycling account client")
+		}
+		s.markDisconnected(accountID)
+		s.scheduleClientRecycle(accountID, operation+" timeout")
+	case isDisconnectedSendError(err):
+		s.handleStatusSendFailure(accountID, inst, err)
+	}
+}
+
 func shouldRecycleStatusClient(stage string, err error) bool {
 	if err == nil {
 		return false
@@ -606,6 +698,10 @@ func shouldRecycleStatusClient(stage string, err error) bool {
 	default:
 		return false
 	}
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+func shouldRecycleAccountClient(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 

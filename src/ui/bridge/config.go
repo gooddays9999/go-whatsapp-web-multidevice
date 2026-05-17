@@ -24,6 +24,8 @@ type Config struct {
 	StatusRecipientTimeout      time.Duration
 	StatusBuildTimeout          time.Duration
 	StatusMessageTimeout        time.Duration
+	MessageSendTimeout          time.Duration
+	MessageReactionTimeout      time.Duration
 	MediaDownloadPath           string
 	UploadMediaURL              string
 	UploadAPIKey                string
@@ -46,6 +48,8 @@ type configFile struct {
 		StatusRecipientTimeoutMS      int `yaml:"status_recipient_timeout_ms"`
 		StatusBuildTimeoutMS          int `yaml:"status_build_timeout_ms"`
 		StatusMessageTimeoutMS        int `yaml:"status_message_timeout_ms"`
+		MessageSendTimeoutMS          int `yaml:"message_send_timeout_ms"`
+		MessageReactionTimeoutMS      int `yaml:"message_reaction_timeout_ms"`
 	} `yaml:"worker"`
 	NATS struct {
 		URL string `yaml:"url"`
@@ -85,6 +89,8 @@ func LoadConfig() Config {
 		StatusRecipientTimeout:      8 * time.Second,
 		StatusBuildTimeout:          30 * time.Second,
 		StatusMessageTimeout:        25 * time.Second,
+		MessageSendTimeout:          25 * time.Second,
+		MessageReactionTimeout:      15 * time.Second,
 		MediaDownloadPath:           "/tmp/media",
 		UploadMediaURL:              "http://localhost:8080/internal/media/upload",
 		UploadAPIKey:                "",
@@ -139,6 +145,12 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	}
 	if fileCfg.Worker.StatusMessageTimeoutMS > 0 {
 		cfg.StatusMessageTimeout = time.Duration(fileCfg.Worker.StatusMessageTimeoutMS) * time.Millisecond
+	}
+	if fileCfg.Worker.MessageSendTimeoutMS > 0 {
+		cfg.MessageSendTimeout = time.Duration(fileCfg.Worker.MessageSendTimeoutMS) * time.Millisecond
+	}
+	if fileCfg.Worker.MessageReactionTimeoutMS > 0 {
+		cfg.MessageReactionTimeout = time.Duration(fileCfg.Worker.MessageReactionTimeoutMS) * time.Millisecond
 	}
 	if fileCfg.NATS.URL != "" {
 		cfg.NATSURL = fileCfg.NATS.URL
@@ -218,6 +230,16 @@ func applyEnvOverrides(cfg *Config) {
 	if value := os.Getenv("BRIDGE_STATUS_MESSAGE_TIMEOUT_MS"); value != "" {
 		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
 			cfg.StatusMessageTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_MESSAGE_SEND_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.MessageSendTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_MESSAGE_REACTION_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.MessageReactionTimeout = time.Duration(milliseconds) * time.Millisecond
 		}
 	}
 	if value := os.Getenv("UPLOAD_MEDIA_URL"); value != "" {
