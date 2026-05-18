@@ -29,6 +29,10 @@ func cachedLoggedIn(state domainDevice.DeviceState) bool {
 	return state == domainDevice.DeviceStateLoggedIn
 }
 
+func clientHasPersistedSession(client *whatsmeow.Client) bool {
+	return client != nil && client.Store != nil && client.Store.ID != nil
+}
+
 func (s *Service) ensureClient(ctx context.Context, accountID, tenantID string, proxy *bridgepb.ProxyConfig, allowRequestProxy bool) (*whatsapp.DeviceInstance, *whatsmeow.Client, *BridgeEnvironment, error) {
 	env, _, err := s.environmentForAccount(ctx, accountID, tenantID, proxy, allowRequestProxy)
 	if err != nil {
@@ -195,7 +199,7 @@ func (s *Service) GetLinkCode(ctx context.Context, req *bridgepb.LinkCodeRequest
 	if req.GetAccountId() == "" || req.GetPhoneNumber() == "" {
 		return nil, grpcError(fmt.Errorf("account_id and phone_number are required"))
 	}
-	inst, client, _, err := s.ensureClient(ctx, req.GetAccountId(), "", nil, false)
+	inst, client, env, err := s.ensureClient(ctx, req.GetAccountId(), "", nil, false)
 	if err != nil {
 		return nil, grpcError(err)
 	}
@@ -215,7 +219,19 @@ func (s *Service) GetLinkCode(ctx context.Context, req *bridgepb.LinkCodeRequest
 	if !cachedConnected(snapshot.State) {
 		return nil, grpcError(fmt.Errorf("account connection is not ready"))
 	}
-	code, err := client.PairPhone(ctx, req.GetPhoneNumber(), true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+	pairType, pairDisplay := pairClientInfo(env)
+	fields := logrus.Fields{
+		"account_id":       req.GetAccountId(),
+		"pair_client_type": pairType,
+		"pair_display":     pairDisplay,
+	}
+	if env != nil {
+		fields["browser_family"] = env.BrowserFamily
+		fields["os_name"] = env.OSName
+		fields["user_agent"] = env.UserAgent
+	}
+	logrus.WithFields(fields).Info("bridge link code using account device info")
+	code, err := client.PairPhone(ctx, req.GetPhoneNumber(), true, pairType, pairDisplay)
 	if err != nil {
 		return nil, grpcError(err)
 	}
@@ -234,6 +250,18 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 			s.scheduleReconnect(req.GetAccountId(), "status check missing in-memory client")
 			return &bridgepb.AccountStatusResponse{AccountId: req.GetAccountId(), Status: "connecting", StatusDetail: "Reconnect scheduled", IsUsable: false}, nil
 		}
+		if created, exists := s.deps.DeviceManager.GetDevice(req.GetAccountId()); exists && created != nil {
+			client := created.GetClient()
+			if client != nil && !clientHasPersistedSession(client) {
+				return &bridgepb.AccountStatusResponse{
+					AccountId:    req.GetAccountId(),
+					Status:       "qr_pending",
+					StatusDetail: "No persisted WhatsApp session; login required",
+					IsUsable:     false,
+					Windows:      []*bridgepb.BrowserWindow{},
+				}, nil
+			}
+		}
 		return &bridgepb.AccountStatusResponse{AccountId: req.GetAccountId(), Status: "offline", StatusDetail: "Account not connected", IsUsable: false}, nil
 	}
 	status := "offline"
@@ -242,7 +270,7 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	inst.RefreshLoggedInFromClient()
 	snapshot := inst.Snapshot()
 	client := inst.GetClient()
-	hasSession := client != nil && client.Store != nil && client.Store.ID != nil
+	hasSession := clientHasPersistedSession(client)
 	switch {
 	case cachedLoggedIn(snapshot.State):
 		status = "online"
@@ -251,6 +279,9 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	case cachedConnected(snapshot.State) && !hasSession:
 		status = "qr_pending"
 		detail = "Connected but not authenticated"
+	case client != nil && !hasSession:
+		status = "qr_pending"
+		detail = "No persisted WhatsApp session; login required"
 	case cachedConnected(snapshot.State) && hasSession:
 		status = "connecting"
 		detail = "Session reconnect in progress"
