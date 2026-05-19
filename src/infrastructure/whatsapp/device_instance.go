@@ -220,6 +220,16 @@ func (d *DeviceInstance) SetClient(client *whatsmeow.Client) {
 	d.state = domainDevice.DeviceStateDisconnected
 }
 
+func (d *DeviceInstance) ResetSessionMetadata() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.jid = ""
+	d.displayName = ""
+	d.phoneNumber = ""
+	d.state = domainDevice.DeviceStateDisconnected
+	d.lastConnectErr = ""
+}
+
 // SetChatStorage swaps the chat storage repository for this device.
 func (d *DeviceInstance) SetChatStorage(repo domainChatStorage.IChatStorageRepository) {
 	d.mu.Lock()

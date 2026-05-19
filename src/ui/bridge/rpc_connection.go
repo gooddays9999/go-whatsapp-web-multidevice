@@ -12,6 +12,7 @@ import (
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store"
 )
 
 func (s *Service) connectTimeout() time.Duration {
@@ -31,6 +32,10 @@ func cachedLoggedIn(state domainDevice.DeviceState) bool {
 
 func clientHasPersistedSession(client *whatsmeow.Client) bool {
 	return client != nil && client.Store != nil && client.Store.ID != nil
+}
+
+func isDeletedWhatsmeowDevice(err error) bool {
+	return errors.Is(err, store.ErrDeviceDeleted)
 }
 
 func (s *Service) ensureClient(ctx context.Context, accountID, tenantID string, proxy *bridgepb.ProxyConfig, allowRequestProxy bool) (*whatsapp.DeviceInstance, *whatsmeow.Client, *BridgeEnvironment, error) {
@@ -236,6 +241,31 @@ func (s *Service) GetLinkCode(ctx context.Context, req *bridgepb.LinkCodeRequest
 	}
 	logrus.WithFields(fields).Info("bridge link code using account device info")
 	code, err := client.PairPhone(ctx, req.GetPhoneNumber(), true, pairType, pairDisplay)
+	if isDeletedWhatsmeowDevice(err) {
+		logrus.WithError(err).WithField("account_id", req.GetAccountId()).Warn("bridge link code found deleted whatsmeow device, recreating pairing client")
+		proxyURL, proxyErr := env.ProxyURL()
+		if proxyErr != nil {
+			return nil, grpcError(proxyErr)
+		}
+		inst, err = s.deps.DeviceManager.RecreateClientWithEnvironment(ctx, req.GetAccountId(), whatsapp.ClientEnvironment{
+			ProxyAddress:    proxyURL,
+			ProxyConfigured: true,
+			UserAgent:       env.UserAgent,
+			BrowserFamily:   env.BrowserFamily,
+			OSName:          env.OSName,
+		})
+		if err != nil {
+			return nil, grpcError(err)
+		}
+		client = inst.GetClient()
+		if client == nil {
+			return nil, grpcError(fmt.Errorf("account client is nil after recreate"))
+		}
+		if err := s.connectWithSlot(ctx, inst, req.GetAccountId(), "bridge link code recreate connect", s.connectTimeout()); err != nil {
+			return nil, grpcError(err)
+		}
+		code, err = client.PairPhone(ctx, req.GetPhoneNumber(), true, pairType, pairDisplay)
+	}
 	if err != nil {
 		return nil, grpcError(err)
 	}

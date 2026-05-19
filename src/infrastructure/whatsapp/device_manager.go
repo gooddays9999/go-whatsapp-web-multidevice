@@ -497,11 +497,16 @@ func (m *DeviceManager) RecreateClientWithEnvironment(ctx context.Context, devic
 		return nil, fmt.Errorf("device manager not initialized")
 	}
 	inst := m.ensureInstance(deviceID)
+	resetSessionMetadata := false
 	if existing := inst.GetClient(); existing != nil {
+		resetSessionMetadata = existing.Store != nil && existing.Store.Deleted
 		existing.EnableAutoReconnect = false
 		existing.Disconnect()
 	}
 	inst.SetClient(nil)
+	if resetSessionMetadata {
+		inst.ResetSessionMetadata()
+	}
 	inst.SetState(domainDevice.DeviceStateDisconnected)
 	return m.EnsureClientWithEnvironment(ctx, deviceID, env)
 }
@@ -518,14 +523,22 @@ func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceI
 		inst.SetEnvironment(env.ProxyAddress, env.UserAgent, env.BrowserFamily, env.OSName)
 	}
 	if existing := inst.GetClient(); existing != nil {
-		existing.EnableAutoReconnect = true
-		existing.SetForceActiveDeliveryReceipts(true)
-		if env.ProxyConfigured {
-			if err := existing.SetProxyAddress(env.ProxyAddress); err != nil {
-				return nil, fmt.Errorf("failed to configure proxy: %w", err)
+		if existing.Store != nil && existing.Store.Deleted {
+			logrus.WithField("device_id", deviceID).Warn("[DEVICE_MANAGER] dropping deleted whatsmeow store before recreating client")
+			existing.EnableAutoReconnect = false
+			existing.Disconnect()
+			inst.SetClient(nil)
+			inst.ResetSessionMetadata()
+		} else {
+			existing.EnableAutoReconnect = true
+			existing.SetForceActiveDeliveryReceipts(true)
+			if env.ProxyConfigured {
+				if err := existing.SetProxyAddress(env.ProxyAddress); err != nil {
+					return nil, fmt.Errorf("failed to configure proxy: %w", err)
+				}
 			}
+			return inst, nil
 		}
-		return inst, nil
 	}
 
 	storeDevice, err := m.getOrCreateStoreDevice(ctx, deviceID)
