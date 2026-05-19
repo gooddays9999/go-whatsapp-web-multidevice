@@ -66,16 +66,16 @@ func (s *Service) accountContext(ctx context.Context, accountID string) (context
 	if client == nil || client.Store == nil || client.Store.ID == nil {
 		return nil, fmt.Errorf("account not connected")
 	}
-	state := inst.RefreshLoggedInFromClient()
+	state := inst.UpdateStateFromClient()
 	if !cachedLoggedIn(state) && cachedConnected(state) {
 		client.Disconnect()
 		state = inst.MarkDisconnected()
 	}
 	if !cachedConnected(state) {
-		if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge account context connect"); err != nil {
+		if err := s.connectWithSlot(ctx, inst, accountID, "bridge account context connect", s.connectTimeout()); err != nil {
 			return nil, err
 		}
-		state = inst.RefreshLoggedInFromClient()
+		state = inst.UpdateStateFromClient()
 	}
 	if !cachedLoggedIn(state) {
 		return nil, fmt.Errorf("account not logged in")
@@ -826,10 +826,10 @@ func (s *Service) recycleAccountClient(ctx context.Context, accountID string) er
 	if inst == nil || inst.GetClient() == nil {
 		return fmt.Errorf("account client is nil after recycle")
 	}
-	if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge account client recycle"); err != nil {
+	if err := s.connectWithSlot(ctx, inst, accountID, "bridge account client recycle", s.connectTimeout()); err != nil {
 		return err
 	}
-	if !cachedLoggedIn(inst.RefreshLoggedInFromClient()) {
+	if !cachedLoggedIn(inst.UpdateStateFromClient()) {
 		return fmt.Errorf("account not logged in after client recycle")
 	}
 	s.markConnected(accountID)

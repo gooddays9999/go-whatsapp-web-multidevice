@@ -18,6 +18,9 @@ func (s *Service) restorePersistedAccounts(ctx context.Context) {
 	if s == nil || s.envStore == nil || s.deps.DeviceManager == nil {
 		return
 	}
+	s.setRestoring(true)
+	defer s.setRestoring(false)
+
 	timer := time.NewTimer(startupRestoreDelay)
 	select {
 	case <-timer.C:
@@ -56,6 +59,24 @@ func (s *Service) restorePersistedAccounts(ctx context.Context) {
 	}
 	wg.Wait()
 	logrus.Info("bridge environment restore finished")
+}
+
+func (s *Service) setRestoring(restoring bool) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.restoring = restoring
+	s.mu.Unlock()
+}
+
+func (s *Service) isRestoring() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.restoring
 }
 
 func (s *Service) restorePersistedAccount(parent context.Context, env *BridgeEnvironment) {

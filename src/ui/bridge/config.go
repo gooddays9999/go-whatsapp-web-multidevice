@@ -26,6 +26,8 @@ type Config struct {
 	StatusMessageTimeout        time.Duration
 	MessageSendTimeout          time.Duration
 	MessageReactionTimeout      time.Duration
+	ReconnectConcurrency        int
+	ReconnectQueueTimeout       time.Duration
 	MediaDownloadPath           string
 	UploadMediaURL              string
 	UploadAPIKey                string
@@ -51,6 +53,8 @@ type configFile struct {
 		StatusMessageTimeoutMS        int `yaml:"status_message_timeout_ms"`
 		MessageSendTimeoutMS          int `yaml:"message_send_timeout_ms"`
 		MessageReactionTimeoutMS      int `yaml:"message_reaction_timeout_ms"`
+		ReconnectConcurrency          int `yaml:"reconnect_concurrency"`
+		ReconnectQueueTimeoutMS       int `yaml:"reconnect_queue_timeout_ms"`
 	} `yaml:"worker"`
 	NATS struct {
 		URL string `yaml:"url"`
@@ -95,6 +99,8 @@ func LoadConfig() Config {
 		StatusMessageTimeout:        25 * time.Second,
 		MessageSendTimeout:          25 * time.Second,
 		MessageReactionTimeout:      15 * time.Second,
+		ReconnectConcurrency:        3,
+		ReconnectQueueTimeout:       3 * time.Second,
 		MediaDownloadPath:           "/tmp/media",
 		UploadMediaURL:              "http://localhost:8080/internal/media/upload",
 		UploadAPIKey:                "",
@@ -155,6 +161,12 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	}
 	if fileCfg.Worker.MessageReactionTimeoutMS > 0 {
 		cfg.MessageReactionTimeout = time.Duration(fileCfg.Worker.MessageReactionTimeoutMS) * time.Millisecond
+	}
+	if fileCfg.Worker.ReconnectConcurrency > 0 {
+		cfg.ReconnectConcurrency = fileCfg.Worker.ReconnectConcurrency
+	}
+	if fileCfg.Worker.ReconnectQueueTimeoutMS > 0 {
+		cfg.ReconnectQueueTimeout = time.Duration(fileCfg.Worker.ReconnectQueueTimeoutMS) * time.Millisecond
 	}
 	if fileCfg.NATS.URL != "" {
 		cfg.NATSURL = fileCfg.NATS.URL
@@ -247,6 +259,16 @@ func applyEnvOverrides(cfg *Config) {
 	if value := os.Getenv("BRIDGE_MESSAGE_REACTION_TIMEOUT_MS"); value != "" {
 		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
 			cfg.MessageReactionTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_RECONNECT_CONCURRENCY"); value != "" {
+		if concurrency, err := strconv.Atoi(value); err == nil && concurrency > 0 {
+			cfg.ReconnectConcurrency = concurrency
+		}
+	}
+	if value := os.Getenv("BRIDGE_RECONNECT_QUEUE_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.ReconnectQueueTimeout = time.Duration(milliseconds) * time.Millisecond
 		}
 	}
 	if value := os.Getenv("UPLOAD_MEDIA_URL"); value != "" {

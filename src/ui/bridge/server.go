@@ -50,6 +50,8 @@ type Service struct {
 	connected       map[string]time.Time
 	statuses        map[string]string
 	reconnecting    map[string]time.Time
+	restoring       bool
+	reconnectSlots  chan struct{}
 	statusSendSlots chan struct{}
 	statusSendMu    sync.Mutex
 	lastStatusSend  time.Time
@@ -69,6 +71,12 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 	}
 	if cfg.StatusSendConcurrency <= 0 {
 		cfg.StatusSendConcurrency = 1
+	}
+	if cfg.ReconnectConcurrency <= 0 {
+		cfg.ReconnectConcurrency = 3
+	}
+	if cfg.ReconnectQueueTimeout <= 0 {
+		cfg.ReconnectQueueTimeout = 3 * time.Second
 	}
 	var accountProxyStore *AccountProxyStore
 	if cfg.AccountDBDSN != "" {
@@ -92,6 +100,7 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 		connected:         make(map[string]time.Time),
 		statuses:          make(map[string]string),
 		reconnecting:      make(map[string]time.Time),
+		reconnectSlots:    make(chan struct{}, cfg.ReconnectConcurrency),
 		statusSendSlots:   make(chan struct{}, cfg.StatusSendConcurrency),
 	}
 	return service, nil

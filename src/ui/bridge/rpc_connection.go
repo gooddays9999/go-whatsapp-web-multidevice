@@ -80,7 +80,7 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 		"proxy":      env.ProxySummary(),
 		"changed":    proxyChanged,
 	}).Info("bridge connect using account proxy")
-	inst.RefreshLoggedInFromClient()
+	state := inst.UpdateStateFromClient()
 	snapshot := inst.Snapshot()
 	if client.Store != nil && client.Store.ID != nil && (proxyChanged || !cachedLoggedIn(snapshot.State)) {
 		if cachedConnected(snapshot.State) {
@@ -88,15 +88,19 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 			inst.MarkDisconnected()
 		}
 		inst.SetState("connecting")
-		if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge connect"); err != nil {
+		if err := s.connectWithSlot(ctx, inst, req.GetAccountId(), "bridge connect", s.connectTimeout()); err != nil {
+			if errors.Is(err, errConnectQueueFull) {
+				return &bridgepb.ConnectResponse{Success: true, Status: "connecting", Message: "Connect queue is busy"}, nil
+			}
 			if errors.Is(err, whatsapp.ErrDeviceConnectInProgress) {
 				return &bridgepb.ConnectResponse{Success: true, Status: "connecting", Message: "Connection already in progress"}, nil
 			}
 			return &bridgepb.ConnectResponse{Success: false, Status: "failed", Message: err.Error()}, nil
 		}
+		state = inst.UpdateStateFromClient()
 	}
 	snapshot = inst.Snapshot()
-	if cachedLoggedIn(snapshot.State) {
+	if cachedLoggedIn(state) || cachedLoggedIn(snapshot.State) {
 		s.markConnected(req.GetAccountId())
 		s.publish("account.connected", req.GetAccountId(), map[string]any{
 			"phoneNumber": inst.PhoneNumber(),
@@ -161,7 +165,7 @@ func (s *Service) GetQRCode(req *bridgepb.QRCodeRequest, stream bridgepb.WhatsAp
 	if err != nil {
 		return grpcError(err)
 	}
-	if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge qr connect"); err != nil {
+	if err := s.connectWithSlot(ctx, inst, req.GetAccountId(), "bridge qr connect", s.connectTimeout()); err != nil {
 		return grpcError(err)
 	}
 	for evt := range ch {
@@ -208,7 +212,7 @@ func (s *Service) GetLinkCode(ctx context.Context, req *bridgepb.LinkCodeRequest
 	}
 	snapshot := inst.Snapshot()
 	if !cachedConnected(snapshot.State) {
-		if err := inst.ConnectWithTimeout(ctx, s.connectTimeout(), "bridge link code connect"); err != nil {
+		if err := s.connectWithSlot(ctx, inst, req.GetAccountId(), "bridge link code connect", s.connectTimeout()); err != nil {
 			if errors.Is(err, whatsapp.ErrDeviceConnectInProgress) {
 				return nil, grpcError(fmt.Errorf("connection already in progress"))
 			}
@@ -246,6 +250,9 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	}
 	inst, ok := s.deps.DeviceManager.GetDevice(req.GetAccountId())
 	if !ok || inst == nil {
+		if s.isRestoring() {
+			return &bridgepb.AccountStatusResponse{AccountId: req.GetAccountId(), Status: "connecting", StatusDetail: "Startup restore in progress", IsUsable: false}, nil
+		}
 		if s.canScheduleReconnect(ctx, req.GetAccountId(), nil) {
 			s.scheduleReconnect(req.GetAccountId(), "status check missing in-memory client")
 			return &bridgepb.AccountStatusResponse{AccountId: req.GetAccountId(), Status: "connecting", StatusDetail: "Reconnect scheduled", IsUsable: false}, nil
@@ -267,10 +274,22 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 	status := "offline"
 	detail := "Account offline"
 	usable := false
-	inst.RefreshLoggedInFromClient()
+	inst.UpdateStateFromClient()
 	snapshot := inst.Snapshot()
 	client := inst.GetClient()
 	hasSession := clientHasPersistedSession(client)
+	if s.isRestoring() && !cachedLoggedIn(snapshot.State) {
+		return &bridgepb.AccountStatusResponse{
+			AccountId:    req.GetAccountId(),
+			Status:       "connecting",
+			PhoneNumber:  snapshot.PhoneNumber,
+			Name:         snapshot.DisplayName,
+			PushName:     snapshot.DisplayName,
+			IsUsable:     false,
+			StatusDetail: "Startup restore in progress",
+			Windows:      []*bridgepb.BrowserWindow{},
+		}, nil
+	}
 	switch {
 	case cachedLoggedIn(snapshot.State):
 		status = "online"
@@ -369,7 +388,7 @@ func (s *Service) GetConnectionState(ctx context.Context, req *bridgepb.Connecti
 	}
 	state := "DISCONNECTED"
 	if inst, ok := s.deps.DeviceManager.GetDevice(req.GetAccountId()); ok && inst != nil {
-		inst.RefreshLoggedInFromClient()
+		inst.UpdateStateFromClient()
 		snapshot := inst.Snapshot()
 		client := inst.GetClient()
 		hasSession := client != nil && client.Store != nil && client.Store.ID != nil

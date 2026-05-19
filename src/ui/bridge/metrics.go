@@ -94,7 +94,7 @@ func (s *Service) usableAccountIDs() []string {
 	devices := s.deps.DeviceManager.ListDevices()
 	ids := make([]string, 0, len(devices))
 	for _, inst := range devices {
-		if cachedLoggedIn(inst.Snapshot().State) {
+		if cachedLoggedIn(inst.UpdateStateFromClient()) {
 			ids = append(ids, inst.ID())
 		}
 	}
