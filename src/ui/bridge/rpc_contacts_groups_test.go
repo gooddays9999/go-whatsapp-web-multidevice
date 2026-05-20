@@ -81,7 +81,7 @@ func TestAddContactNames(t *testing.T) {
 
 func TestBuildAddContactPatch(t *testing.T) {
 	jid := types.NewJID("15812751827", types.DefaultUserServer)
-	patch := buildAddContactPatch(jid, "Garrett", "Garrett Allen")
+	patch := buildAddContactPatch(jid, types.EmptyJID, "Garrett", "Garrett Allen")
 
 	if patch.Type != appstate.WAPatchCriticalUnblockLow {
 		t.Fatalf("patch type = %q, want %q", patch.Type, appstate.WAPatchCriticalUnblockLow)
@@ -106,8 +106,42 @@ func TestBuildAddContactPatch(t *testing.T) {
 	if action.GetPnJID() != jid.String() {
 		t.Fatalf("contact action pn jid = %q, want %q", action.GetPnJID(), jid.String())
 	}
-	if action.GetSaveOnPrimaryAddressbook() {
-		t.Fatal("saveOnPrimaryAddressbook = true, want false")
+	if !action.GetSaveOnPrimaryAddressbook() {
+		t.Fatal("saveOnPrimaryAddressbook = false, want true")
+	}
+	if action.GetLidJID() != "" {
+		t.Fatalf("contact action lid jid = %q, want empty", action.GetLidJID())
+	}
+}
+
+func TestBuildAddContactPatchWithLID(t *testing.T) {
+	jid := types.NewJID("15812751827", types.DefaultUserServer)
+	lidJID := types.NewJID("1234567890", types.HiddenUserServer)
+	patch := buildAddContactPatch(jid, lidJID, "Garrett", "Garrett Allen")
+
+	if len(patch.Mutations) != 2 {
+		t.Fatalf("mutation count = %d, want 2", len(patch.Mutations))
+	}
+	contactAction := patch.Mutations[0].Value.GetContactAction()
+	if contactAction == nil {
+		t.Fatal("contact action is nil")
+	}
+	if contactAction.GetLidJID() != lidJID.String() {
+		t.Fatalf("contact action lid jid = %q, want %q", contactAction.GetLidJID(), lidJID.String())
+	}
+	lidMutation := patch.Mutations[1]
+	if lidMutation.Version != 2 {
+		t.Fatalf("lid mutation version = %d, want 2", lidMutation.Version)
+	}
+	if len(lidMutation.Index) != 2 || lidMutation.Index[0] != appstate.IndexLIDContact || lidMutation.Index[1] != lidJID.String() {
+		t.Fatalf("lid mutation index = %#v, want lid_contact/%s", lidMutation.Index, lidJID.String())
+	}
+	lidAction := lidMutation.Value.GetLidContactAction()
+	if lidAction == nil {
+		t.Fatal("lid contact action is nil")
+	}
+	if lidAction.GetFirstName() != "Garrett" || lidAction.GetFullName() != "Garrett Allen" {
+		t.Fatalf("lid contact action names = %q/%q", lidAction.GetFirstName(), lidAction.GetFullName())
 	}
 }
 

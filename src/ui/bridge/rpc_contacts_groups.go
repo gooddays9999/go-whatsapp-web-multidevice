@@ -83,7 +83,18 @@ func (s *Service) AddContact(ctx context.Context, req *bridgepb.AddContactReques
 	jid := types.NewJID(number, types.DefaultUserServer)
 	firstName, fullName := addContactNames(number, req.GetFirstName(), req.GetLastName())
 	client := inst.GetClient()
-	if err := client.SendAppState(scoped, buildAddContactPatch(jid, firstName, fullName)); err != nil {
+	lidJID := resolveContactLID(scoped, client, jid)
+	logFields := logrus.Fields{
+		"account_id": req.GetAccountId(),
+		"phone":      number,
+		"jid":        jid.String(),
+		"lid_jid":    lidJID.String(),
+		"first_name": firstName,
+		"full_name":  fullName,
+	}
+	logrus.WithFields(logFields).Info("bridge AddContact app state started")
+	if err := client.SendAppState(scoped, buildAddContactPatch(jid, lidJID, firstName, fullName)); err != nil {
+		logrus.WithError(err).WithFields(logFields).Warn("bridge AddContact app state failed")
 		return &bridgepb.AddContactResponse{Success: false, Error: err.Error()}, nil
 	}
 	if client.Store != nil && client.Store.Contacts != nil {
@@ -93,7 +104,16 @@ func (s *Service) AddContact(ctx context.Context, req *bridgepb.AddContactReques
 				"jid":        jid.String(),
 			}).Warn("failed to update local contact cache after AddContact")
 		}
+		if !lidJID.IsEmpty() {
+			if err := client.Store.Contacts.PutContactName(scoped, lidJID, firstName, fullName); err != nil {
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"account_id": req.GetAccountId(),
+					"jid":        lidJID.String(),
+				}).Warn("failed to update local LID contact cache after AddContact")
+			}
+		}
 	}
+	logrus.WithFields(logFields).Info("bridge AddContact app state completed")
 	return &bridgepb.AddContactResponse{Success: true}, nil
 }
 
@@ -198,22 +218,58 @@ func addContactNames(number, firstName, lastName string) (string, string) {
 	return firstName, fullName
 }
 
-func buildAddContactPatch(jid types.JID, firstName, fullName string) appstate.PatchInfo {
-	jidString := jid.String()
-	return appstate.PatchInfo{
-		Type: appstate.WAPatchCriticalUnblockLow,
-		Mutations: []appstate.MutationInfo{{
-			Index:   []string{appstate.IndexContact, jidString},
+func resolveContactLID(ctx context.Context, client *whatsmeow.Client, pnJID types.JID) types.JID {
+	if client == nil || client.Store == nil || client.Store.LIDs == nil || pnJID.IsEmpty() || pnJID.Server != types.DefaultUserServer {
+		return types.EmptyJID
+	}
+	lidJID, err := client.Store.LIDs.GetLIDForPN(ctx, pnJID)
+	if err == nil && !lidJID.IsEmpty() && lidJID.Server == types.HiddenUserServer {
+		return lidJID
+	}
+	info, err := client.GetUserInfo(ctx, []types.JID{pnJID})
+	if err != nil {
+		logrus.WithError(err).WithField("jid", pnJID.String()).Warn("failed to resolve contact LID for AddContact")
+		return types.EmptyJID
+	}
+	if userInfo, ok := info[pnJID]; ok && !userInfo.LID.IsEmpty() && userInfo.LID.Server == types.HiddenUserServer {
+		return userInfo.LID
+	}
+	return types.EmptyJID
+}
+
+func buildAddContactPatch(pnJID, lidJID types.JID, firstName, fullName string) appstate.PatchInfo {
+	pnJIDString := pnJID.String()
+	contactAction := &waSyncAction.ContactAction{
+		FirstName:                proto.String(firstName),
+		FullName:                 proto.String(fullName),
+		PnJID:                    proto.String(pnJIDString),
+		SaveOnPrimaryAddressbook: proto.Bool(true),
+	}
+	if !lidJID.IsEmpty() && lidJID.Server == types.HiddenUserServer {
+		contactAction.LidJID = proto.String(lidJID.String())
+	}
+	mutations := []appstate.MutationInfo{{
+		Index:   []string{appstate.IndexContact, pnJIDString},
+		Version: 2,
+		Value: &waSyncAction.SyncActionValue{
+			ContactAction: contactAction,
+		},
+	}}
+	if !lidJID.IsEmpty() && lidJID.Server == types.HiddenUserServer {
+		mutations = append(mutations, appstate.MutationInfo{
+			Index:   []string{appstate.IndexLIDContact, lidJID.String()},
 			Version: 2,
 			Value: &waSyncAction.SyncActionValue{
-				ContactAction: &waSyncAction.ContactAction{
-					FirstName:                proto.String(firstName),
-					FullName:                 proto.String(fullName),
-					PnJID:                    proto.String(jidString),
-					SaveOnPrimaryAddressbook: proto.Bool(false),
+				LidContactAction: &waSyncAction.LidContactAction{
+					FirstName: proto.String(firstName),
+					FullName:  proto.String(fullName),
 				},
 			},
-		}},
+		})
+	}
+	return appstate.PatchInfo{
+		Type:      appstate.WAPatchCriticalUnblockLow,
+		Mutations: mutations,
 	}
 }
 
