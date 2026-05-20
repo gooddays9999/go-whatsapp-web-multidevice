@@ -72,11 +72,14 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 	if cfg.StatusSendConcurrency <= 0 {
 		cfg.StatusSendConcurrency = 1
 	}
+	if cfg.StartupRestoreConcurrency <= 0 {
+		cfg.StartupRestoreConcurrency = 20
+	}
 	if cfg.ReconnectConcurrency <= 0 {
-		cfg.ReconnectConcurrency = 3
+		cfg.ReconnectConcurrency = 10
 	}
 	if cfg.ReconnectQueueTimeout <= 0 {
-		cfg.ReconnectQueueTimeout = 3 * time.Second
+		cfg.ReconnectQueueTimeout = 15 * time.Second
 	}
 	var accountProxyStore *AccountProxyStore
 	if cfg.AccountDBDSN != "" {

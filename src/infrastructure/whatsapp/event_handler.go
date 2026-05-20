@@ -3,7 +3,6 @@ package whatsapp
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -42,7 +41,7 @@ func handler(ctx context.Context, instance *DeviceInstance, rawEvt any) {
 	case *events.Connected, *events.PushNameSetting:
 		handleConnectionEvents(ctx, client, instance)
 	case *events.StreamReplaced:
-		handleStreamReplaced(ctx)
+		handleStreamReplaced(ctx, instance)
 	case *events.Message:
 		handleMessage(ctx, evt, chatStorageRepo, client)
 	case *events.Receipt:
@@ -223,8 +222,13 @@ func handleConnectionEvents(_ context.Context, client *whatsmeow.Client, instanc
 	sendConfiguredPresence(context.Background(), client)
 }
 
-func handleStreamReplaced(_ context.Context) {
-	os.Exit(0)
+func handleStreamReplaced(_ context.Context, instance *DeviceInstance) {
+	if instance == nil {
+		log.Warnf("WhatsApp stream replaced for unknown device; keeping process alive")
+		return
+	}
+	instance.MarkDisconnected()
+	log.Warnf("WhatsApp stream replaced for device %s; marked disconnected without terminating process", instance.ID())
 }
 
 func handleReceipt(ctx context.Context, evt *events.Receipt, deviceID string, client *whatsmeow.Client) {

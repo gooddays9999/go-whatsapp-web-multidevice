@@ -26,6 +26,7 @@ type Config struct {
 	StatusMessageTimeout        time.Duration
 	MessageSendTimeout          time.Duration
 	MessageReactionTimeout      time.Duration
+	StartupRestoreConcurrency   int
 	ReconnectConcurrency        int
 	ReconnectQueueTimeout       time.Duration
 	MediaDownloadPath           string
@@ -53,6 +54,7 @@ type configFile struct {
 		StatusMessageTimeoutMS        int `yaml:"status_message_timeout_ms"`
 		MessageSendTimeoutMS          int `yaml:"message_send_timeout_ms"`
 		MessageReactionTimeoutMS      int `yaml:"message_reaction_timeout_ms"`
+		StartupRestoreConcurrency     int `yaml:"startup_restore_concurrency"`
 		ReconnectConcurrency          int `yaml:"reconnect_concurrency"`
 		ReconnectQueueTimeoutMS       int `yaml:"reconnect_queue_timeout_ms"`
 	} `yaml:"worker"`
@@ -99,8 +101,9 @@ func LoadConfig() Config {
 		StatusMessageTimeout:        25 * time.Second,
 		MessageSendTimeout:          25 * time.Second,
 		MessageReactionTimeout:      15 * time.Second,
-		ReconnectConcurrency:        3,
-		ReconnectQueueTimeout:       3 * time.Second,
+		StartupRestoreConcurrency:   20,
+		ReconnectConcurrency:        10,
+		ReconnectQueueTimeout:       15 * time.Second,
 		MediaDownloadPath:           "/tmp/media",
 		UploadMediaURL:              "http://localhost:8080/internal/media/upload",
 		UploadAPIKey:                "",
@@ -161,6 +164,9 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	}
 	if fileCfg.Worker.MessageReactionTimeoutMS > 0 {
 		cfg.MessageReactionTimeout = time.Duration(fileCfg.Worker.MessageReactionTimeoutMS) * time.Millisecond
+	}
+	if fileCfg.Worker.StartupRestoreConcurrency > 0 {
+		cfg.StartupRestoreConcurrency = fileCfg.Worker.StartupRestoreConcurrency
 	}
 	if fileCfg.Worker.ReconnectConcurrency > 0 {
 		cfg.ReconnectConcurrency = fileCfg.Worker.ReconnectConcurrency
@@ -259,6 +265,11 @@ func applyEnvOverrides(cfg *Config) {
 	if value := os.Getenv("BRIDGE_MESSAGE_REACTION_TIMEOUT_MS"); value != "" {
 		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
 			cfg.MessageReactionTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_STARTUP_RESTORE_CONCURRENCY"); value != "" {
+		if concurrency, err := strconv.Atoi(value); err == nil && concurrency > 0 {
+			cfg.StartupRestoreConcurrency = concurrency
 		}
 	}
 	if value := os.Getenv("BRIDGE_RECONNECT_CONCURRENCY"); value != "" {

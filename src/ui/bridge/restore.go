@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	startupRestoreDelay       = 5 * time.Second
-	startupRestoreConcurrency = 3
+	startupRestoreDelay              = 5 * time.Second
+	defaultStartupRestoreConcurrency = 20
 )
 
 func (s *Service) restorePersistedAccounts(ctx context.Context) {
@@ -37,9 +37,19 @@ func (s *Service) restorePersistedAccounts(ctx context.Context) {
 	if len(envs) == 0 {
 		return
 	}
-	logrus.WithField("accounts", len(envs)).Info("starting bridge environment restore")
+	concurrency := s.cfg.StartupRestoreConcurrency
+	if concurrency <= 0 {
+		concurrency = defaultStartupRestoreConcurrency
+	}
+	if concurrency > len(envs) {
+		concurrency = len(envs)
+	}
+	logrus.WithFields(logrus.Fields{
+		"accounts":    len(envs),
+		"concurrency": concurrency,
+	}).Info("starting bridge environment restore")
 
-	sem := make(chan struct{}, startupRestoreConcurrency)
+	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 	for _, env := range envs {
 		if env == nil || env.AccountID == "" {

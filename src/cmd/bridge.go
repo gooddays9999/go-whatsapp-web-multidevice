@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"os"
 	"os/signal"
 	"syscall"
 
@@ -31,8 +32,16 @@ func init() {
 }
 
 func bridgeServer(_ *cobra.Command, _ []string) {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signalCh)
+	defer cancel()
+	go func() {
+		sig := <-signalCh
+		logrus.WithField("signal", sig.String()).Warn("bridge received shutdown signal")
+		cancel()
+	}()
 
 	cfg := bridge.LoadConfig()
 	if bridgeGRPCPort > 0 {
@@ -60,4 +69,5 @@ func bridgeServer(_ *cobra.Command, _ []string) {
 	if err := service.Start(ctx); err != nil {
 		logrus.Fatalf("bridge server stopped: %v", err)
 	}
+	logrus.Info("bridge server stopped")
 }
