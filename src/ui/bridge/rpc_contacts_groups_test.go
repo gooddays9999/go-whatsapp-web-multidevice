@@ -5,6 +5,9 @@ import (
 	"image"
 	"image/png"
 	"testing"
+
+	"go.mau.fi/whatsmeow/appstate"
+	"go.mau.fi/whatsmeow/types"
 )
 
 func TestLegacyContactChatID(t *testing.T) {
@@ -47,6 +50,64 @@ func TestLegacyContactNumber(t *testing.T) {
 				t.Fatalf("legacyContactNumber(%q) = %q, want %q", tt.phone, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAddContactNames(t *testing.T) {
+	tests := []struct {
+		name          string
+		number        string
+		firstName     string
+		lastName      string
+		wantFirstName string
+		wantFullName  string
+	}{
+		{name: "provided first and last", number: "15812751827", firstName: "Garrett", lastName: "Allen", wantFirstName: "Garrett", wantFullName: "Garrett Allen"},
+		{name: "provided first only", number: "15812751827", firstName: "Garrett", wantFirstName: "Garrett", wantFullName: "Garrett"},
+		{name: "dot last name ignored", number: "15812751827", firstName: "Garrett", lastName: ".", wantFirstName: "Garrett", wantFullName: "Garrett"},
+		{name: "fallback from phone suffix", number: "15812751827", wantFirstName: "1827", wantFullName: "1827"},
+		{name: "short number fallback", number: "123", wantFirstName: "123", wantFullName: "123"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotFirstName, gotFullName := addContactNames(tt.number, tt.firstName, tt.lastName)
+			if gotFirstName != tt.wantFirstName || gotFullName != tt.wantFullName {
+				t.Fatalf("addContactNames() = %q/%q, want %q/%q", gotFirstName, gotFullName, tt.wantFirstName, tt.wantFullName)
+			}
+		})
+	}
+}
+
+func TestBuildAddContactPatch(t *testing.T) {
+	jid := types.NewJID("15812751827", types.DefaultUserServer)
+	patch := buildAddContactPatch(jid, "Garrett", "Garrett Allen")
+
+	if patch.Type != appstate.WAPatchCriticalUnblockLow {
+		t.Fatalf("patch type = %q, want %q", patch.Type, appstate.WAPatchCriticalUnblockLow)
+	}
+	if len(patch.Mutations) != 1 {
+		t.Fatalf("mutation count = %d, want 1", len(patch.Mutations))
+	}
+	mutation := patch.Mutations[0]
+	if mutation.Version != 2 {
+		t.Fatalf("mutation version = %d, want 2", mutation.Version)
+	}
+	if len(mutation.Index) != 2 || mutation.Index[0] != appstate.IndexContact || mutation.Index[1] != jid.String() {
+		t.Fatalf("mutation index = %#v, want contact/%s", mutation.Index, jid.String())
+	}
+	action := mutation.Value.GetContactAction()
+	if action == nil {
+		t.Fatal("contact action is nil")
+	}
+	if action.GetFirstName() != "Garrett" || action.GetFullName() != "Garrett Allen" {
+		t.Fatalf("contact action names = %q/%q", action.GetFirstName(), action.GetFullName())
+	}
+	if action.GetPnJID() != jid.String() {
+		t.Fatalf("contact action pn jid = %q, want %q", action.GetPnJID(), jid.String())
+	}
+	if action.GetSaveOnPrimaryAddressbook() {
+		t.Fatal("saveOnPrimaryAddressbook = true, want false")
 	}
 }
 

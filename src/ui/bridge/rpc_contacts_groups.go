@@ -15,9 +15,13 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"github.com/disintegration/imaging"
+	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
+	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/types"
 	_ "golang.org/x/image/webp"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -64,8 +68,31 @@ func (s *Service) AddContact(ctx context.Context, req *bridgepb.AddContactReques
 	if req.GetAccountId() == "" || req.GetPhone() == "" {
 		return nil, grpcError(fmt.Errorf("account_id and phone are required"))
 	}
-	if _, err := s.accountContext(ctx, req.GetAccountId()); err != nil {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
 		return nil, grpcError(err)
+	}
+	inst, _ := whatsapp.DeviceFromContext(scoped)
+	if inst == nil || inst.GetClient() == nil {
+		return nil, grpcError(fmt.Errorf("account not connected"))
+	}
+	number := legacyContactNumber(req.GetPhone())
+	if number == "" {
+		return nil, grpcError(fmt.Errorf("valid phone is required"))
+	}
+	jid := types.NewJID(number, types.DefaultUserServer)
+	firstName, fullName := addContactNames(number, req.GetFirstName(), req.GetLastName())
+	client := inst.GetClient()
+	if err := client.SendAppState(scoped, buildAddContactPatch(jid, firstName, fullName)); err != nil {
+		return &bridgepb.AddContactResponse{Success: false, Error: err.Error()}, nil
+	}
+	if client.Store != nil && client.Store.Contacts != nil {
+		if err := client.Store.Contacts.PutContactName(scoped, jid, firstName, fullName); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"account_id": req.GetAccountId(),
+				"jid":        jid.String(),
+			}).Warn("failed to update local contact cache after AddContact")
+		}
 	}
 	return &bridgepb.AddContactResponse{Success: true}, nil
 }
@@ -149,6 +176,45 @@ func legacyContactNumber(phone string) string {
 		}
 	}
 	return b.String()
+}
+
+func addContactNames(number, firstName, lastName string) (string, string) {
+	firstName = strings.TrimSpace(firstName)
+	lastName = strings.TrimSpace(lastName)
+	if lastName == "." {
+		lastName = ""
+	}
+	if firstName == "" {
+		if len(number) > 4 {
+			firstName = number[len(number)-4:]
+		} else {
+			firstName = number
+		}
+	}
+	fullName := firstName
+	if lastName != "" {
+		fullName = strings.TrimSpace(firstName + " " + lastName)
+	}
+	return firstName, fullName
+}
+
+func buildAddContactPatch(jid types.JID, firstName, fullName string) appstate.PatchInfo {
+	jidString := jid.String()
+	return appstate.PatchInfo{
+		Type: appstate.WAPatchCriticalUnblockLow,
+		Mutations: []appstate.MutationInfo{{
+			Index:   []string{appstate.IndexContact, jidString},
+			Version: 2,
+			Value: &waSyncAction.SyncActionValue{
+				ContactAction: &waSyncAction.ContactAction{
+					FirstName:                proto.String(firstName),
+					FullName:                 proto.String(fullName),
+					PnJID:                    proto.String(jidString),
+					SaveOnPrimaryAddressbook: proto.Bool(false),
+				},
+			},
+		}},
+	}
 }
 
 func firstNonEmpty(values ...string) string {
