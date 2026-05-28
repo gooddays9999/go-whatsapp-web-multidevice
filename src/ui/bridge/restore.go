@@ -12,6 +12,7 @@ import (
 const (
 	startupRestoreDelay              = 5 * time.Second
 	defaultStartupRestoreConcurrency = 20
+	accountWebOnlineOnline           = 1
 )
 
 func (s *Service) restorePersistedAccounts(ctx context.Context) {
@@ -90,6 +91,20 @@ func (s *Service) isRestoring() bool {
 }
 
 func (s *Service) restorePersistedAccount(parent context.Context, env *BridgeEnvironment) {
+	if s.accountProxyStore != nil {
+		webOnline, found, err := s.accountProxyStore.WebOnlineForAccount(parent, env.AccountID)
+		if err != nil {
+			logrus.WithError(err).WithField("account_id", env.AccountID).Warn("failed to read account web_online for bridge environment restore")
+			return
+		}
+		if found && webOnline != accountWebOnlineOnline {
+			logrus.WithFields(logrus.Fields{
+				"account_id": env.AccountID,
+				"web_online": webOnline,
+			}).Info("skipping bridge environment restore for offline account")
+			return
+		}
+	}
 	resolvedEnv, _, err := s.environmentForAccount(parent, env.AccountID, env.TenantID, nil, false)
 	if err != nil {
 		logrus.WithError(err).WithField("account_id", env.AccountID).Warn("skipping bridge environment restore without current account proxy")

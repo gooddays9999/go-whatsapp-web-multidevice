@@ -41,6 +41,9 @@ func (s *Service) accountContext(ctx context.Context, accountID string) (context
 	if accountID == "" {
 		return nil, fmt.Errorf("account_id is required")
 	}
+	if s.isExplicitOffline(accountID) {
+		return nil, fmt.Errorf("account explicitly disconnected")
+	}
 	env, _, err := s.environmentForAccount(ctx, accountID, "", nil, false)
 	if err != nil {
 		return nil, err
@@ -755,6 +758,10 @@ func (s *Service) scheduleReconnectWithMode(accountID, reason string, recycle bo
 		return
 	}
 	s.mu.Lock()
+	if _, ok := s.explicitOffline[accountID]; ok {
+		s.mu.Unlock()
+		return
+	}
 	if _, ok := s.reconnecting[accountID]; ok {
 		s.mu.Unlock()
 		return
@@ -772,6 +779,14 @@ func (s *Service) scheduleReconnectWithMode(accountID, reason string, recycle bo
 		timer := time.NewTimer(2 * time.Second)
 		defer timer.Stop()
 		<-timer.C
+		if s.isExplicitOffline(accountID) {
+			logrus.WithFields(logrus.Fields{
+				"account_id": accountID,
+				"reason":     reason,
+				"recycle":    recycle,
+			}).Info("scheduled WhatsApp reconnect skipped for explicitly disconnected account")
+			return
+		}
 
 		timeout := s.connectTimeout()
 		ctx, cancel := context.WithTimeout(context.Background(), timeout+5*time.Second)

@@ -69,3 +69,29 @@ func (s *AccountProxyStore) ProxyForAccount(ctx context.Context, accountID strin
 	}
 	return normalizeProxySpec(proxy), true, nil
 }
+
+func (s *AccountProxyStore) WebOnlineForAccount(ctx context.Context, accountID string) (int, bool, error) {
+	if s == nil || s.db == nil {
+		return 0, false, nil
+	}
+	if accountID == "" {
+		return 0, false, fmt.Errorf("account_id is required")
+	}
+
+	row := s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(a.web_online, 0)
+		FROM accounts a
+		WHERE a.deleted_at IS NULL
+		  AND (CAST(a.id AS CHAR) = ? OR a.phone = ?)
+		LIMIT 1
+	`, accountID, accountID)
+
+	var webOnline int
+	if err := row.Scan(&webOnline); err != nil {
+		if err == sql.ErrNoRows {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	return webOnline, true, nil
+}

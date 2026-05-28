@@ -23,6 +23,15 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 	accountID := s.eventAccountID(instance)
 	switch evt := rawEvt.(type) {
 	case *events.Connected:
+		if s.isExplicitOffline(accountID) {
+			if client := instance.GetClient(); client != nil {
+				client.EnableAutoReconnect = false
+				client.Disconnect()
+			}
+			instance.MarkDisconnected()
+			logrus.WithField("account_id", accountID).Info("ignored WhatsApp connected event for explicitly disconnected account")
+			return
+		}
 		s.markConnected(accountID)
 		s.publish("account.connected", accountID, map[string]any{
 			"phoneNumber": instance.PhoneNumber(),
@@ -32,6 +41,13 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 		})
 	case *events.Disconnected:
 		state := instance.MarkDisconnected()
+		if s.isExplicitOffline(accountID) {
+			logrus.WithFields(logrus.Fields{
+				"account_id": accountID,
+				"state":      state,
+			}).Debug("WhatsApp websocket disconnected by explicit request")
+			return
+		}
 		if autoReconnectEnabled(instance) {
 			logrus.WithFields(logrus.Fields{
 				"account_id": accountID,

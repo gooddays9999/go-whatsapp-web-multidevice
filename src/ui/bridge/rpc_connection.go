@@ -68,6 +68,7 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 	if req.GetAccountId() == "" {
 		return nil, grpcError(fmt.Errorf("account_id is required"))
 	}
+	s.clearExplicitOffline(req.GetAccountId())
 	var oldProxyURL string
 	var hadOldEnv bool
 	if oldEnv, err := s.envStore.Get(ctx, req.GetAccountId()); err == nil && oldEnv != nil {
@@ -128,6 +129,7 @@ func (s *Service) Disconnect(ctx context.Context, req *bridgepb.DisconnectReques
 	if req.GetAccountId() == "" {
 		return nil, grpcError(fmt.Errorf("account_id is required"))
 	}
+	s.markExplicitOffline(req.GetAccountId())
 	if req.GetClearSession() {
 		_ = s.envStore.Delete(ctx, req.GetAccountId())
 		if err := s.deps.DeviceManager.PurgeDevice(ctx, req.GetAccountId()); err != nil {
@@ -138,6 +140,7 @@ func (s *Service) Disconnect(ctx context.Context, req *bridgepb.DisconnectReques
 	}
 	if inst, ok := s.deps.DeviceManager.GetDevice(req.GetAccountId()); ok && inst != nil {
 		if client := inst.GetClient(); client != nil {
+			client.EnableAutoReconnect = false
 			client.Disconnect()
 		}
 		inst.SetState("disconnected")
@@ -152,6 +155,7 @@ func (s *Service) GetQRCode(req *bridgepb.QRCodeRequest, stream bridgepb.WhatsAp
 		return grpcError(fmt.Errorf("account_id is required"))
 	}
 	ctx := stream.Context()
+	s.clearExplicitOffline(req.GetAccountId())
 	inst, client, _, err := s.ensureClient(ctx, req.GetAccountId(), "", nil, false)
 	if err != nil {
 		return grpcError(err)
@@ -208,6 +212,7 @@ func (s *Service) GetLinkCode(ctx context.Context, req *bridgepb.LinkCodeRequest
 	if req.GetAccountId() == "" || req.GetPhoneNumber() == "" {
 		return nil, grpcError(fmt.Errorf("account_id and phone_number are required"))
 	}
+	s.clearExplicitOffline(req.GetAccountId())
 	inst, client, env, err := s.ensureClient(ctx, req.GetAccountId(), "", nil, false)
 	if err != nil {
 		return nil, grpcError(err)
@@ -277,6 +282,15 @@ func (s *Service) GetLinkCode(ctx context.Context, req *bridgepb.LinkCodeRequest
 func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountStatusRequest) (*bridgepb.AccountStatusResponse, error) {
 	if req.GetAccountId() == "" {
 		return nil, grpcError(fmt.Errorf("account_id is required"))
+	}
+	if s.isExplicitOffline(req.GetAccountId()) {
+		return &bridgepb.AccountStatusResponse{
+			AccountId:    req.GetAccountId(),
+			Status:       "offline",
+			StatusDetail: "Account explicitly disconnected",
+			IsUsable:     false,
+			Windows:      []*bridgepb.BrowserWindow{},
+		}, nil
 	}
 	inst, ok := s.deps.DeviceManager.GetDevice(req.GetAccountId())
 	if !ok || inst == nil {
@@ -364,6 +378,9 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 
 func (s *Service) canScheduleReconnect(ctx context.Context, accountID string, inst *whatsapp.DeviceInstance) bool {
 	if s == nil || accountID == "" {
+		return false
+	}
+	if s.isExplicitOffline(accountID) {
 		return false
 	}
 	var env *BridgeEnvironment
@@ -538,6 +555,43 @@ func (s *Service) markDisconnected(accountID string) {
 	defer s.mu.Unlock()
 	delete(s.connected, accountID)
 	s.statuses[accountID] = "disconnected"
+}
+
+func (s *Service) markExplicitOffline(accountID string) {
+	if s == nil || accountID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.statuses == nil {
+		s.statuses = make(map[string]string)
+	}
+	if s.explicitOffline == nil {
+		s.explicitOffline = make(map[string]time.Time)
+	}
+	delete(s.connected, accountID)
+	delete(s.reconnecting, accountID)
+	s.statuses[accountID] = "disconnected"
+	s.explicitOffline[accountID] = time.Now()
+}
+
+func (s *Service) clearExplicitOffline(accountID string) {
+	if s == nil || accountID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.explicitOffline, accountID)
+}
+
+func (s *Service) isExplicitOffline(accountID string) bool {
+	if s == nil || accountID == "" {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.explicitOffline[accountID]
+	return ok
 }
 
 func boolToInt32(value bool) int32 {

@@ -45,6 +45,36 @@ func TestAccountProxyStoreProxyForAccount(t *testing.T) {
 	}
 }
 
+func TestAccountProxyStoreWebOnlineForAccount(t *testing.T) {
+	ctx := context.Background()
+	db := newAccountProxyTestDB(t)
+	store := &AccountProxyStore{db: db}
+
+	webOnline, found, err := store.WebOnlineForAccount(ctx, "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || webOnline != 1 {
+		t.Fatalf("expected online account, found=%v web_online=%d", found, webOnline)
+	}
+
+	webOnline, found, err = store.WebOnlineForAccount(ctx, "15510000002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || webOnline != 2 {
+		t.Fatalf("expected offline account by phone, found=%v web_online=%d", found, webOnline)
+	}
+
+	_, found, err = store.WebOnlineForAccount(ctx, "999")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found {
+		t.Fatal("expected missing account to not be found")
+	}
+}
+
 func TestEnvironmentForAccountPrefersAccountDatabaseProxy(t *testing.T) {
 	ctx := context.Background()
 	envDB, err := sql.Open("sqlite3", ":memory:")
@@ -99,11 +129,11 @@ func newAccountProxyTestDB(t *testing.T) *sql.DB {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	for _, stmt := range []string{
-		`CREATE TABLE accounts (id INTEGER PRIMARY KEY, phone TEXT, proxy_id INTEGER, deleted_at TIMESTAMP NULL)`,
+		`CREATE TABLE accounts (id INTEGER PRIMARY KEY, phone TEXT, proxy_id INTEGER, web_online INTEGER DEFAULT 0, deleted_at TIMESTAMP NULL)`,
 		`CREATE TABLE proxies (id INTEGER PRIMARY KEY, type TEXT, host TEXT, port INTEGER, username TEXT, password TEXT)`,
 		`INSERT INTO proxies (id, type, host, port, username, password) VALUES (10, 'SOCKS5', '127.0.0.1', 1080, 'user', 'pass')`,
-		`INSERT INTO accounts (id, phone, proxy_id, deleted_at) VALUES (1, '15510000001', 10, NULL)`,
-		`INSERT INTO accounts (id, phone, proxy_id, deleted_at) VALUES (2, '15510000002', NULL, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (1, '15510000001', 10, 1, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (2, '15510000002', NULL, 2, NULL)`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)
