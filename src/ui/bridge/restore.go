@@ -97,7 +97,11 @@ func (s *Service) restorePersistedAccount(parent context.Context, env *BridgeEnv
 			logrus.WithError(err).WithField("account_id", env.AccountID).Warn("failed to read account web_online for bridge environment restore")
 			return
 		}
-		if found && webOnline != accountWebOnlineOnline {
+		if !found {
+			logrus.WithField("account_id", env.AccountID).Info("skipping bridge environment restore for missing or deleted account")
+			return
+		}
+		if webOnline != accountWebOnlineOnline {
 			logrus.WithFields(logrus.Fields{
 				"account_id": env.AccountID,
 				"web_online": webOnline,

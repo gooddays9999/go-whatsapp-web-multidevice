@@ -43,6 +43,14 @@ func TestAccountProxyStoreProxyForAccount(t *testing.T) {
 	if !missingProxy.IsEmpty() {
 		t.Fatalf("expected empty proxy for account without proxy, got %#v", missingProxy)
 	}
+
+	_, found, err = store.ProxyForAccount(ctx, "3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found {
+		t.Fatal("expected deleted account to not be found")
+	}
 }
 
 func TestAccountProxyStoreWebOnlineForAccount(t *testing.T) {
@@ -72,6 +80,14 @@ func TestAccountProxyStoreWebOnlineForAccount(t *testing.T) {
 	}
 	if found {
 		t.Fatal("expected missing account to not be found")
+	}
+
+	_, found, err = store.WebOnlineForAccount(ctx, "3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found {
+		t.Fatal("expected deleted account to not be found")
 	}
 }
 
@@ -134,6 +150,7 @@ func newAccountProxyTestDB(t *testing.T) *sql.DB {
 		`INSERT INTO proxies (id, type, host, port, username, password) VALUES (10, 'SOCKS5', '127.0.0.1', 1080, 'user', 'pass')`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (1, '15510000001', 10, 1, NULL)`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (2, '15510000002', NULL, 2, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (3, '15510000003', 10, 1, CURRENT_TIMESTAMP)`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)
