@@ -1406,7 +1406,7 @@ func (s *Service) DeleteMessage(ctx context.Context, req *bridgepb.DeleteMessage
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	if err := s.deps.MessageUsecase.DeleteMessage(scoped, domainMessage.DeleteRequest{MessageID: req.GetMessageId(), Phone: req.GetChatId()}); err != nil {
+	if _, err := s.deps.MessageUsecase.RevokeMessage(scoped, domainMessage.RevokeRequest{MessageID: req.GetMessageId(), Phone: req.GetChatId()}); err != nil {
 		return &bridgepb.DeleteMessageResponse{Success: false, Error: err.Error()}, nil
 	}
 	return &bridgepb.DeleteMessageResponse{Success: true}, nil
