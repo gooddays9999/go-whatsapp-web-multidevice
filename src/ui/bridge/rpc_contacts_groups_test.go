@@ -184,3 +184,15 @@ func TestPrepareProfilePictureJPEGRejectsInvalidImage(t *testing.T) {
 		t.Fatal("prepareProfilePictureJPEG() error = nil, want error")
 	}
 }
+
+func TestShouldApplyUpdateGroupFieldAllowsExplicitEmptyValue(t *testing.T) {
+	if !shouldApplyUpdateGroupField(true, "") {
+		t.Fatal("explicit empty field should be applied")
+	}
+	if shouldApplyUpdateGroupField(false, "") {
+		t.Fatal("implicit empty field should not be applied")
+	}
+	if !shouldApplyUpdateGroupField(false, "WA2") {
+		t.Fatal("non-empty field should be applied for backward compatibility")
+	}
+}

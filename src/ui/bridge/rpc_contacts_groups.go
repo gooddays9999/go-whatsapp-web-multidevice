@@ -13,6 +13,7 @@ import (
 	domainGroup "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/group"
 	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
+	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"github.com/disintegration/imaging"
 	"github.com/sirupsen/logrus"
@@ -282,6 +283,10 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func shouldApplyUpdateGroupField(explicit bool, value string) bool {
+	return explicit || value != ""
+}
+
 func (s *Service) SetProfilePicture(ctx context.Context, req *bridgepb.SetProfilePictureRequest) (*bridgepb.SetProfilePictureResponse, error) {
 	scoped, err := s.accountContext(ctx, req.GetAccountId())
 	if err != nil {
@@ -395,17 +400,55 @@ func (s *Service) UpdateGroup(ctx context.Context, req *bridgepb.UpdateGroupRequ
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	if req.GetName() != "" {
+	if shouldApplyUpdateGroupField(req.GetUpdateName(), req.GetName()) {
 		if err := s.deps.GroupUsecase.SetGroupName(scoped, domainGroup.SetGroupNameRequest{GroupID: req.GetGroupJid(), Name: req.GetName()}); err != nil {
 			return &bridgepb.UpdateGroupResponse{Success: false, Error: err.Error()}, nil
 		}
 	}
-	if req.GetDescription() != "" {
+	if shouldApplyUpdateGroupField(req.GetUpdateDescription(), req.GetDescription()) {
 		if err := s.deps.GroupUsecase.SetGroupTopic(scoped, domainGroup.SetGroupTopicRequest{GroupID: req.GetGroupJid(), Topic: req.GetDescription()}); err != nil {
 			return &bridgepb.UpdateGroupResponse{Success: false, Error: err.Error()}, nil
 		}
 	}
+	if shouldApplyUpdateGroupField(req.GetUpdateAvatar(), req.GetAvatarUrl()) {
+		if err := setGroupPhotoFromURL(scoped, req.GetGroupJid(), req.GetAvatarUrl()); err != nil {
+			return &bridgepb.UpdateGroupResponse{Success: false, Error: err.Error()}, nil
+		}
+	}
 	return &bridgepb.UpdateGroupResponse{Success: true}, nil
+}
+
+func setGroupPhotoFromURL(ctx context.Context, groupJID, avatarURL string) error {
+	inst, ok := whatsapp.DeviceFromContext(ctx)
+	if !ok || inst == nil || inst.GetClient() == nil {
+		return fmt.Errorf("account not connected")
+	}
+	client := inst.GetClient()
+	parsedGroupJID, err := utils.ValidateJidWithLogin(client, groupJID)
+	if err != nil {
+		return err
+	}
+
+	var photo []byte
+	if strings.TrimSpace(avatarURL) != "" {
+		data, err := downloadBytes(avatarURL)
+		if err != nil {
+			return err
+		}
+		photo, err = prepareProfilePictureJPEG(data)
+		if err != nil {
+			return err
+		}
+	}
+
+	pictureID, err := client.SetGroupPhoto(ctx, parsedGroupJID, photo)
+	if err != nil {
+		return err
+	}
+	if photo != nil && pictureID == "" {
+		return fmt.Errorf("empty picture id from WhatsApp")
+	}
+	return nil
 }
 
 func (s *Service) AddGroupMembers(ctx context.Context, req *bridgepb.AddGroupMembersRequest) (*bridgepb.AddGroupMembersResponse, error) {

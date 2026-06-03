@@ -372,6 +372,10 @@ message UpdateGroupRequest {
     string group_jid = 2;
     string name = 3;            // New group name (optional)
     string description = 4;     // New group description (optional)
+    bool update_name = 5;       // Apply name even when the value is empty/zero
+    bool update_description = 6;// Apply description even when the value is empty
+    string avatar_url = 7;      // New group avatar URL (optional, empty with update_avatar clears)
+    bool update_avatar = 8;     // Apply avatar_url even when the value is empty
 }
 
 message UpdateGroupResponse {
