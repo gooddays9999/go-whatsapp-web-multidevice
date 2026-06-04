@@ -192,6 +192,19 @@ func ValidateSetGroupAnnounce(ctx context.Context, request domainGroup.SetGroupA
 	return nil
 }
 
+func ValidateSetGroupMemberAddMode(ctx context.Context, request domainGroup.SetGroupMemberAddModeRequest) error {
+	err := validation.ValidateStructWithContext(ctx, &request,
+		validation.Field(&request.GroupID, validation.Required),
+		// AdminsOnly is a boolean, no additional validation needed
+	)
+
+	if err != nil {
+		return pkgError.ValidationError(err.Error())
+	}
+
+	return nil
+}
+
 func ValidateSetGroupTopic(ctx context.Context, request domainGroup.SetGroupTopicRequest) error {
 	err := validation.ValidateStructWithContext(ctx, &request,
 		validation.Field(&request.GroupID, validation.Required),

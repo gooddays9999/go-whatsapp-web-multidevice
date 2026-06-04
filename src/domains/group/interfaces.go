@@ -28,6 +28,7 @@ type IGroupSettings interface {
 	SetGroupName(ctx context.Context, request SetGroupNameRequest) (err error)
 	SetGroupLocked(ctx context.Context, request SetGroupLockedRequest) (err error)
 	SetGroupAnnounce(ctx context.Context, request SetGroupAnnounceRequest) (err error)
+	SetGroupMemberAddMode(ctx context.Context, request SetGroupMemberAddModeRequest) (err error)
 	SetGroupTopic(ctx context.Context, request SetGroupTopicRequest) (err error)
 }
 

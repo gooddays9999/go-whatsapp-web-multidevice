@@ -95,6 +95,12 @@ service WhatsAppBridge {
     // Toggle admins-only messaging
     rpc SetGroupAdminsOnly(SetGroupAdminsOnlyRequest) returns (SetGroupAdminsOnlyResponse);
 
+    // Toggle admins-only group info edit
+    rpc SetGroupInfoAdminsOnly(SetGroupInfoAdminsOnlyRequest) returns (SetGroupInfoAdminsOnlyResponse);
+
+    // Toggle admins-only add members
+    rpc SetGroupAddMembersAdminsOnly(SetGroupAddMembersAdminsOnlyRequest) returns (SetGroupAddMembersAdminsOnlyResponse);
+
     // ========== Reactions ==========
 
     // React to a message (emoji reaction)
@@ -768,6 +774,28 @@ message SetGroupAdminsOnlyRequest {
 }
 
 message SetGroupAdminsOnlyResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message SetGroupInfoAdminsOnlyRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    bool admins_only = 3;
+}
+
+message SetGroupInfoAdminsOnlyResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message SetGroupAddMembersAdminsOnlyRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    bool admins_only = 3;
+}
+
+message SetGroupAddMembersAdminsOnlyResponse {
     bool success = 1;
     string error = 2;
 }

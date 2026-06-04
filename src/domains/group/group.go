@@ -95,6 +95,11 @@ type SetGroupAnnounceRequest struct {
 	Announce bool   `json:"announce" form:"announce"`
 }
 
+type SetGroupMemberAddModeRequest struct {
+	GroupID    string `json:"group_id" form:"group_id"`
+	AdminsOnly bool   `json:"admins_only" form:"admins_only"`
+}
+
 type SetGroupTopicRequest struct {
 	GroupID string `json:"group_id" form:"group_id"`
 	Topic   string `json:"topic" form:"topic"`

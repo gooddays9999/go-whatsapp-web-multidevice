@@ -410,6 +410,28 @@ func (service serviceGroup) SetGroupAnnounce(ctx context.Context, request domain
 	return client.SetGroupAnnounce(ctx, groupJID, request.Announce)
 }
 
+func (service serviceGroup) SetGroupMemberAddMode(ctx context.Context, request domainGroup.SetGroupMemberAddModeRequest) (err error) {
+	if err = validations.ValidateSetGroupMemberAddMode(ctx, request); err != nil {
+		return err
+	}
+
+	client := whatsapp.ClientFromContext(ctx)
+	if client == nil {
+		return pkgError.ErrWaCLI
+	}
+
+	groupJID, err := utils.ValidateJidWithLogin(client, request.GroupID)
+	if err != nil {
+		return err
+	}
+
+	mode := types.GroupMemberAddModeAllMember
+	if request.AdminsOnly {
+		mode = types.GroupMemberAddModeAdmin
+	}
+	return client.SetGroupMemberAddMode(ctx, groupJID, mode)
+}
+
 func (service serviceGroup) SetGroupTopic(ctx context.Context, request domainGroup.SetGroupTopicRequest) (err error) {
 	if err = validations.ValidateSetGroupTopic(ctx, request); err != nil {
 		return err

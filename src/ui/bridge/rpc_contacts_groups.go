@@ -505,6 +505,28 @@ func (s *Service) SetGroupAdminsOnly(ctx context.Context, req *bridgepb.SetGroup
 	return &bridgepb.SetGroupAdminsOnlyResponse{Success: true}, nil
 }
 
+func (s *Service) SetGroupInfoAdminsOnly(ctx context.Context, req *bridgepb.SetGroupInfoAdminsOnlyRequest) (*bridgepb.SetGroupInfoAdminsOnlyResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	if err := s.deps.GroupUsecase.SetGroupLocked(scoped, domainGroup.SetGroupLockedRequest{GroupID: req.GetGroupJid(), Locked: req.GetAdminsOnly()}); err != nil {
+		return &bridgepb.SetGroupInfoAdminsOnlyResponse{Success: false, Error: err.Error()}, nil
+	}
+	return &bridgepb.SetGroupInfoAdminsOnlyResponse{Success: true}, nil
+}
+
+func (s *Service) SetGroupAddMembersAdminsOnly(ctx context.Context, req *bridgepb.SetGroupAddMembersAdminsOnlyRequest) (*bridgepb.SetGroupAddMembersAdminsOnlyResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	if err := s.deps.GroupUsecase.SetGroupMemberAddMode(scoped, domainGroup.SetGroupMemberAddModeRequest{GroupID: req.GetGroupJid(), AdminsOnly: req.GetAdminsOnly()}); err != nil {
+		return &bridgepb.SetGroupAddMembersAdminsOnlyResponse{Success: false, Error: err.Error()}, nil
+	}
+	return &bridgepb.SetGroupAddMembersAdminsOnlyResponse{Success: true}, nil
+}
+
 func (s *Service) JoinGroupByLink(ctx context.Context, req *bridgepb.JoinGroupByLinkRequest) (*bridgepb.JoinGroupByLinkResponse, error) {
 	scoped, err := s.accountContext(ctx, req.GetAccountId())
 	if err != nil {

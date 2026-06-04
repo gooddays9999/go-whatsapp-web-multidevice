@@ -631,6 +631,49 @@ func TestValidateSetGroupAnnounce(t *testing.T) {
 	}
 }
 
+func TestValidateSetGroupMemberAddMode(t *testing.T) {
+	type args struct {
+		request domainGroup.SetGroupMemberAddModeRequest
+	}
+	tests := []struct {
+		name string
+		args args
+		err  any
+	}{
+		{
+			name: "should success with valid group id and admins only true",
+			args: args{request: domainGroup.SetGroupMemberAddModeRequest{
+				GroupID:    "123456789@g.us",
+				AdminsOnly: true,
+			}},
+			err: nil,
+		},
+		{
+			name: "should success with valid group id and admins only false",
+			args: args{request: domainGroup.SetGroupMemberAddModeRequest{
+				GroupID:    "123456789@g.us",
+				AdminsOnly: false,
+			}},
+			err: nil,
+		},
+		{
+			name: "should error with empty group id",
+			args: args{request: domainGroup.SetGroupMemberAddModeRequest{
+				GroupID:    "",
+				AdminsOnly: true,
+			}},
+			err: pkgError.ValidationError("group_id: cannot be blank."),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateSetGroupMemberAddMode(context.Background(), tt.args.request)
+			assert.Equal(t, tt.err, err)
+		})
+	}
+}
+
 func TestValidateSetGroupTopic(t *testing.T) {
 	type args struct {
 		request domainGroup.SetGroupTopicRequest

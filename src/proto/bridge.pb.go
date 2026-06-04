@@ -5926,6 +5926,230 @@ func (x *SetGroupAdminsOnlyResponse) GetError() string {
 	return ""
 }
 
+type SetGroupInfoAdminsOnlyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	GroupJid      string                 `protobuf:"bytes,2,opt,name=group_jid,json=groupJid,proto3" json:"group_jid,omitempty"`
+	AdminsOnly    bool                   `protobuf:"varint,3,opt,name=admins_only,json=adminsOnly,proto3" json:"admins_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGroupInfoAdminsOnlyRequest) Reset() {
+	*x = SetGroupInfoAdminsOnlyRequest{}
+	mi := &file_proto_bridge_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGroupInfoAdminsOnlyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGroupInfoAdminsOnlyRequest) ProtoMessage() {}
+
+func (x *SetGroupInfoAdminsOnlyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bridge_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGroupInfoAdminsOnlyRequest.ProtoReflect.Descriptor instead.
+func (*SetGroupInfoAdminsOnlyRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bridge_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *SetGroupInfoAdminsOnlyRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *SetGroupInfoAdminsOnlyRequest) GetGroupJid() string {
+	if x != nil {
+		return x.GroupJid
+	}
+	return ""
+}
+
+func (x *SetGroupInfoAdminsOnlyRequest) GetAdminsOnly() bool {
+	if x != nil {
+		return x.AdminsOnly
+	}
+	return false
+}
+
+type SetGroupInfoAdminsOnlyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGroupInfoAdminsOnlyResponse) Reset() {
+	*x = SetGroupInfoAdminsOnlyResponse{}
+	mi := &file_proto_bridge_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGroupInfoAdminsOnlyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGroupInfoAdminsOnlyResponse) ProtoMessage() {}
+
+func (x *SetGroupInfoAdminsOnlyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bridge_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGroupInfoAdminsOnlyResponse.ProtoReflect.Descriptor instead.
+func (*SetGroupInfoAdminsOnlyResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bridge_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *SetGroupInfoAdminsOnlyResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SetGroupInfoAdminsOnlyResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type SetGroupAddMembersAdminsOnlyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	GroupJid      string                 `protobuf:"bytes,2,opt,name=group_jid,json=groupJid,proto3" json:"group_jid,omitempty"`
+	AdminsOnly    bool                   `protobuf:"varint,3,opt,name=admins_only,json=adminsOnly,proto3" json:"admins_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGroupAddMembersAdminsOnlyRequest) Reset() {
+	*x = SetGroupAddMembersAdminsOnlyRequest{}
+	mi := &file_proto_bridge_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGroupAddMembersAdminsOnlyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGroupAddMembersAdminsOnlyRequest) ProtoMessage() {}
+
+func (x *SetGroupAddMembersAdminsOnlyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bridge_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGroupAddMembersAdminsOnlyRequest.ProtoReflect.Descriptor instead.
+func (*SetGroupAddMembersAdminsOnlyRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bridge_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *SetGroupAddMembersAdminsOnlyRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *SetGroupAddMembersAdminsOnlyRequest) GetGroupJid() string {
+	if x != nil {
+		return x.GroupJid
+	}
+	return ""
+}
+
+func (x *SetGroupAddMembersAdminsOnlyRequest) GetAdminsOnly() bool {
+	if x != nil {
+		return x.AdminsOnly
+	}
+	return false
+}
+
+type SetGroupAddMembersAdminsOnlyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGroupAddMembersAdminsOnlyResponse) Reset() {
+	*x = SetGroupAddMembersAdminsOnlyResponse{}
+	mi := &file_proto_bridge_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGroupAddMembersAdminsOnlyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGroupAddMembersAdminsOnlyResponse) ProtoMessage() {}
+
+func (x *SetGroupAddMembersAdminsOnlyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bridge_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGroupAddMembersAdminsOnlyResponse.ProtoReflect.Descriptor instead.
+func (*SetGroupAddMembersAdminsOnlyResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bridge_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *SetGroupAddMembersAdminsOnlyResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SetGroupAddMembersAdminsOnlyResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_proto_bridge_proto protoreflect.FileDescriptor
 
 const file_proto_bridge_proto_rawDesc = "" +
@@ -6429,7 +6653,25 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"adminsOnly\"L\n" +
 	"\x1aSetGroupAdminsOnlyResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error2\xd5\x18\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"|\n" +
+	"\x1dSetGroupInfoAdminsOnlyRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1b\n" +
+	"\tgroup_jid\x18\x02 \x01(\tR\bgroupJid\x12\x1f\n" +
+	"\vadmins_only\x18\x03 \x01(\bR\n" +
+	"adminsOnly\"P\n" +
+	"\x1eSetGroupInfoAdminsOnlyResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\x82\x01\n" +
+	"#SetGroupAddMembersAdminsOnlyRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1b\n" +
+	"\tgroup_jid\x18\x02 \x01(\tR\bgroupJid\x12\x1f\n" +
+	"\vadmins_only\x18\x03 \x01(\bR\n" +
+	"adminsOnly\"V\n" +
+	"$SetGroupAddMembersAdminsOnlyResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error2\xb9\x1a\n" +
 	"\x0eWhatsAppBridge\x12:\n" +
 	"\aConnect\x12\x16.bridge.ConnectRequest\x1a\x17.bridge.ConnectResponse\x12C\n" +
 	"\n" +
@@ -6459,7 +6701,9 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"\n" +
 	"LeaveGroup\x12\x19.bridge.LeaveGroupRequest\x1a\x1a.bridge.LeaveGroupResponse\x12L\n" +
 	"\rDeleteMessage\x12\x1c.bridge.DeleteMessageRequest\x1a\x1d.bridge.DeleteMessageResponse\x12[\n" +
-	"\x12SetGroupAdminsOnly\x12!.bridge.SetGroupAdminsOnlyRequest\x1a\".bridge.SetGroupAdminsOnlyResponse\x12O\n" +
+	"\x12SetGroupAdminsOnly\x12!.bridge.SetGroupAdminsOnlyRequest\x1a\".bridge.SetGroupAdminsOnlyResponse\x12g\n" +
+	"\x16SetGroupInfoAdminsOnly\x12%.bridge.SetGroupInfoAdminsOnlyRequest\x1a&.bridge.SetGroupInfoAdminsOnlyResponse\x12y\n" +
+	"\x1cSetGroupAddMembersAdminsOnly\x12+.bridge.SetGroupAddMembersAdminsOnlyRequest\x1a,.bridge.SetGroupAddMembersAdminsOnlyResponse\x12O\n" +
 	"\x0eReactToMessage\x12\x1d.bridge.ReactToMessageRequest\x1a\x1e.bridge.ReactToMessageResponse\x12^\n" +
 	"\x13GetMessageReactions\x12\".bridge.GetMessageReactionsRequest\x1a#.bridge.GetMessageReactionsResponse\x12C\n" +
 	"\n" +
@@ -6489,101 +6733,105 @@ func file_proto_bridge_proto_rawDescGZIP() []byte {
 	return file_proto_bridge_proto_rawDescData
 }
 
-var file_proto_bridge_proto_msgTypes = make([]protoimpl.MessageInfo, 93)
+var file_proto_bridge_proto_msgTypes = make([]protoimpl.MessageInfo, 97)
 var file_proto_bridge_proto_goTypes = []any{
-	(*ProxyConfig)(nil),                    // 0: bridge.ProxyConfig
-	(*ConnectRequest)(nil),                 // 1: bridge.ConnectRequest
-	(*ConnectResponse)(nil),                // 2: bridge.ConnectResponse
-	(*QRCodeRequest)(nil),                  // 3: bridge.QRCodeRequest
-	(*QRCodeResponse)(nil),                 // 4: bridge.QRCodeResponse
-	(*LinkCodeRequest)(nil),                // 5: bridge.LinkCodeRequest
-	(*LinkCodeResponse)(nil),               // 6: bridge.LinkCodeResponse
-	(*SendMessageRequest)(nil),             // 7: bridge.SendMessageRequest
-	(*SendMessageResponse)(nil),            // 8: bridge.SendMessageResponse
-	(*SendMediaRequest)(nil),               // 9: bridge.SendMediaRequest
-	(*SendMediaResponse)(nil),              // 10: bridge.SendMediaResponse
-	(*MessageContent)(nil),                 // 11: bridge.MessageContent
-	(*GetContactsRequest)(nil),             // 12: bridge.GetContactsRequest
-	(*GetContactsResponse)(nil),            // 13: bridge.GetContactsResponse
-	(*Contact)(nil),                        // 14: bridge.Contact
-	(*GetGroupsRequest)(nil),               // 15: bridge.GetGroupsRequest
-	(*GetGroupsResponse)(nil),              // 16: bridge.GetGroupsResponse
-	(*Group)(nil),                          // 17: bridge.Group
-	(*GetGroupMembersRequest)(nil),         // 18: bridge.GetGroupMembersRequest
-	(*GetGroupMembersResponse)(nil),        // 19: bridge.GetGroupMembersResponse
-	(*GroupMember)(nil),                    // 20: bridge.GroupMember
-	(*AccountStatusRequest)(nil),           // 21: bridge.AccountStatusRequest
-	(*AccountStatusResponse)(nil),          // 22: bridge.AccountStatusResponse
-	(*BrowserWindow)(nil),                  // 23: bridge.BrowserWindow
-	(*ConnectionStateRequest)(nil),         // 24: bridge.ConnectionStateRequest
-	(*ConnectionStateResponse)(nil),        // 25: bridge.ConnectionStateResponse
-	(*DisconnectRequest)(nil),              // 26: bridge.DisconnectRequest
-	(*DisconnectResponse)(nil),             // 27: bridge.DisconnectResponse
-	(*CheckNumberRequest)(nil),             // 28: bridge.CheckNumberRequest
-	(*CheckNumberResponse)(nil),            // 29: bridge.CheckNumberResponse
-	(*MessageStatusRequest)(nil),           // 30: bridge.MessageStatusRequest
-	(*MessageStatusResponse)(nil),          // 31: bridge.MessageStatusResponse
-	(*CreateGroupRequest)(nil),             // 32: bridge.CreateGroupRequest
-	(*CreateGroupResponse)(nil),            // 33: bridge.CreateGroupResponse
-	(*UpdateGroupRequest)(nil),             // 34: bridge.UpdateGroupRequest
-	(*UpdateGroupResponse)(nil),            // 35: bridge.UpdateGroupResponse
-	(*AddGroupMembersRequest)(nil),         // 36: bridge.AddGroupMembersRequest
-	(*AddGroupMembersResponse)(nil),        // 37: bridge.AddGroupMembersResponse
-	(*RemoveGroupMembersRequest)(nil),      // 38: bridge.RemoveGroupMembersRequest
-	(*RemoveGroupMembersResponse)(nil),     // 39: bridge.RemoveGroupMembersResponse
-	(*PromoteGroupMembersRequest)(nil),     // 40: bridge.PromoteGroupMembersRequest
-	(*PromoteGroupMembersResponse)(nil),    // 41: bridge.PromoteGroupMembersResponse
-	(*DemoteGroupMembersRequest)(nil),      // 42: bridge.DemoteGroupMembersRequest
-	(*DemoteGroupMembersResponse)(nil),     // 43: bridge.DemoteGroupMembersResponse
-	(*LeaveGroupRequest)(nil),              // 44: bridge.LeaveGroupRequest
-	(*LeaveGroupResponse)(nil),             // 45: bridge.LeaveGroupResponse
-	(*SendContactRequest)(nil),             // 46: bridge.SendContactRequest
-	(*SendContactResponse)(nil),            // 47: bridge.SendContactResponse
-	(*AddContactRequest)(nil),              // 48: bridge.AddContactRequest
-	(*AddContactResponse)(nil),             // 49: bridge.AddContactResponse
-	(*GetContactDetailRequest)(nil),        // 50: bridge.GetContactDetailRequest
-	(*GetContactDetailResponse)(nil),       // 51: bridge.GetContactDetailResponse
-	(*ContactDetail)(nil),                  // 52: bridge.ContactDetail
-	(*SetProfilePictureRequest)(nil),       // 53: bridge.SetProfilePictureRequest
-	(*SetProfilePictureResponse)(nil),      // 54: bridge.SetProfilePictureResponse
-	(*SetStatusRequest)(nil),               // 55: bridge.SetStatusRequest
-	(*SetStatusResponse)(nil),              // 56: bridge.SetStatusResponse
-	(*SetDisplayNameRequest)(nil),          // 57: bridge.SetDisplayNameRequest
-	(*SetDisplayNameResponse)(nil),         // 58: bridge.SetDisplayNameResponse
-	(*GetAccountStatsRequest)(nil),         // 59: bridge.GetAccountStatsRequest
-	(*GetAccountStatsResponse)(nil),        // 60: bridge.GetAccountStatsResponse
-	(*GetBridgeStatsRequest)(nil),          // 61: bridge.GetBridgeStatsRequest
-	(*BridgeWorkerInfo)(nil),               // 62: bridge.BridgeWorkerInfo
-	(*GetBridgeStatsResponse)(nil),         // 63: bridge.GetBridgeStatsResponse
-	(*WebServerStatSpec)(nil),              // 64: bridge.WebServerStatSpec
-	(*GetWebServerStatsRequest)(nil),       // 65: bridge.GetWebServerStatsRequest
-	(*BatchGetWebServerStatsRequest)(nil),  // 66: bridge.BatchGetWebServerStatsRequest
-	(*WebServerStats)(nil),                 // 67: bridge.WebServerStats
-	(*BatchGetWebServerStatsResponse)(nil), // 68: bridge.BatchGetWebServerStatsResponse
-	(*ReactToMessageRequest)(nil),          // 69: bridge.ReactToMessageRequest
-	(*ReactToMessageResponse)(nil),         // 70: bridge.ReactToMessageResponse
-	(*GetMessageReactionsRequest)(nil),     // 71: bridge.GetMessageReactionsRequest
-	(*ReactionSender)(nil),                 // 72: bridge.ReactionSender
-	(*ReactionGroup)(nil),                  // 73: bridge.ReactionGroup
-	(*GetMessageReactionsResponse)(nil),    // 74: bridge.GetMessageReactionsResponse
-	(*SendStatusRequest)(nil),              // 75: bridge.SendStatusRequest
-	(*SendStatusResponse)(nil),             // 76: bridge.SendStatusResponse
-	(*CommentStatusRequest)(nil),           // 77: bridge.CommentStatusRequest
-	(*CommentStatusResponse)(nil),          // 78: bridge.CommentStatusResponse
-	(*LikeStatusRequest)(nil),              // 79: bridge.LikeStatusRequest
-	(*LikeStatusResponse)(nil),             // 80: bridge.LikeStatusResponse
-	(*GetStatusViewersRequest)(nil),        // 81: bridge.GetStatusViewersRequest
-	(*GetStatusViewersResponse)(nil),       // 82: bridge.GetStatusViewersResponse
-	(*StatusViewer)(nil),                   // 83: bridge.StatusViewer
-	(*JoinGroupByLinkRequest)(nil),         // 84: bridge.JoinGroupByLinkRequest
-	(*JoinGroupByLinkResponse)(nil),        // 85: bridge.JoinGroupByLinkResponse
-	(*CloseAllTabsRequest)(nil),            // 86: bridge.CloseAllTabsRequest
-	(*CloseAllTabsResponse)(nil),           // 87: bridge.CloseAllTabsResponse
-	(*DeleteMessageRequest)(nil),           // 88: bridge.DeleteMessageRequest
-	(*DeleteMessageResponse)(nil),          // 89: bridge.DeleteMessageResponse
-	(*SetGroupAdminsOnlyRequest)(nil),      // 90: bridge.SetGroupAdminsOnlyRequest
-	(*SetGroupAdminsOnlyResponse)(nil),     // 91: bridge.SetGroupAdminsOnlyResponse
-	nil,                                    // 92: bridge.CheckNumberResponse.ResultsEntry
+	(*ProxyConfig)(nil),                          // 0: bridge.ProxyConfig
+	(*ConnectRequest)(nil),                       // 1: bridge.ConnectRequest
+	(*ConnectResponse)(nil),                      // 2: bridge.ConnectResponse
+	(*QRCodeRequest)(nil),                        // 3: bridge.QRCodeRequest
+	(*QRCodeResponse)(nil),                       // 4: bridge.QRCodeResponse
+	(*LinkCodeRequest)(nil),                      // 5: bridge.LinkCodeRequest
+	(*LinkCodeResponse)(nil),                     // 6: bridge.LinkCodeResponse
+	(*SendMessageRequest)(nil),                   // 7: bridge.SendMessageRequest
+	(*SendMessageResponse)(nil),                  // 8: bridge.SendMessageResponse
+	(*SendMediaRequest)(nil),                     // 9: bridge.SendMediaRequest
+	(*SendMediaResponse)(nil),                    // 10: bridge.SendMediaResponse
+	(*MessageContent)(nil),                       // 11: bridge.MessageContent
+	(*GetContactsRequest)(nil),                   // 12: bridge.GetContactsRequest
+	(*GetContactsResponse)(nil),                  // 13: bridge.GetContactsResponse
+	(*Contact)(nil),                              // 14: bridge.Contact
+	(*GetGroupsRequest)(nil),                     // 15: bridge.GetGroupsRequest
+	(*GetGroupsResponse)(nil),                    // 16: bridge.GetGroupsResponse
+	(*Group)(nil),                                // 17: bridge.Group
+	(*GetGroupMembersRequest)(nil),               // 18: bridge.GetGroupMembersRequest
+	(*GetGroupMembersResponse)(nil),              // 19: bridge.GetGroupMembersResponse
+	(*GroupMember)(nil),                          // 20: bridge.GroupMember
+	(*AccountStatusRequest)(nil),                 // 21: bridge.AccountStatusRequest
+	(*AccountStatusResponse)(nil),                // 22: bridge.AccountStatusResponse
+	(*BrowserWindow)(nil),                        // 23: bridge.BrowserWindow
+	(*ConnectionStateRequest)(nil),               // 24: bridge.ConnectionStateRequest
+	(*ConnectionStateResponse)(nil),              // 25: bridge.ConnectionStateResponse
+	(*DisconnectRequest)(nil),                    // 26: bridge.DisconnectRequest
+	(*DisconnectResponse)(nil),                   // 27: bridge.DisconnectResponse
+	(*CheckNumberRequest)(nil),                   // 28: bridge.CheckNumberRequest
+	(*CheckNumberResponse)(nil),                  // 29: bridge.CheckNumberResponse
+	(*MessageStatusRequest)(nil),                 // 30: bridge.MessageStatusRequest
+	(*MessageStatusResponse)(nil),                // 31: bridge.MessageStatusResponse
+	(*CreateGroupRequest)(nil),                   // 32: bridge.CreateGroupRequest
+	(*CreateGroupResponse)(nil),                  // 33: bridge.CreateGroupResponse
+	(*UpdateGroupRequest)(nil),                   // 34: bridge.UpdateGroupRequest
+	(*UpdateGroupResponse)(nil),                  // 35: bridge.UpdateGroupResponse
+	(*AddGroupMembersRequest)(nil),               // 36: bridge.AddGroupMembersRequest
+	(*AddGroupMembersResponse)(nil),              // 37: bridge.AddGroupMembersResponse
+	(*RemoveGroupMembersRequest)(nil),            // 38: bridge.RemoveGroupMembersRequest
+	(*RemoveGroupMembersResponse)(nil),           // 39: bridge.RemoveGroupMembersResponse
+	(*PromoteGroupMembersRequest)(nil),           // 40: bridge.PromoteGroupMembersRequest
+	(*PromoteGroupMembersResponse)(nil),          // 41: bridge.PromoteGroupMembersResponse
+	(*DemoteGroupMembersRequest)(nil),            // 42: bridge.DemoteGroupMembersRequest
+	(*DemoteGroupMembersResponse)(nil),           // 43: bridge.DemoteGroupMembersResponse
+	(*LeaveGroupRequest)(nil),                    // 44: bridge.LeaveGroupRequest
+	(*LeaveGroupResponse)(nil),                   // 45: bridge.LeaveGroupResponse
+	(*SendContactRequest)(nil),                   // 46: bridge.SendContactRequest
+	(*SendContactResponse)(nil),                  // 47: bridge.SendContactResponse
+	(*AddContactRequest)(nil),                    // 48: bridge.AddContactRequest
+	(*AddContactResponse)(nil),                   // 49: bridge.AddContactResponse
+	(*GetContactDetailRequest)(nil),              // 50: bridge.GetContactDetailRequest
+	(*GetContactDetailResponse)(nil),             // 51: bridge.GetContactDetailResponse
+	(*ContactDetail)(nil),                        // 52: bridge.ContactDetail
+	(*SetProfilePictureRequest)(nil),             // 53: bridge.SetProfilePictureRequest
+	(*SetProfilePictureResponse)(nil),            // 54: bridge.SetProfilePictureResponse
+	(*SetStatusRequest)(nil),                     // 55: bridge.SetStatusRequest
+	(*SetStatusResponse)(nil),                    // 56: bridge.SetStatusResponse
+	(*SetDisplayNameRequest)(nil),                // 57: bridge.SetDisplayNameRequest
+	(*SetDisplayNameResponse)(nil),               // 58: bridge.SetDisplayNameResponse
+	(*GetAccountStatsRequest)(nil),               // 59: bridge.GetAccountStatsRequest
+	(*GetAccountStatsResponse)(nil),              // 60: bridge.GetAccountStatsResponse
+	(*GetBridgeStatsRequest)(nil),                // 61: bridge.GetBridgeStatsRequest
+	(*BridgeWorkerInfo)(nil),                     // 62: bridge.BridgeWorkerInfo
+	(*GetBridgeStatsResponse)(nil),               // 63: bridge.GetBridgeStatsResponse
+	(*WebServerStatSpec)(nil),                    // 64: bridge.WebServerStatSpec
+	(*GetWebServerStatsRequest)(nil),             // 65: bridge.GetWebServerStatsRequest
+	(*BatchGetWebServerStatsRequest)(nil),        // 66: bridge.BatchGetWebServerStatsRequest
+	(*WebServerStats)(nil),                       // 67: bridge.WebServerStats
+	(*BatchGetWebServerStatsResponse)(nil),       // 68: bridge.BatchGetWebServerStatsResponse
+	(*ReactToMessageRequest)(nil),                // 69: bridge.ReactToMessageRequest
+	(*ReactToMessageResponse)(nil),               // 70: bridge.ReactToMessageResponse
+	(*GetMessageReactionsRequest)(nil),           // 71: bridge.GetMessageReactionsRequest
+	(*ReactionSender)(nil),                       // 72: bridge.ReactionSender
+	(*ReactionGroup)(nil),                        // 73: bridge.ReactionGroup
+	(*GetMessageReactionsResponse)(nil),          // 74: bridge.GetMessageReactionsResponse
+	(*SendStatusRequest)(nil),                    // 75: bridge.SendStatusRequest
+	(*SendStatusResponse)(nil),                   // 76: bridge.SendStatusResponse
+	(*CommentStatusRequest)(nil),                 // 77: bridge.CommentStatusRequest
+	(*CommentStatusResponse)(nil),                // 78: bridge.CommentStatusResponse
+	(*LikeStatusRequest)(nil),                    // 79: bridge.LikeStatusRequest
+	(*LikeStatusResponse)(nil),                   // 80: bridge.LikeStatusResponse
+	(*GetStatusViewersRequest)(nil),              // 81: bridge.GetStatusViewersRequest
+	(*GetStatusViewersResponse)(nil),             // 82: bridge.GetStatusViewersResponse
+	(*StatusViewer)(nil),                         // 83: bridge.StatusViewer
+	(*JoinGroupByLinkRequest)(nil),               // 84: bridge.JoinGroupByLinkRequest
+	(*JoinGroupByLinkResponse)(nil),              // 85: bridge.JoinGroupByLinkResponse
+	(*CloseAllTabsRequest)(nil),                  // 86: bridge.CloseAllTabsRequest
+	(*CloseAllTabsResponse)(nil),                 // 87: bridge.CloseAllTabsResponse
+	(*DeleteMessageRequest)(nil),                 // 88: bridge.DeleteMessageRequest
+	(*DeleteMessageResponse)(nil),                // 89: bridge.DeleteMessageResponse
+	(*SetGroupAdminsOnlyRequest)(nil),            // 90: bridge.SetGroupAdminsOnlyRequest
+	(*SetGroupAdminsOnlyResponse)(nil),           // 91: bridge.SetGroupAdminsOnlyResponse
+	(*SetGroupInfoAdminsOnlyRequest)(nil),        // 92: bridge.SetGroupInfoAdminsOnlyRequest
+	(*SetGroupInfoAdminsOnlyResponse)(nil),       // 93: bridge.SetGroupInfoAdminsOnlyResponse
+	(*SetGroupAddMembersAdminsOnlyRequest)(nil),  // 94: bridge.SetGroupAddMembersAdminsOnlyRequest
+	(*SetGroupAddMembersAdminsOnlyResponse)(nil), // 95: bridge.SetGroupAddMembersAdminsOnlyResponse
+	nil, // 96: bridge.CheckNumberResponse.ResultsEntry
 }
 var file_proto_bridge_proto_depIdxs = []int32{
 	0,  // 0: bridge.ConnectRequest.proxy:type_name -> bridge.ProxyConfig
@@ -6592,7 +6840,7 @@ var file_proto_bridge_proto_depIdxs = []int32{
 	17, // 3: bridge.GetGroupsResponse.groups:type_name -> bridge.Group
 	20, // 4: bridge.GetGroupMembersResponse.members:type_name -> bridge.GroupMember
 	23, // 5: bridge.AccountStatusResponse.windows:type_name -> bridge.BrowserWindow
-	92, // 6: bridge.CheckNumberResponse.results:type_name -> bridge.CheckNumberResponse.ResultsEntry
+	96, // 6: bridge.CheckNumberResponse.results:type_name -> bridge.CheckNumberResponse.ResultsEntry
 	52, // 7: bridge.GetContactDetailResponse.contact:type_name -> bridge.ContactDetail
 	62, // 8: bridge.GetBridgeStatsResponse.workers:type_name -> bridge.BridgeWorkerInfo
 	64, // 9: bridge.GetWebServerStatsRequest.server:type_name -> bridge.WebServerStatSpec
@@ -6627,62 +6875,66 @@ var file_proto_bridge_proto_depIdxs = []int32{
 	44, // 38: bridge.WhatsAppBridge.LeaveGroup:input_type -> bridge.LeaveGroupRequest
 	88, // 39: bridge.WhatsAppBridge.DeleteMessage:input_type -> bridge.DeleteMessageRequest
 	90, // 40: bridge.WhatsAppBridge.SetGroupAdminsOnly:input_type -> bridge.SetGroupAdminsOnlyRequest
-	69, // 41: bridge.WhatsAppBridge.ReactToMessage:input_type -> bridge.ReactToMessageRequest
-	71, // 42: bridge.WhatsAppBridge.GetMessageReactions:input_type -> bridge.GetMessageReactionsRequest
-	75, // 43: bridge.WhatsAppBridge.SendStatus:input_type -> bridge.SendStatusRequest
-	77, // 44: bridge.WhatsAppBridge.CommentStatus:input_type -> bridge.CommentStatusRequest
-	79, // 45: bridge.WhatsAppBridge.LikeStatus:input_type -> bridge.LikeStatusRequest
-	81, // 46: bridge.WhatsAppBridge.GetStatusViewers:input_type -> bridge.GetStatusViewersRequest
-	84, // 47: bridge.WhatsAppBridge.JoinGroupByLink:input_type -> bridge.JoinGroupByLinkRequest
-	86, // 48: bridge.WhatsAppBridge.CloseAllTabs:input_type -> bridge.CloseAllTabsRequest
-	21, // 49: bridge.WhatsAppBridge.GetAccountStatus:input_type -> bridge.AccountStatusRequest
-	24, // 50: bridge.WhatsAppBridge.GetConnectionState:input_type -> bridge.ConnectionStateRequest
-	59, // 51: bridge.WhatsAppBridge.GetAccountStats:input_type -> bridge.GetAccountStatsRequest
-	61, // 52: bridge.WhatsAppBridge.GetBridgeStats:input_type -> bridge.GetBridgeStatsRequest
-	65, // 53: bridge.WhatsAppBridge.GetWebServerStats:input_type -> bridge.GetWebServerStatsRequest
-	66, // 54: bridge.WhatsAppBridge.BatchGetWebServerStats:input_type -> bridge.BatchGetWebServerStatsRequest
-	2,  // 55: bridge.WhatsAppBridge.Connect:output_type -> bridge.ConnectResponse
-	27, // 56: bridge.WhatsAppBridge.Disconnect:output_type -> bridge.DisconnectResponse
-	4,  // 57: bridge.WhatsAppBridge.GetQRCode:output_type -> bridge.QRCodeResponse
-	6,  // 58: bridge.WhatsAppBridge.GetLinkCode:output_type -> bridge.LinkCodeResponse
-	8,  // 59: bridge.WhatsAppBridge.SendMessage:output_type -> bridge.SendMessageResponse
-	10, // 60: bridge.WhatsAppBridge.SendMedia:output_type -> bridge.SendMediaResponse
-	47, // 61: bridge.WhatsAppBridge.SendContact:output_type -> bridge.SendContactResponse
-	31, // 62: bridge.WhatsAppBridge.GetMessageStatus:output_type -> bridge.MessageStatusResponse
-	13, // 63: bridge.WhatsAppBridge.GetContacts:output_type -> bridge.GetContactsResponse
-	29, // 64: bridge.WhatsAppBridge.CheckNumber:output_type -> bridge.CheckNumberResponse
-	49, // 65: bridge.WhatsAppBridge.AddContact:output_type -> bridge.AddContactResponse
-	51, // 66: bridge.WhatsAppBridge.GetContactDetail:output_type -> bridge.GetContactDetailResponse
-	54, // 67: bridge.WhatsAppBridge.SetProfilePicture:output_type -> bridge.SetProfilePictureResponse
-	56, // 68: bridge.WhatsAppBridge.SetStatus:output_type -> bridge.SetStatusResponse
-	58, // 69: bridge.WhatsAppBridge.SetDisplayName:output_type -> bridge.SetDisplayNameResponse
-	16, // 70: bridge.WhatsAppBridge.GetGroups:output_type -> bridge.GetGroupsResponse
-	19, // 71: bridge.WhatsAppBridge.GetGroupMembers:output_type -> bridge.GetGroupMembersResponse
-	33, // 72: bridge.WhatsAppBridge.CreateGroup:output_type -> bridge.CreateGroupResponse
-	35, // 73: bridge.WhatsAppBridge.UpdateGroup:output_type -> bridge.UpdateGroupResponse
-	37, // 74: bridge.WhatsAppBridge.AddGroupMembers:output_type -> bridge.AddGroupMembersResponse
-	39, // 75: bridge.WhatsAppBridge.RemoveGroupMembers:output_type -> bridge.RemoveGroupMembersResponse
-	41, // 76: bridge.WhatsAppBridge.PromoteGroupMembers:output_type -> bridge.PromoteGroupMembersResponse
-	43, // 77: bridge.WhatsAppBridge.DemoteGroupMembers:output_type -> bridge.DemoteGroupMembersResponse
-	45, // 78: bridge.WhatsAppBridge.LeaveGroup:output_type -> bridge.LeaveGroupResponse
-	89, // 79: bridge.WhatsAppBridge.DeleteMessage:output_type -> bridge.DeleteMessageResponse
-	91, // 80: bridge.WhatsAppBridge.SetGroupAdminsOnly:output_type -> bridge.SetGroupAdminsOnlyResponse
-	70, // 81: bridge.WhatsAppBridge.ReactToMessage:output_type -> bridge.ReactToMessageResponse
-	74, // 82: bridge.WhatsAppBridge.GetMessageReactions:output_type -> bridge.GetMessageReactionsResponse
-	76, // 83: bridge.WhatsAppBridge.SendStatus:output_type -> bridge.SendStatusResponse
-	78, // 84: bridge.WhatsAppBridge.CommentStatus:output_type -> bridge.CommentStatusResponse
-	80, // 85: bridge.WhatsAppBridge.LikeStatus:output_type -> bridge.LikeStatusResponse
-	82, // 86: bridge.WhatsAppBridge.GetStatusViewers:output_type -> bridge.GetStatusViewersResponse
-	85, // 87: bridge.WhatsAppBridge.JoinGroupByLink:output_type -> bridge.JoinGroupByLinkResponse
-	87, // 88: bridge.WhatsAppBridge.CloseAllTabs:output_type -> bridge.CloseAllTabsResponse
-	22, // 89: bridge.WhatsAppBridge.GetAccountStatus:output_type -> bridge.AccountStatusResponse
-	25, // 90: bridge.WhatsAppBridge.GetConnectionState:output_type -> bridge.ConnectionStateResponse
-	60, // 91: bridge.WhatsAppBridge.GetAccountStats:output_type -> bridge.GetAccountStatsResponse
-	63, // 92: bridge.WhatsAppBridge.GetBridgeStats:output_type -> bridge.GetBridgeStatsResponse
-	67, // 93: bridge.WhatsAppBridge.GetWebServerStats:output_type -> bridge.WebServerStats
-	68, // 94: bridge.WhatsAppBridge.BatchGetWebServerStats:output_type -> bridge.BatchGetWebServerStatsResponse
-	55, // [55:95] is the sub-list for method output_type
-	15, // [15:55] is the sub-list for method input_type
+	92, // 41: bridge.WhatsAppBridge.SetGroupInfoAdminsOnly:input_type -> bridge.SetGroupInfoAdminsOnlyRequest
+	94, // 42: bridge.WhatsAppBridge.SetGroupAddMembersAdminsOnly:input_type -> bridge.SetGroupAddMembersAdminsOnlyRequest
+	69, // 43: bridge.WhatsAppBridge.ReactToMessage:input_type -> bridge.ReactToMessageRequest
+	71, // 44: bridge.WhatsAppBridge.GetMessageReactions:input_type -> bridge.GetMessageReactionsRequest
+	75, // 45: bridge.WhatsAppBridge.SendStatus:input_type -> bridge.SendStatusRequest
+	77, // 46: bridge.WhatsAppBridge.CommentStatus:input_type -> bridge.CommentStatusRequest
+	79, // 47: bridge.WhatsAppBridge.LikeStatus:input_type -> bridge.LikeStatusRequest
+	81, // 48: bridge.WhatsAppBridge.GetStatusViewers:input_type -> bridge.GetStatusViewersRequest
+	84, // 49: bridge.WhatsAppBridge.JoinGroupByLink:input_type -> bridge.JoinGroupByLinkRequest
+	86, // 50: bridge.WhatsAppBridge.CloseAllTabs:input_type -> bridge.CloseAllTabsRequest
+	21, // 51: bridge.WhatsAppBridge.GetAccountStatus:input_type -> bridge.AccountStatusRequest
+	24, // 52: bridge.WhatsAppBridge.GetConnectionState:input_type -> bridge.ConnectionStateRequest
+	59, // 53: bridge.WhatsAppBridge.GetAccountStats:input_type -> bridge.GetAccountStatsRequest
+	61, // 54: bridge.WhatsAppBridge.GetBridgeStats:input_type -> bridge.GetBridgeStatsRequest
+	65, // 55: bridge.WhatsAppBridge.GetWebServerStats:input_type -> bridge.GetWebServerStatsRequest
+	66, // 56: bridge.WhatsAppBridge.BatchGetWebServerStats:input_type -> bridge.BatchGetWebServerStatsRequest
+	2,  // 57: bridge.WhatsAppBridge.Connect:output_type -> bridge.ConnectResponse
+	27, // 58: bridge.WhatsAppBridge.Disconnect:output_type -> bridge.DisconnectResponse
+	4,  // 59: bridge.WhatsAppBridge.GetQRCode:output_type -> bridge.QRCodeResponse
+	6,  // 60: bridge.WhatsAppBridge.GetLinkCode:output_type -> bridge.LinkCodeResponse
+	8,  // 61: bridge.WhatsAppBridge.SendMessage:output_type -> bridge.SendMessageResponse
+	10, // 62: bridge.WhatsAppBridge.SendMedia:output_type -> bridge.SendMediaResponse
+	47, // 63: bridge.WhatsAppBridge.SendContact:output_type -> bridge.SendContactResponse
+	31, // 64: bridge.WhatsAppBridge.GetMessageStatus:output_type -> bridge.MessageStatusResponse
+	13, // 65: bridge.WhatsAppBridge.GetContacts:output_type -> bridge.GetContactsResponse
+	29, // 66: bridge.WhatsAppBridge.CheckNumber:output_type -> bridge.CheckNumberResponse
+	49, // 67: bridge.WhatsAppBridge.AddContact:output_type -> bridge.AddContactResponse
+	51, // 68: bridge.WhatsAppBridge.GetContactDetail:output_type -> bridge.GetContactDetailResponse
+	54, // 69: bridge.WhatsAppBridge.SetProfilePicture:output_type -> bridge.SetProfilePictureResponse
+	56, // 70: bridge.WhatsAppBridge.SetStatus:output_type -> bridge.SetStatusResponse
+	58, // 71: bridge.WhatsAppBridge.SetDisplayName:output_type -> bridge.SetDisplayNameResponse
+	16, // 72: bridge.WhatsAppBridge.GetGroups:output_type -> bridge.GetGroupsResponse
+	19, // 73: bridge.WhatsAppBridge.GetGroupMembers:output_type -> bridge.GetGroupMembersResponse
+	33, // 74: bridge.WhatsAppBridge.CreateGroup:output_type -> bridge.CreateGroupResponse
+	35, // 75: bridge.WhatsAppBridge.UpdateGroup:output_type -> bridge.UpdateGroupResponse
+	37, // 76: bridge.WhatsAppBridge.AddGroupMembers:output_type -> bridge.AddGroupMembersResponse
+	39, // 77: bridge.WhatsAppBridge.RemoveGroupMembers:output_type -> bridge.RemoveGroupMembersResponse
+	41, // 78: bridge.WhatsAppBridge.PromoteGroupMembers:output_type -> bridge.PromoteGroupMembersResponse
+	43, // 79: bridge.WhatsAppBridge.DemoteGroupMembers:output_type -> bridge.DemoteGroupMembersResponse
+	45, // 80: bridge.WhatsAppBridge.LeaveGroup:output_type -> bridge.LeaveGroupResponse
+	89, // 81: bridge.WhatsAppBridge.DeleteMessage:output_type -> bridge.DeleteMessageResponse
+	91, // 82: bridge.WhatsAppBridge.SetGroupAdminsOnly:output_type -> bridge.SetGroupAdminsOnlyResponse
+	93, // 83: bridge.WhatsAppBridge.SetGroupInfoAdminsOnly:output_type -> bridge.SetGroupInfoAdminsOnlyResponse
+	95, // 84: bridge.WhatsAppBridge.SetGroupAddMembersAdminsOnly:output_type -> bridge.SetGroupAddMembersAdminsOnlyResponse
+	70, // 85: bridge.WhatsAppBridge.ReactToMessage:output_type -> bridge.ReactToMessageResponse
+	74, // 86: bridge.WhatsAppBridge.GetMessageReactions:output_type -> bridge.GetMessageReactionsResponse
+	76, // 87: bridge.WhatsAppBridge.SendStatus:output_type -> bridge.SendStatusResponse
+	78, // 88: bridge.WhatsAppBridge.CommentStatus:output_type -> bridge.CommentStatusResponse
+	80, // 89: bridge.WhatsAppBridge.LikeStatus:output_type -> bridge.LikeStatusResponse
+	82, // 90: bridge.WhatsAppBridge.GetStatusViewers:output_type -> bridge.GetStatusViewersResponse
+	85, // 91: bridge.WhatsAppBridge.JoinGroupByLink:output_type -> bridge.JoinGroupByLinkResponse
+	87, // 92: bridge.WhatsAppBridge.CloseAllTabs:output_type -> bridge.CloseAllTabsResponse
+	22, // 93: bridge.WhatsAppBridge.GetAccountStatus:output_type -> bridge.AccountStatusResponse
+	25, // 94: bridge.WhatsAppBridge.GetConnectionState:output_type -> bridge.ConnectionStateResponse
+	60, // 95: bridge.WhatsAppBridge.GetAccountStats:output_type -> bridge.GetAccountStatsResponse
+	63, // 96: bridge.WhatsAppBridge.GetBridgeStats:output_type -> bridge.GetBridgeStatsResponse
+	67, // 97: bridge.WhatsAppBridge.GetWebServerStats:output_type -> bridge.WebServerStats
+	68, // 98: bridge.WhatsAppBridge.BatchGetWebServerStats:output_type -> bridge.BatchGetWebServerStatsResponse
+	57, // [57:99] is the sub-list for method output_type
+	15, // [15:57] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -6699,7 +6951,7 @@ func file_proto_bridge_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_bridge_proto_rawDesc), len(file_proto_bridge_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   93,
+			NumMessages:   97,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -39,6 +39,7 @@ func InitRestGroup(app fiber.Router, service domainGroup.IGroupUsecase) Group {
 	app.Post("/group/name", rest.SetGroupName)
 	app.Post("/group/locked", rest.SetGroupLocked)
 	app.Post("/group/announce", rest.SetGroupAnnounce)
+	app.Post("/group/member-add-mode", rest.SetGroupMemberAddMode)
 	app.Post("/group/topic", rest.SetGroupTopic)
 	app.Get("/group/invite-link", rest.GetGroupInviteLink)
 	return rest
@@ -377,6 +378,28 @@ func (controller *Group) SetGroupAnnounce(c *fiber.Ctx) error {
 	message := "Success disable announce mode"
 	if request.Announce {
 		message = "Success enable announce mode"
+	}
+
+	return c.JSON(utils.ResponseData{
+		Status:  200,
+		Code:    "SUCCESS",
+		Message: message,
+	})
+}
+
+func (controller *Group) SetGroupMemberAddMode(c *fiber.Ctx) error {
+	var request domainGroup.SetGroupMemberAddModeRequest
+	err := c.BodyParser(&request)
+	utils.PanicIfNeeded(err)
+
+	utils.SanitizePhone(&request.GroupID)
+
+	err = controller.Service.SetGroupMemberAddMode(whatsapp.ContextWithDevice(c.UserContext(), getDeviceFromCtx(c)), request)
+	utils.PanicIfNeeded(err)
+
+	message := "Success allow all members to add participants"
+	if request.AdminsOnly {
+		message = "Success allow only admins to add participants"
 	}
 
 	return c.JSON(utils.ResponseData{
