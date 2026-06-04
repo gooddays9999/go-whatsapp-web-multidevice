@@ -842,6 +842,150 @@ func (x *SendMediaResponse) GetError() string {
 	return ""
 }
 
+type SendLinkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	To            string                 `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	LinkUrl       string                 `protobuf:"bytes,3,opt,name=link_url,json=linkUrl,proto3" json:"link_url,omitempty"`
+	Caption       string                 `protobuf:"bytes,4,opt,name=caption,proto3" json:"caption,omitempty"`
+	QuotedMsgId   string                 `protobuf:"bytes,5,opt,name=quoted_msg_id,json=quotedMsgId,proto3" json:"quoted_msg_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SendLinkRequest) Reset() {
+	*x = SendLinkRequest{}
+	mi := &file_proto_bridge_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendLinkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendLinkRequest) ProtoMessage() {}
+
+func (x *SendLinkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bridge_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendLinkRequest.ProtoReflect.Descriptor instead.
+func (*SendLinkRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bridge_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SendLinkRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *SendLinkRequest) GetTo() string {
+	if x != nil {
+		return x.To
+	}
+	return ""
+}
+
+func (x *SendLinkRequest) GetLinkUrl() string {
+	if x != nil {
+		return x.LinkUrl
+	}
+	return ""
+}
+
+func (x *SendLinkRequest) GetCaption() string {
+	if x != nil {
+		return x.Caption
+	}
+	return ""
+}
+
+func (x *SendLinkRequest) GetQuotedMsgId() string {
+	if x != nil {
+		return x.QuotedMsgId
+	}
+	return ""
+}
+
+type SendLinkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	MessageId     string                 `protobuf:"bytes,2,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SendLinkResponse) Reset() {
+	*x = SendLinkResponse{}
+	mi := &file_proto_bridge_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendLinkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendLinkResponse) ProtoMessage() {}
+
+func (x *SendLinkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bridge_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendLinkResponse.ProtoReflect.Descriptor instead.
+func (*SendLinkResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bridge_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SendLinkResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SendLinkResponse) GetMessageId() string {
+	if x != nil {
+		return x.MessageId
+	}
+	return ""
+}
+
+func (x *SendLinkResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *SendLinkResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 type MessageContent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
@@ -851,7 +995,7 @@ type MessageContent struct {
 
 func (x *MessageContent) Reset() {
 	*x = MessageContent{}
-	mi := &file_proto_bridge_proto_msgTypes[11]
+	mi := &file_proto_bridge_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -863,7 +1007,7 @@ func (x *MessageContent) String() string {
 func (*MessageContent) ProtoMessage() {}
 
 func (x *MessageContent) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[11]
+	mi := &file_proto_bridge_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -876,7 +1020,7 @@ func (x *MessageContent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageContent.ProtoReflect.Descriptor instead.
 func (*MessageContent) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{11}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *MessageContent) GetText() string {
@@ -895,7 +1039,7 @@ type GetContactsRequest struct {
 
 func (x *GetContactsRequest) Reset() {
 	*x = GetContactsRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[12]
+	mi := &file_proto_bridge_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -907,7 +1051,7 @@ func (x *GetContactsRequest) String() string {
 func (*GetContactsRequest) ProtoMessage() {}
 
 func (x *GetContactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[12]
+	mi := &file_proto_bridge_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -920,7 +1064,7 @@ func (x *GetContactsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactsRequest.ProtoReflect.Descriptor instead.
 func (*GetContactsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{12}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetContactsRequest) GetAccountId() string {
@@ -939,7 +1083,7 @@ type GetContactsResponse struct {
 
 func (x *GetContactsResponse) Reset() {
 	*x = GetContactsResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[13]
+	mi := &file_proto_bridge_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -951,7 +1095,7 @@ func (x *GetContactsResponse) String() string {
 func (*GetContactsResponse) ProtoMessage() {}
 
 func (x *GetContactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[13]
+	mi := &file_proto_bridge_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -964,7 +1108,7 @@ func (x *GetContactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactsResponse.ProtoReflect.Descriptor instead.
 func (*GetContactsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{13}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetContactsResponse) GetContacts() []*Contact {
@@ -989,7 +1133,7 @@ type Contact struct {
 
 func (x *Contact) Reset() {
 	*x = Contact{}
-	mi := &file_proto_bridge_proto_msgTypes[14]
+	mi := &file_proto_bridge_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1001,7 +1145,7 @@ func (x *Contact) String() string {
 func (*Contact) ProtoMessage() {}
 
 func (x *Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[14]
+	mi := &file_proto_bridge_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1014,7 +1158,7 @@ func (x *Contact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Contact.ProtoReflect.Descriptor instead.
 func (*Contact) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{14}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Contact) GetJid() string {
@@ -1075,7 +1219,7 @@ type GetGroupsRequest struct {
 
 func (x *GetGroupsRequest) Reset() {
 	*x = GetGroupsRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[15]
+	mi := &file_proto_bridge_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1087,7 +1231,7 @@ func (x *GetGroupsRequest) String() string {
 func (*GetGroupsRequest) ProtoMessage() {}
 
 func (x *GetGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[15]
+	mi := &file_proto_bridge_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1100,7 +1244,7 @@ func (x *GetGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupsRequest.ProtoReflect.Descriptor instead.
 func (*GetGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{15}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetGroupsRequest) GetAccountId() string {
@@ -1119,7 +1263,7 @@ type GetGroupsResponse struct {
 
 func (x *GetGroupsResponse) Reset() {
 	*x = GetGroupsResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[16]
+	mi := &file_proto_bridge_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1131,7 +1275,7 @@ func (x *GetGroupsResponse) String() string {
 func (*GetGroupsResponse) ProtoMessage() {}
 
 func (x *GetGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[16]
+	mi := &file_proto_bridge_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1144,7 +1288,7 @@ func (x *GetGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupsResponse.ProtoReflect.Descriptor instead.
 func (*GetGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{16}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetGroupsResponse) GetGroups() []*Group {
@@ -1168,7 +1312,7 @@ type Group struct {
 
 func (x *Group) Reset() {
 	*x = Group{}
-	mi := &file_proto_bridge_proto_msgTypes[17]
+	mi := &file_proto_bridge_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1180,7 +1324,7 @@ func (x *Group) String() string {
 func (*Group) ProtoMessage() {}
 
 func (x *Group) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[17]
+	mi := &file_proto_bridge_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1193,7 +1337,7 @@ func (x *Group) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Group.ProtoReflect.Descriptor instead.
 func (*Group) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{17}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Group) GetJid() string {
@@ -1248,7 +1392,7 @@ type GetGroupMembersRequest struct {
 
 func (x *GetGroupMembersRequest) Reset() {
 	*x = GetGroupMembersRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[18]
+	mi := &file_proto_bridge_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1260,7 +1404,7 @@ func (x *GetGroupMembersRequest) String() string {
 func (*GetGroupMembersRequest) ProtoMessage() {}
 
 func (x *GetGroupMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[18]
+	mi := &file_proto_bridge_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1273,7 +1417,7 @@ func (x *GetGroupMembersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupMembersRequest.ProtoReflect.Descriptor instead.
 func (*GetGroupMembersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{18}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetGroupMembersRequest) GetAccountId() string {
@@ -1299,7 +1443,7 @@ type GetGroupMembersResponse struct {
 
 func (x *GetGroupMembersResponse) Reset() {
 	*x = GetGroupMembersResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[19]
+	mi := &file_proto_bridge_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1311,7 +1455,7 @@ func (x *GetGroupMembersResponse) String() string {
 func (*GetGroupMembersResponse) ProtoMessage() {}
 
 func (x *GetGroupMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[19]
+	mi := &file_proto_bridge_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1324,7 +1468,7 @@ func (x *GetGroupMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGroupMembersResponse.ProtoReflect.Descriptor instead.
 func (*GetGroupMembersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{19}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetGroupMembersResponse) GetMembers() []*GroupMember {
@@ -1347,7 +1491,7 @@ type GroupMember struct {
 
 func (x *GroupMember) Reset() {
 	*x = GroupMember{}
-	mi := &file_proto_bridge_proto_msgTypes[20]
+	mi := &file_proto_bridge_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1359,7 +1503,7 @@ func (x *GroupMember) String() string {
 func (*GroupMember) ProtoMessage() {}
 
 func (x *GroupMember) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[20]
+	mi := &file_proto_bridge_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1372,7 +1516,7 @@ func (x *GroupMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupMember.ProtoReflect.Descriptor instead.
 func (*GroupMember) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{20}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GroupMember) GetJid() string {
@@ -1419,7 +1563,7 @@ type AccountStatusRequest struct {
 
 func (x *AccountStatusRequest) Reset() {
 	*x = AccountStatusRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[21]
+	mi := &file_proto_bridge_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1431,7 +1575,7 @@ func (x *AccountStatusRequest) String() string {
 func (*AccountStatusRequest) ProtoMessage() {}
 
 func (x *AccountStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[21]
+	mi := &file_proto_bridge_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1444,7 +1588,7 @@ func (x *AccountStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountStatusRequest.ProtoReflect.Descriptor instead.
 func (*AccountStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{21}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *AccountStatusRequest) GetAccountId() string {
@@ -1471,7 +1615,7 @@ type AccountStatusResponse struct {
 
 func (x *AccountStatusResponse) Reset() {
 	*x = AccountStatusResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[22]
+	mi := &file_proto_bridge_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1483,7 +1627,7 @@ func (x *AccountStatusResponse) String() string {
 func (*AccountStatusResponse) ProtoMessage() {}
 
 func (x *AccountStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[22]
+	mi := &file_proto_bridge_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1496,7 +1640,7 @@ func (x *AccountStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountStatusResponse.ProtoReflect.Descriptor instead.
 func (*AccountStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{22}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *AccountStatusResponse) GetAccountId() string {
@@ -1573,7 +1717,7 @@ type BrowserWindow struct {
 
 func (x *BrowserWindow) Reset() {
 	*x = BrowserWindow{}
-	mi := &file_proto_bridge_proto_msgTypes[23]
+	mi := &file_proto_bridge_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1585,7 +1729,7 @@ func (x *BrowserWindow) String() string {
 func (*BrowserWindow) ProtoMessage() {}
 
 func (x *BrowserWindow) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[23]
+	mi := &file_proto_bridge_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1598,7 +1742,7 @@ func (x *BrowserWindow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserWindow.ProtoReflect.Descriptor instead.
 func (*BrowserWindow) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{23}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *BrowserWindow) GetProfileId() string {
@@ -1631,7 +1775,7 @@ type ConnectionStateRequest struct {
 
 func (x *ConnectionStateRequest) Reset() {
 	*x = ConnectionStateRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[24]
+	mi := &file_proto_bridge_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1643,7 +1787,7 @@ func (x *ConnectionStateRequest) String() string {
 func (*ConnectionStateRequest) ProtoMessage() {}
 
 func (x *ConnectionStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[24]
+	mi := &file_proto_bridge_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1656,7 +1800,7 @@ func (x *ConnectionStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionStateRequest.ProtoReflect.Descriptor instead.
 func (*ConnectionStateRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{24}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ConnectionStateRequest) GetAccountId() string {
@@ -1677,7 +1821,7 @@ type ConnectionStateResponse struct {
 
 func (x *ConnectionStateResponse) Reset() {
 	*x = ConnectionStateResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[25]
+	mi := &file_proto_bridge_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1689,7 +1833,7 @@ func (x *ConnectionStateResponse) String() string {
 func (*ConnectionStateResponse) ProtoMessage() {}
 
 func (x *ConnectionStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[25]
+	mi := &file_proto_bridge_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1702,7 +1846,7 @@ func (x *ConnectionStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionStateResponse.ProtoReflect.Descriptor instead.
 func (*ConnectionStateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{25}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ConnectionStateResponse) GetAccountId() string {
@@ -1737,7 +1881,7 @@ type DisconnectRequest struct {
 
 func (x *DisconnectRequest) Reset() {
 	*x = DisconnectRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[26]
+	mi := &file_proto_bridge_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1749,7 +1893,7 @@ func (x *DisconnectRequest) String() string {
 func (*DisconnectRequest) ProtoMessage() {}
 
 func (x *DisconnectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[26]
+	mi := &file_proto_bridge_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1762,7 +1906,7 @@ func (x *DisconnectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{26}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DisconnectRequest) GetAccountId() string {
@@ -1795,7 +1939,7 @@ type DisconnectResponse struct {
 
 func (x *DisconnectResponse) Reset() {
 	*x = DisconnectResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[27]
+	mi := &file_proto_bridge_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1807,7 +1951,7 @@ func (x *DisconnectResponse) String() string {
 func (*DisconnectResponse) ProtoMessage() {}
 
 func (x *DisconnectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[27]
+	mi := &file_proto_bridge_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1820,7 +1964,7 @@ func (x *DisconnectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectResponse.ProtoReflect.Descriptor instead.
 func (*DisconnectResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{27}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DisconnectResponse) GetSuccess() bool {
@@ -1840,7 +1984,7 @@ type CheckNumberRequest struct {
 
 func (x *CheckNumberRequest) Reset() {
 	*x = CheckNumberRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[28]
+	mi := &file_proto_bridge_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1852,7 +1996,7 @@ func (x *CheckNumberRequest) String() string {
 func (*CheckNumberRequest) ProtoMessage() {}
 
 func (x *CheckNumberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[28]
+	mi := &file_proto_bridge_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1865,7 +2009,7 @@ func (x *CheckNumberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckNumberRequest.ProtoReflect.Descriptor instead.
 func (*CheckNumberRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{28}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CheckNumberRequest) GetAccountId() string {
@@ -1891,7 +2035,7 @@ type CheckNumberResponse struct {
 
 func (x *CheckNumberResponse) Reset() {
 	*x = CheckNumberResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[29]
+	mi := &file_proto_bridge_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1903,7 +2047,7 @@ func (x *CheckNumberResponse) String() string {
 func (*CheckNumberResponse) ProtoMessage() {}
 
 func (x *CheckNumberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[29]
+	mi := &file_proto_bridge_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1916,7 +2060,7 @@ func (x *CheckNumberResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckNumberResponse.ProtoReflect.Descriptor instead.
 func (*CheckNumberResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{29}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CheckNumberResponse) GetResults() map[string]bool {
@@ -1936,7 +2080,7 @@ type MessageStatusRequest struct {
 
 func (x *MessageStatusRequest) Reset() {
 	*x = MessageStatusRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[30]
+	mi := &file_proto_bridge_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1948,7 +2092,7 @@ func (x *MessageStatusRequest) String() string {
 func (*MessageStatusRequest) ProtoMessage() {}
 
 func (x *MessageStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[30]
+	mi := &file_proto_bridge_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1961,7 +2105,7 @@ func (x *MessageStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageStatusRequest.ProtoReflect.Descriptor instead.
 func (*MessageStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{30}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *MessageStatusRequest) GetAccountId() string {
@@ -1989,7 +2133,7 @@ type MessageStatusResponse struct {
 
 func (x *MessageStatusResponse) Reset() {
 	*x = MessageStatusResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[31]
+	mi := &file_proto_bridge_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2001,7 +2145,7 @@ func (x *MessageStatusResponse) String() string {
 func (*MessageStatusResponse) ProtoMessage() {}
 
 func (x *MessageStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[31]
+	mi := &file_proto_bridge_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2014,7 +2158,7 @@ func (x *MessageStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageStatusResponse.ProtoReflect.Descriptor instead.
 func (*MessageStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{31}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *MessageStatusResponse) GetMessageId() string {
@@ -2050,7 +2194,7 @@ type CreateGroupRequest struct {
 
 func (x *CreateGroupRequest) Reset() {
 	*x = CreateGroupRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[32]
+	mi := &file_proto_bridge_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2062,7 +2206,7 @@ func (x *CreateGroupRequest) String() string {
 func (*CreateGroupRequest) ProtoMessage() {}
 
 func (x *CreateGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[32]
+	mi := &file_proto_bridge_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2075,7 +2219,7 @@ func (x *CreateGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroupRequest.ProtoReflect.Descriptor instead.
 func (*CreateGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{32}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *CreateGroupRequest) GetAccountId() string {
@@ -2117,7 +2261,7 @@ type CreateGroupResponse struct {
 
 func (x *CreateGroupResponse) Reset() {
 	*x = CreateGroupResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[33]
+	mi := &file_proto_bridge_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2129,7 +2273,7 @@ func (x *CreateGroupResponse) String() string {
 func (*CreateGroupResponse) ProtoMessage() {}
 
 func (x *CreateGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[33]
+	mi := &file_proto_bridge_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2142,7 +2286,7 @@ func (x *CreateGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGroupResponse.ProtoReflect.Descriptor instead.
 func (*CreateGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{33}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *CreateGroupResponse) GetSuccess() bool {
@@ -2182,7 +2326,7 @@ type UpdateGroupRequest struct {
 
 func (x *UpdateGroupRequest) Reset() {
 	*x = UpdateGroupRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[34]
+	mi := &file_proto_bridge_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2194,7 +2338,7 @@ func (x *UpdateGroupRequest) String() string {
 func (*UpdateGroupRequest) ProtoMessage() {}
 
 func (x *UpdateGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[34]
+	mi := &file_proto_bridge_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2207,7 +2351,7 @@ func (x *UpdateGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGroupRequest.ProtoReflect.Descriptor instead.
 func (*UpdateGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{34}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *UpdateGroupRequest) GetAccountId() string {
@@ -2276,7 +2420,7 @@ type UpdateGroupResponse struct {
 
 func (x *UpdateGroupResponse) Reset() {
 	*x = UpdateGroupResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[35]
+	mi := &file_proto_bridge_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2288,7 +2432,7 @@ func (x *UpdateGroupResponse) String() string {
 func (*UpdateGroupResponse) ProtoMessage() {}
 
 func (x *UpdateGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[35]
+	mi := &file_proto_bridge_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2301,7 +2445,7 @@ func (x *UpdateGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGroupResponse.ProtoReflect.Descriptor instead.
 func (*UpdateGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{35}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *UpdateGroupResponse) GetSuccess() bool {
@@ -2329,7 +2473,7 @@ type AddGroupMembersRequest struct {
 
 func (x *AddGroupMembersRequest) Reset() {
 	*x = AddGroupMembersRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[36]
+	mi := &file_proto_bridge_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2341,7 +2485,7 @@ func (x *AddGroupMembersRequest) String() string {
 func (*AddGroupMembersRequest) ProtoMessage() {}
 
 func (x *AddGroupMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[36]
+	mi := &file_proto_bridge_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2354,7 +2498,7 @@ func (x *AddGroupMembersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddGroupMembersRequest.ProtoReflect.Descriptor instead.
 func (*AddGroupMembersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{36}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *AddGroupMembersRequest) GetAccountId() string {
@@ -2390,7 +2534,7 @@ type AddGroupMembersResponse struct {
 
 func (x *AddGroupMembersResponse) Reset() {
 	*x = AddGroupMembersResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[37]
+	mi := &file_proto_bridge_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2402,7 +2546,7 @@ func (x *AddGroupMembersResponse) String() string {
 func (*AddGroupMembersResponse) ProtoMessage() {}
 
 func (x *AddGroupMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[37]
+	mi := &file_proto_bridge_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2415,7 +2559,7 @@ func (x *AddGroupMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddGroupMembersResponse.ProtoReflect.Descriptor instead.
 func (*AddGroupMembersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{37}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *AddGroupMembersResponse) GetSuccess() bool {
@@ -2457,7 +2601,7 @@ type RemoveGroupMembersRequest struct {
 
 func (x *RemoveGroupMembersRequest) Reset() {
 	*x = RemoveGroupMembersRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[38]
+	mi := &file_proto_bridge_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2469,7 +2613,7 @@ func (x *RemoveGroupMembersRequest) String() string {
 func (*RemoveGroupMembersRequest) ProtoMessage() {}
 
 func (x *RemoveGroupMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[38]
+	mi := &file_proto_bridge_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2482,7 +2626,7 @@ func (x *RemoveGroupMembersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveGroupMembersRequest.ProtoReflect.Descriptor instead.
 func (*RemoveGroupMembersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{38}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *RemoveGroupMembersRequest) GetAccountId() string {
@@ -2518,7 +2662,7 @@ type RemoveGroupMembersResponse struct {
 
 func (x *RemoveGroupMembersResponse) Reset() {
 	*x = RemoveGroupMembersResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[39]
+	mi := &file_proto_bridge_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2530,7 +2674,7 @@ func (x *RemoveGroupMembersResponse) String() string {
 func (*RemoveGroupMembersResponse) ProtoMessage() {}
 
 func (x *RemoveGroupMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[39]
+	mi := &file_proto_bridge_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2543,7 +2687,7 @@ func (x *RemoveGroupMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveGroupMembersResponse.ProtoReflect.Descriptor instead.
 func (*RemoveGroupMembersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{39}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *RemoveGroupMembersResponse) GetSuccess() bool {
@@ -2585,7 +2729,7 @@ type PromoteGroupMembersRequest struct {
 
 func (x *PromoteGroupMembersRequest) Reset() {
 	*x = PromoteGroupMembersRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[40]
+	mi := &file_proto_bridge_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2597,7 +2741,7 @@ func (x *PromoteGroupMembersRequest) String() string {
 func (*PromoteGroupMembersRequest) ProtoMessage() {}
 
 func (x *PromoteGroupMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[40]
+	mi := &file_proto_bridge_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2610,7 +2754,7 @@ func (x *PromoteGroupMembersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromoteGroupMembersRequest.ProtoReflect.Descriptor instead.
 func (*PromoteGroupMembersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{40}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *PromoteGroupMembersRequest) GetAccountId() string {
@@ -2646,7 +2790,7 @@ type PromoteGroupMembersResponse struct {
 
 func (x *PromoteGroupMembersResponse) Reset() {
 	*x = PromoteGroupMembersResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[41]
+	mi := &file_proto_bridge_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2658,7 +2802,7 @@ func (x *PromoteGroupMembersResponse) String() string {
 func (*PromoteGroupMembersResponse) ProtoMessage() {}
 
 func (x *PromoteGroupMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[41]
+	mi := &file_proto_bridge_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2671,7 +2815,7 @@ func (x *PromoteGroupMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromoteGroupMembersResponse.ProtoReflect.Descriptor instead.
 func (*PromoteGroupMembersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{41}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *PromoteGroupMembersResponse) GetSuccess() bool {
@@ -2713,7 +2857,7 @@ type DemoteGroupMembersRequest struct {
 
 func (x *DemoteGroupMembersRequest) Reset() {
 	*x = DemoteGroupMembersRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[42]
+	mi := &file_proto_bridge_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2725,7 +2869,7 @@ func (x *DemoteGroupMembersRequest) String() string {
 func (*DemoteGroupMembersRequest) ProtoMessage() {}
 
 func (x *DemoteGroupMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[42]
+	mi := &file_proto_bridge_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2738,7 +2882,7 @@ func (x *DemoteGroupMembersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DemoteGroupMembersRequest.ProtoReflect.Descriptor instead.
 func (*DemoteGroupMembersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{42}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *DemoteGroupMembersRequest) GetAccountId() string {
@@ -2774,7 +2918,7 @@ type DemoteGroupMembersResponse struct {
 
 func (x *DemoteGroupMembersResponse) Reset() {
 	*x = DemoteGroupMembersResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[43]
+	mi := &file_proto_bridge_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2786,7 +2930,7 @@ func (x *DemoteGroupMembersResponse) String() string {
 func (*DemoteGroupMembersResponse) ProtoMessage() {}
 
 func (x *DemoteGroupMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[43]
+	mi := &file_proto_bridge_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2799,7 +2943,7 @@ func (x *DemoteGroupMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DemoteGroupMembersResponse.ProtoReflect.Descriptor instead.
 func (*DemoteGroupMembersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{43}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *DemoteGroupMembersResponse) GetSuccess() bool {
@@ -2840,7 +2984,7 @@ type LeaveGroupRequest struct {
 
 func (x *LeaveGroupRequest) Reset() {
 	*x = LeaveGroupRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[44]
+	mi := &file_proto_bridge_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2852,7 +2996,7 @@ func (x *LeaveGroupRequest) String() string {
 func (*LeaveGroupRequest) ProtoMessage() {}
 
 func (x *LeaveGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[44]
+	mi := &file_proto_bridge_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2865,7 +3009,7 @@ func (x *LeaveGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveGroupRequest.ProtoReflect.Descriptor instead.
 func (*LeaveGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{44}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *LeaveGroupRequest) GetAccountId() string {
@@ -2892,7 +3036,7 @@ type LeaveGroupResponse struct {
 
 func (x *LeaveGroupResponse) Reset() {
 	*x = LeaveGroupResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[45]
+	mi := &file_proto_bridge_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2904,7 +3048,7 @@ func (x *LeaveGroupResponse) String() string {
 func (*LeaveGroupResponse) ProtoMessage() {}
 
 func (x *LeaveGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[45]
+	mi := &file_proto_bridge_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2917,7 +3061,7 @@ func (x *LeaveGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveGroupResponse.ProtoReflect.Descriptor instead.
 func (*LeaveGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{45}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *LeaveGroupResponse) GetSuccess() bool {
@@ -2945,7 +3089,7 @@ type SendContactRequest struct {
 
 func (x *SendContactRequest) Reset() {
 	*x = SendContactRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[46]
+	mi := &file_proto_bridge_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2957,7 +3101,7 @@ func (x *SendContactRequest) String() string {
 func (*SendContactRequest) ProtoMessage() {}
 
 func (x *SendContactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[46]
+	mi := &file_proto_bridge_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2970,7 +3114,7 @@ func (x *SendContactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendContactRequest.ProtoReflect.Descriptor instead.
 func (*SendContactRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{46}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *SendContactRequest) GetAccountId() string {
@@ -3006,7 +3150,7 @@ type SendContactResponse struct {
 
 func (x *SendContactResponse) Reset() {
 	*x = SendContactResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[47]
+	mi := &file_proto_bridge_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3018,7 +3162,7 @@ func (x *SendContactResponse) String() string {
 func (*SendContactResponse) ProtoMessage() {}
 
 func (x *SendContactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[47]
+	mi := &file_proto_bridge_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3031,7 +3175,7 @@ func (x *SendContactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendContactResponse.ProtoReflect.Descriptor instead.
 func (*SendContactResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{47}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *SendContactResponse) GetSuccess() bool {
@@ -3074,7 +3218,7 @@ type AddContactRequest struct {
 
 func (x *AddContactRequest) Reset() {
 	*x = AddContactRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[48]
+	mi := &file_proto_bridge_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3086,7 +3230,7 @@ func (x *AddContactRequest) String() string {
 func (*AddContactRequest) ProtoMessage() {}
 
 func (x *AddContactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[48]
+	mi := &file_proto_bridge_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3099,7 +3243,7 @@ func (x *AddContactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddContactRequest.ProtoReflect.Descriptor instead.
 func (*AddContactRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{48}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *AddContactRequest) GetAccountId() string {
@@ -3140,7 +3284,7 @@ type AddContactResponse struct {
 
 func (x *AddContactResponse) Reset() {
 	*x = AddContactResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[49]
+	mi := &file_proto_bridge_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3152,7 +3296,7 @@ func (x *AddContactResponse) String() string {
 func (*AddContactResponse) ProtoMessage() {}
 
 func (x *AddContactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[49]
+	mi := &file_proto_bridge_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3165,7 +3309,7 @@ func (x *AddContactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddContactResponse.ProtoReflect.Descriptor instead.
 func (*AddContactResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{49}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *AddContactResponse) GetSuccess() bool {
@@ -3192,7 +3336,7 @@ type GetContactDetailRequest struct {
 
 func (x *GetContactDetailRequest) Reset() {
 	*x = GetContactDetailRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[50]
+	mi := &file_proto_bridge_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3204,7 +3348,7 @@ func (x *GetContactDetailRequest) String() string {
 func (*GetContactDetailRequest) ProtoMessage() {}
 
 func (x *GetContactDetailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[50]
+	mi := &file_proto_bridge_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3217,7 +3361,7 @@ func (x *GetContactDetailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactDetailRequest.ProtoReflect.Descriptor instead.
 func (*GetContactDetailRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{50}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *GetContactDetailRequest) GetAccountId() string {
@@ -3243,7 +3387,7 @@ type GetContactDetailResponse struct {
 
 func (x *GetContactDetailResponse) Reset() {
 	*x = GetContactDetailResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[51]
+	mi := &file_proto_bridge_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3255,7 +3399,7 @@ func (x *GetContactDetailResponse) String() string {
 func (*GetContactDetailResponse) ProtoMessage() {}
 
 func (x *GetContactDetailResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[51]
+	mi := &file_proto_bridge_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3268,7 +3412,7 @@ func (x *GetContactDetailResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactDetailResponse.ProtoReflect.Descriptor instead.
 func (*GetContactDetailResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{51}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *GetContactDetailResponse) GetContact() *ContactDetail {
@@ -3301,7 +3445,7 @@ type ContactDetail struct {
 
 func (x *ContactDetail) Reset() {
 	*x = ContactDetail{}
-	mi := &file_proto_bridge_proto_msgTypes[52]
+	mi := &file_proto_bridge_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3313,7 +3457,7 @@ func (x *ContactDetail) String() string {
 func (*ContactDetail) ProtoMessage() {}
 
 func (x *ContactDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[52]
+	mi := &file_proto_bridge_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3326,7 +3470,7 @@ func (x *ContactDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactDetail.ProtoReflect.Descriptor instead.
 func (*ContactDetail) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{52}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ContactDetail) GetId() string {
@@ -3444,7 +3588,7 @@ type SetProfilePictureRequest struct {
 
 func (x *SetProfilePictureRequest) Reset() {
 	*x = SetProfilePictureRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[53]
+	mi := &file_proto_bridge_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3456,7 +3600,7 @@ func (x *SetProfilePictureRequest) String() string {
 func (*SetProfilePictureRequest) ProtoMessage() {}
 
 func (x *SetProfilePictureRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[53]
+	mi := &file_proto_bridge_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3469,7 +3613,7 @@ func (x *SetProfilePictureRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProfilePictureRequest.ProtoReflect.Descriptor instead.
 func (*SetProfilePictureRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{53}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *SetProfilePictureRequest) GetAccountId() string {
@@ -3496,7 +3640,7 @@ type SetProfilePictureResponse struct {
 
 func (x *SetProfilePictureResponse) Reset() {
 	*x = SetProfilePictureResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[54]
+	mi := &file_proto_bridge_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3508,7 +3652,7 @@ func (x *SetProfilePictureResponse) String() string {
 func (*SetProfilePictureResponse) ProtoMessage() {}
 
 func (x *SetProfilePictureResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[54]
+	mi := &file_proto_bridge_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3521,7 +3665,7 @@ func (x *SetProfilePictureResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProfilePictureResponse.ProtoReflect.Descriptor instead.
 func (*SetProfilePictureResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{54}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *SetProfilePictureResponse) GetSuccess() bool {
@@ -3548,7 +3692,7 @@ type SetStatusRequest struct {
 
 func (x *SetStatusRequest) Reset() {
 	*x = SetStatusRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[55]
+	mi := &file_proto_bridge_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3560,7 +3704,7 @@ func (x *SetStatusRequest) String() string {
 func (*SetStatusRequest) ProtoMessage() {}
 
 func (x *SetStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[55]
+	mi := &file_proto_bridge_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3573,7 +3717,7 @@ func (x *SetStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStatusRequest.ProtoReflect.Descriptor instead.
 func (*SetStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{55}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *SetStatusRequest) GetAccountId() string {
@@ -3600,7 +3744,7 @@ type SetStatusResponse struct {
 
 func (x *SetStatusResponse) Reset() {
 	*x = SetStatusResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[56]
+	mi := &file_proto_bridge_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3612,7 +3756,7 @@ func (x *SetStatusResponse) String() string {
 func (*SetStatusResponse) ProtoMessage() {}
 
 func (x *SetStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[56]
+	mi := &file_proto_bridge_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3625,7 +3769,7 @@ func (x *SetStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStatusResponse.ProtoReflect.Descriptor instead.
 func (*SetStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{56}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SetStatusResponse) GetSuccess() bool {
@@ -3652,7 +3796,7 @@ type SetDisplayNameRequest struct {
 
 func (x *SetDisplayNameRequest) Reset() {
 	*x = SetDisplayNameRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[57]
+	mi := &file_proto_bridge_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3664,7 +3808,7 @@ func (x *SetDisplayNameRequest) String() string {
 func (*SetDisplayNameRequest) ProtoMessage() {}
 
 func (x *SetDisplayNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[57]
+	mi := &file_proto_bridge_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3677,7 +3821,7 @@ func (x *SetDisplayNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDisplayNameRequest.ProtoReflect.Descriptor instead.
 func (*SetDisplayNameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{57}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *SetDisplayNameRequest) GetAccountId() string {
@@ -3704,7 +3848,7 @@ type SetDisplayNameResponse struct {
 
 func (x *SetDisplayNameResponse) Reset() {
 	*x = SetDisplayNameResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[58]
+	mi := &file_proto_bridge_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3716,7 +3860,7 @@ func (x *SetDisplayNameResponse) String() string {
 func (*SetDisplayNameResponse) ProtoMessage() {}
 
 func (x *SetDisplayNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[58]
+	mi := &file_proto_bridge_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3729,7 +3873,7 @@ func (x *SetDisplayNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDisplayNameResponse.ProtoReflect.Descriptor instead.
 func (*SetDisplayNameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{58}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *SetDisplayNameResponse) GetSuccess() bool {
@@ -3755,7 +3899,7 @@ type GetAccountStatsRequest struct {
 
 func (x *GetAccountStatsRequest) Reset() {
 	*x = GetAccountStatsRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[59]
+	mi := &file_proto_bridge_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3767,7 +3911,7 @@ func (x *GetAccountStatsRequest) String() string {
 func (*GetAccountStatsRequest) ProtoMessage() {}
 
 func (x *GetAccountStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[59]
+	mi := &file_proto_bridge_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3780,7 +3924,7 @@ func (x *GetAccountStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccountStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetAccountStatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{59}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *GetAccountStatsRequest) GetAccountId() string {
@@ -3805,7 +3949,7 @@ type GetAccountStatsResponse struct {
 
 func (x *GetAccountStatsResponse) Reset() {
 	*x = GetAccountStatsResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[60]
+	mi := &file_proto_bridge_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3817,7 +3961,7 @@ func (x *GetAccountStatsResponse) String() string {
 func (*GetAccountStatsResponse) ProtoMessage() {}
 
 func (x *GetAccountStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[60]
+	mi := &file_proto_bridge_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3830,7 +3974,7 @@ func (x *GetAccountStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccountStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetAccountStatsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{60}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *GetAccountStatsResponse) GetAccountId() string {
@@ -3891,7 +4035,7 @@ type GetBridgeStatsRequest struct {
 
 func (x *GetBridgeStatsRequest) Reset() {
 	*x = GetBridgeStatsRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[61]
+	mi := &file_proto_bridge_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3903,7 +4047,7 @@ func (x *GetBridgeStatsRequest) String() string {
 func (*GetBridgeStatsRequest) ProtoMessage() {}
 
 func (x *GetBridgeStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[61]
+	mi := &file_proto_bridge_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3916,7 +4060,7 @@ func (x *GetBridgeStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBridgeStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetBridgeStatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{61}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *GetBridgeStatsRequest) GetIncludeWorkers() bool {
@@ -3942,7 +4086,7 @@ type BridgeWorkerInfo struct {
 
 func (x *BridgeWorkerInfo) Reset() {
 	*x = BridgeWorkerInfo{}
-	mi := &file_proto_bridge_proto_msgTypes[62]
+	mi := &file_proto_bridge_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3954,7 +4098,7 @@ func (x *BridgeWorkerInfo) String() string {
 func (*BridgeWorkerInfo) ProtoMessage() {}
 
 func (x *BridgeWorkerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[62]
+	mi := &file_proto_bridge_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3967,7 +4111,7 @@ func (x *BridgeWorkerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BridgeWorkerInfo.ProtoReflect.Descriptor instead.
 func (*BridgeWorkerInfo) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{62}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *BridgeWorkerInfo) GetId() string {
@@ -4039,7 +4183,7 @@ type GetBridgeStatsResponse struct {
 
 func (x *GetBridgeStatsResponse) Reset() {
 	*x = GetBridgeStatsResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[63]
+	mi := &file_proto_bridge_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4051,7 +4195,7 @@ func (x *GetBridgeStatsResponse) String() string {
 func (*GetBridgeStatsResponse) ProtoMessage() {}
 
 func (x *GetBridgeStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[63]
+	mi := &file_proto_bridge_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4064,7 +4208,7 @@ func (x *GetBridgeStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBridgeStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetBridgeStatsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{63}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *GetBridgeStatsResponse) GetInstanceId() string {
@@ -4113,7 +4257,7 @@ type WebServerStatSpec struct {
 
 func (x *WebServerStatSpec) Reset() {
 	*x = WebServerStatSpec{}
-	mi := &file_proto_bridge_proto_msgTypes[64]
+	mi := &file_proto_bridge_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4125,7 +4269,7 @@ func (x *WebServerStatSpec) String() string {
 func (*WebServerStatSpec) ProtoMessage() {}
 
 func (x *WebServerStatSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[64]
+	mi := &file_proto_bridge_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4138,7 +4282,7 @@ func (x *WebServerStatSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WebServerStatSpec.ProtoReflect.Descriptor instead.
 func (*WebServerStatSpec) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{64}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *WebServerStatSpec) GetWebServerId() int64 {
@@ -4171,7 +4315,7 @@ type GetWebServerStatsRequest struct {
 
 func (x *GetWebServerStatsRequest) Reset() {
 	*x = GetWebServerStatsRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[65]
+	mi := &file_proto_bridge_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4183,7 +4327,7 @@ func (x *GetWebServerStatsRequest) String() string {
 func (*GetWebServerStatsRequest) ProtoMessage() {}
 
 func (x *GetWebServerStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[65]
+	mi := &file_proto_bridge_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4196,7 +4340,7 @@ func (x *GetWebServerStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWebServerStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetWebServerStatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{65}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *GetWebServerStatsRequest) GetServer() *WebServerStatSpec {
@@ -4215,7 +4359,7 @@ type BatchGetWebServerStatsRequest struct {
 
 func (x *BatchGetWebServerStatsRequest) Reset() {
 	*x = BatchGetWebServerStatsRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[66]
+	mi := &file_proto_bridge_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4227,7 +4371,7 @@ func (x *BatchGetWebServerStatsRequest) String() string {
 func (*BatchGetWebServerStatsRequest) ProtoMessage() {}
 
 func (x *BatchGetWebServerStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[66]
+	mi := &file_proto_bridge_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4240,7 +4384,7 @@ func (x *BatchGetWebServerStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchGetWebServerStatsRequest.ProtoReflect.Descriptor instead.
 func (*BatchGetWebServerStatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{66}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *BatchGetWebServerStatsRequest) GetServers() []*WebServerStatSpec {
@@ -4267,7 +4411,7 @@ type WebServerStats struct {
 
 func (x *WebServerStats) Reset() {
 	*x = WebServerStats{}
-	mi := &file_proto_bridge_proto_msgTypes[67]
+	mi := &file_proto_bridge_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4279,7 +4423,7 @@ func (x *WebServerStats) String() string {
 func (*WebServerStats) ProtoMessage() {}
 
 func (x *WebServerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[67]
+	mi := &file_proto_bridge_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4292,7 +4436,7 @@ func (x *WebServerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WebServerStats.ProtoReflect.Descriptor instead.
 func (*WebServerStats) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{67}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *WebServerStats) GetWebServerId() int64 {
@@ -4367,7 +4511,7 @@ type BatchGetWebServerStatsResponse struct {
 
 func (x *BatchGetWebServerStatsResponse) Reset() {
 	*x = BatchGetWebServerStatsResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[68]
+	mi := &file_proto_bridge_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4379,7 +4523,7 @@ func (x *BatchGetWebServerStatsResponse) String() string {
 func (*BatchGetWebServerStatsResponse) ProtoMessage() {}
 
 func (x *BatchGetWebServerStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[68]
+	mi := &file_proto_bridge_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4392,7 +4536,7 @@ func (x *BatchGetWebServerStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchGetWebServerStatsResponse.ProtoReflect.Descriptor instead.
 func (*BatchGetWebServerStatsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{68}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *BatchGetWebServerStatsResponse) GetStats() []*WebServerStats {
@@ -4413,7 +4557,7 @@ type ReactToMessageRequest struct {
 
 func (x *ReactToMessageRequest) Reset() {
 	*x = ReactToMessageRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[69]
+	mi := &file_proto_bridge_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4425,7 +4569,7 @@ func (x *ReactToMessageRequest) String() string {
 func (*ReactToMessageRequest) ProtoMessage() {}
 
 func (x *ReactToMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[69]
+	mi := &file_proto_bridge_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4438,7 +4582,7 @@ func (x *ReactToMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactToMessageRequest.ProtoReflect.Descriptor instead.
 func (*ReactToMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{69}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *ReactToMessageRequest) GetAccountId() string {
@@ -4475,7 +4619,7 @@ type ReactToMessageResponse struct {
 
 func (x *ReactToMessageResponse) Reset() {
 	*x = ReactToMessageResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[70]
+	mi := &file_proto_bridge_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4487,7 +4631,7 @@ func (x *ReactToMessageResponse) String() string {
 func (*ReactToMessageResponse) ProtoMessage() {}
 
 func (x *ReactToMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[70]
+	mi := &file_proto_bridge_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4500,7 +4644,7 @@ func (x *ReactToMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactToMessageResponse.ProtoReflect.Descriptor instead.
 func (*ReactToMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{70}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *ReactToMessageResponse) GetSuccess() bool {
@@ -4548,7 +4692,7 @@ type GetMessageReactionsRequest struct {
 
 func (x *GetMessageReactionsRequest) Reset() {
 	*x = GetMessageReactionsRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[71]
+	mi := &file_proto_bridge_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4560,7 +4704,7 @@ func (x *GetMessageReactionsRequest) String() string {
 func (*GetMessageReactionsRequest) ProtoMessage() {}
 
 func (x *GetMessageReactionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[71]
+	mi := &file_proto_bridge_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4573,7 +4717,7 @@ func (x *GetMessageReactionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMessageReactionsRequest.ProtoReflect.Descriptor instead.
 func (*GetMessageReactionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{71}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *GetMessageReactionsRequest) GetAccountId() string {
@@ -4601,7 +4745,7 @@ type ReactionSender struct {
 
 func (x *ReactionSender) Reset() {
 	*x = ReactionSender{}
-	mi := &file_proto_bridge_proto_msgTypes[72]
+	mi := &file_proto_bridge_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4613,7 +4757,7 @@ func (x *ReactionSender) String() string {
 func (*ReactionSender) ProtoMessage() {}
 
 func (x *ReactionSender) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[72]
+	mi := &file_proto_bridge_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4626,7 +4770,7 @@ func (x *ReactionSender) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactionSender.ProtoReflect.Descriptor instead.
 func (*ReactionSender) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{72}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ReactionSender) GetSenderId() string {
@@ -4662,7 +4806,7 @@ type ReactionGroup struct {
 
 func (x *ReactionGroup) Reset() {
 	*x = ReactionGroup{}
-	mi := &file_proto_bridge_proto_msgTypes[73]
+	mi := &file_proto_bridge_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4674,7 +4818,7 @@ func (x *ReactionGroup) String() string {
 func (*ReactionGroup) ProtoMessage() {}
 
 func (x *ReactionGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[73]
+	mi := &file_proto_bridge_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4687,7 +4831,7 @@ func (x *ReactionGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactionGroup.ProtoReflect.Descriptor instead.
 func (*ReactionGroup) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{73}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *ReactionGroup) GetEmoji() string {
@@ -4731,7 +4875,7 @@ type GetMessageReactionsResponse struct {
 
 func (x *GetMessageReactionsResponse) Reset() {
 	*x = GetMessageReactionsResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[74]
+	mi := &file_proto_bridge_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4743,7 +4887,7 @@ func (x *GetMessageReactionsResponse) String() string {
 func (*GetMessageReactionsResponse) ProtoMessage() {}
 
 func (x *GetMessageReactionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[74]
+	mi := &file_proto_bridge_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4756,7 +4900,7 @@ func (x *GetMessageReactionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMessageReactionsResponse.ProtoReflect.Descriptor instead.
 func (*GetMessageReactionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{74}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *GetMessageReactionsResponse) GetSuccess() bool {
@@ -4810,7 +4954,7 @@ type SendStatusRequest struct {
 
 func (x *SendStatusRequest) Reset() {
 	*x = SendStatusRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[75]
+	mi := &file_proto_bridge_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4822,7 +4966,7 @@ func (x *SendStatusRequest) String() string {
 func (*SendStatusRequest) ProtoMessage() {}
 
 func (x *SendStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[75]
+	mi := &file_proto_bridge_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4835,7 +4979,7 @@ func (x *SendStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendStatusRequest.ProtoReflect.Descriptor instead.
 func (*SendStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{75}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *SendStatusRequest) GetAccountId() string {
@@ -4906,7 +5050,7 @@ type SendStatusResponse struct {
 
 func (x *SendStatusResponse) Reset() {
 	*x = SendStatusResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[76]
+	mi := &file_proto_bridge_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4918,7 +5062,7 @@ func (x *SendStatusResponse) String() string {
 func (*SendStatusResponse) ProtoMessage() {}
 
 func (x *SendStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[76]
+	mi := &file_proto_bridge_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4931,7 +5075,7 @@ func (x *SendStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendStatusResponse.ProtoReflect.Descriptor instead.
 func (*SendStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{76}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *SendStatusResponse) GetSuccess() bool {
@@ -4974,7 +5118,7 @@ type CommentStatusRequest struct {
 
 func (x *CommentStatusRequest) Reset() {
 	*x = CommentStatusRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[77]
+	mi := &file_proto_bridge_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4986,7 +5130,7 @@ func (x *CommentStatusRequest) String() string {
 func (*CommentStatusRequest) ProtoMessage() {}
 
 func (x *CommentStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[77]
+	mi := &file_proto_bridge_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4999,7 +5143,7 @@ func (x *CommentStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommentStatusRequest.ProtoReflect.Descriptor instead.
 func (*CommentStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{77}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *CommentStatusRequest) GetAccountId() string {
@@ -5045,7 +5189,7 @@ type CommentStatusResponse struct {
 
 func (x *CommentStatusResponse) Reset() {
 	*x = CommentStatusResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[78]
+	mi := &file_proto_bridge_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5057,7 +5201,7 @@ func (x *CommentStatusResponse) String() string {
 func (*CommentStatusResponse) ProtoMessage() {}
 
 func (x *CommentStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[78]
+	mi := &file_proto_bridge_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5070,7 +5214,7 @@ func (x *CommentStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommentStatusResponse.ProtoReflect.Descriptor instead.
 func (*CommentStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{78}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *CommentStatusResponse) GetSuccess() bool {
@@ -5134,7 +5278,7 @@ type LikeStatusRequest struct {
 
 func (x *LikeStatusRequest) Reset() {
 	*x = LikeStatusRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[79]
+	mi := &file_proto_bridge_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5146,7 +5290,7 @@ func (x *LikeStatusRequest) String() string {
 func (*LikeStatusRequest) ProtoMessage() {}
 
 func (x *LikeStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[79]
+	mi := &file_proto_bridge_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5159,7 +5303,7 @@ func (x *LikeStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LikeStatusRequest.ProtoReflect.Descriptor instead.
 func (*LikeStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{79}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *LikeStatusRequest) GetAccountId() string {
@@ -5205,7 +5349,7 @@ type LikeStatusResponse struct {
 
 func (x *LikeStatusResponse) Reset() {
 	*x = LikeStatusResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[80]
+	mi := &file_proto_bridge_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5217,7 +5361,7 @@ func (x *LikeStatusResponse) String() string {
 func (*LikeStatusResponse) ProtoMessage() {}
 
 func (x *LikeStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[80]
+	mi := &file_proto_bridge_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5230,7 +5374,7 @@ func (x *LikeStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LikeStatusResponse.ProtoReflect.Descriptor instead.
 func (*LikeStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{80}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *LikeStatusResponse) GetSuccess() bool {
@@ -5292,7 +5436,7 @@ type GetStatusViewersRequest struct {
 
 func (x *GetStatusViewersRequest) Reset() {
 	*x = GetStatusViewersRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[81]
+	mi := &file_proto_bridge_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5304,7 +5448,7 @@ func (x *GetStatusViewersRequest) String() string {
 func (*GetStatusViewersRequest) ProtoMessage() {}
 
 func (x *GetStatusViewersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[81]
+	mi := &file_proto_bridge_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5317,7 +5461,7 @@ func (x *GetStatusViewersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatusViewersRequest.ProtoReflect.Descriptor instead.
 func (*GetStatusViewersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{81}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *GetStatusViewersRequest) GetAccountId() string {
@@ -5347,7 +5491,7 @@ type GetStatusViewersResponse struct {
 
 func (x *GetStatusViewersResponse) Reset() {
 	*x = GetStatusViewersResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[82]
+	mi := &file_proto_bridge_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5359,7 +5503,7 @@ func (x *GetStatusViewersResponse) String() string {
 func (*GetStatusViewersResponse) ProtoMessage() {}
 
 func (x *GetStatusViewersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[82]
+	mi := &file_proto_bridge_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5372,7 +5516,7 @@ func (x *GetStatusViewersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatusViewersResponse.ProtoReflect.Descriptor instead.
 func (*GetStatusViewersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{82}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *GetStatusViewersResponse) GetSuccess() bool {
@@ -5421,7 +5565,7 @@ type StatusViewer struct {
 
 func (x *StatusViewer) Reset() {
 	*x = StatusViewer{}
-	mi := &file_proto_bridge_proto_msgTypes[83]
+	mi := &file_proto_bridge_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5433,7 +5577,7 @@ func (x *StatusViewer) String() string {
 func (*StatusViewer) ProtoMessage() {}
 
 func (x *StatusViewer) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[83]
+	mi := &file_proto_bridge_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5446,7 +5590,7 @@ func (x *StatusViewer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusViewer.ProtoReflect.Descriptor instead.
 func (*StatusViewer) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{83}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *StatusViewer) GetPhone() string {
@@ -5480,7 +5624,7 @@ type JoinGroupByLinkRequest struct {
 
 func (x *JoinGroupByLinkRequest) Reset() {
 	*x = JoinGroupByLinkRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[84]
+	mi := &file_proto_bridge_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5492,7 +5636,7 @@ func (x *JoinGroupByLinkRequest) String() string {
 func (*JoinGroupByLinkRequest) ProtoMessage() {}
 
 func (x *JoinGroupByLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[84]
+	mi := &file_proto_bridge_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5505,7 +5649,7 @@ func (x *JoinGroupByLinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinGroupByLinkRequest.ProtoReflect.Descriptor instead.
 func (*JoinGroupByLinkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{84}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *JoinGroupByLinkRequest) GetAccountId() string {
@@ -5536,7 +5680,7 @@ type JoinGroupByLinkResponse struct {
 
 func (x *JoinGroupByLinkResponse) Reset() {
 	*x = JoinGroupByLinkResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[85]
+	mi := &file_proto_bridge_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5548,7 +5692,7 @@ func (x *JoinGroupByLinkResponse) String() string {
 func (*JoinGroupByLinkResponse) ProtoMessage() {}
 
 func (x *JoinGroupByLinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[85]
+	mi := &file_proto_bridge_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5561,7 +5705,7 @@ func (x *JoinGroupByLinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinGroupByLinkResponse.ProtoReflect.Descriptor instead.
 func (*JoinGroupByLinkResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{85}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *JoinGroupByLinkResponse) GetSuccess() bool {
@@ -5615,7 +5759,7 @@ type CloseAllTabsRequest struct {
 
 func (x *CloseAllTabsRequest) Reset() {
 	*x = CloseAllTabsRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[86]
+	mi := &file_proto_bridge_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5627,7 +5771,7 @@ func (x *CloseAllTabsRequest) String() string {
 func (*CloseAllTabsRequest) ProtoMessage() {}
 
 func (x *CloseAllTabsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[86]
+	mi := &file_proto_bridge_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5640,7 +5784,7 @@ func (x *CloseAllTabsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseAllTabsRequest.ProtoReflect.Descriptor instead.
 func (*CloseAllTabsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{86}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *CloseAllTabsRequest) GetAccountId() string {
@@ -5660,7 +5804,7 @@ type CloseAllTabsResponse struct {
 
 func (x *CloseAllTabsResponse) Reset() {
 	*x = CloseAllTabsResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[87]
+	mi := &file_proto_bridge_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5672,7 +5816,7 @@ func (x *CloseAllTabsResponse) String() string {
 func (*CloseAllTabsResponse) ProtoMessage() {}
 
 func (x *CloseAllTabsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[87]
+	mi := &file_proto_bridge_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5685,7 +5829,7 @@ func (x *CloseAllTabsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseAllTabsResponse.ProtoReflect.Descriptor instead.
 func (*CloseAllTabsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{87}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *CloseAllTabsResponse) GetSuccess() bool {
@@ -5713,7 +5857,7 @@ type DeleteMessageRequest struct {
 
 func (x *DeleteMessageRequest) Reset() {
 	*x = DeleteMessageRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[88]
+	mi := &file_proto_bridge_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5725,7 +5869,7 @@ func (x *DeleteMessageRequest) String() string {
 func (*DeleteMessageRequest) ProtoMessage() {}
 
 func (x *DeleteMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[88]
+	mi := &file_proto_bridge_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5738,7 +5882,7 @@ func (x *DeleteMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMessageRequest.ProtoReflect.Descriptor instead.
 func (*DeleteMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{88}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *DeleteMessageRequest) GetAccountId() string {
@@ -5772,7 +5916,7 @@ type DeleteMessageResponse struct {
 
 func (x *DeleteMessageResponse) Reset() {
 	*x = DeleteMessageResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[89]
+	mi := &file_proto_bridge_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5784,7 +5928,7 @@ func (x *DeleteMessageResponse) String() string {
 func (*DeleteMessageResponse) ProtoMessage() {}
 
 func (x *DeleteMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[89]
+	mi := &file_proto_bridge_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5797,7 +5941,7 @@ func (x *DeleteMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMessageResponse.ProtoReflect.Descriptor instead.
 func (*DeleteMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{89}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *DeleteMessageResponse) GetSuccess() bool {
@@ -5825,7 +5969,7 @@ type SetGroupAdminsOnlyRequest struct {
 
 func (x *SetGroupAdminsOnlyRequest) Reset() {
 	*x = SetGroupAdminsOnlyRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[90]
+	mi := &file_proto_bridge_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5837,7 +5981,7 @@ func (x *SetGroupAdminsOnlyRequest) String() string {
 func (*SetGroupAdminsOnlyRequest) ProtoMessage() {}
 
 func (x *SetGroupAdminsOnlyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[90]
+	mi := &file_proto_bridge_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5850,7 +5994,7 @@ func (x *SetGroupAdminsOnlyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGroupAdminsOnlyRequest.ProtoReflect.Descriptor instead.
 func (*SetGroupAdminsOnlyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{90}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *SetGroupAdminsOnlyRequest) GetAccountId() string {
@@ -5884,7 +6028,7 @@ type SetGroupAdminsOnlyResponse struct {
 
 func (x *SetGroupAdminsOnlyResponse) Reset() {
 	*x = SetGroupAdminsOnlyResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[91]
+	mi := &file_proto_bridge_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5896,7 +6040,7 @@ func (x *SetGroupAdminsOnlyResponse) String() string {
 func (*SetGroupAdminsOnlyResponse) ProtoMessage() {}
 
 func (x *SetGroupAdminsOnlyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[91]
+	mi := &file_proto_bridge_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5909,7 +6053,7 @@ func (x *SetGroupAdminsOnlyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGroupAdminsOnlyResponse.ProtoReflect.Descriptor instead.
 func (*SetGroupAdminsOnlyResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{91}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *SetGroupAdminsOnlyResponse) GetSuccess() bool {
@@ -5937,7 +6081,7 @@ type SetGroupInfoAdminsOnlyRequest struct {
 
 func (x *SetGroupInfoAdminsOnlyRequest) Reset() {
 	*x = SetGroupInfoAdminsOnlyRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[92]
+	mi := &file_proto_bridge_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5949,7 +6093,7 @@ func (x *SetGroupInfoAdminsOnlyRequest) String() string {
 func (*SetGroupInfoAdminsOnlyRequest) ProtoMessage() {}
 
 func (x *SetGroupInfoAdminsOnlyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[92]
+	mi := &file_proto_bridge_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5962,7 +6106,7 @@ func (x *SetGroupInfoAdminsOnlyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGroupInfoAdminsOnlyRequest.ProtoReflect.Descriptor instead.
 func (*SetGroupInfoAdminsOnlyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{92}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *SetGroupInfoAdminsOnlyRequest) GetAccountId() string {
@@ -5996,7 +6140,7 @@ type SetGroupInfoAdminsOnlyResponse struct {
 
 func (x *SetGroupInfoAdminsOnlyResponse) Reset() {
 	*x = SetGroupInfoAdminsOnlyResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[93]
+	mi := &file_proto_bridge_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6008,7 +6152,7 @@ func (x *SetGroupInfoAdminsOnlyResponse) String() string {
 func (*SetGroupInfoAdminsOnlyResponse) ProtoMessage() {}
 
 func (x *SetGroupInfoAdminsOnlyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[93]
+	mi := &file_proto_bridge_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6021,7 +6165,7 @@ func (x *SetGroupInfoAdminsOnlyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGroupInfoAdminsOnlyResponse.ProtoReflect.Descriptor instead.
 func (*SetGroupInfoAdminsOnlyResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{93}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *SetGroupInfoAdminsOnlyResponse) GetSuccess() bool {
@@ -6049,7 +6193,7 @@ type SetGroupAddMembersAdminsOnlyRequest struct {
 
 func (x *SetGroupAddMembersAdminsOnlyRequest) Reset() {
 	*x = SetGroupAddMembersAdminsOnlyRequest{}
-	mi := &file_proto_bridge_proto_msgTypes[94]
+	mi := &file_proto_bridge_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6061,7 +6205,7 @@ func (x *SetGroupAddMembersAdminsOnlyRequest) String() string {
 func (*SetGroupAddMembersAdminsOnlyRequest) ProtoMessage() {}
 
 func (x *SetGroupAddMembersAdminsOnlyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[94]
+	mi := &file_proto_bridge_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6074,7 +6218,7 @@ func (x *SetGroupAddMembersAdminsOnlyRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use SetGroupAddMembersAdminsOnlyRequest.ProtoReflect.Descriptor instead.
 func (*SetGroupAddMembersAdminsOnlyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{94}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *SetGroupAddMembersAdminsOnlyRequest) GetAccountId() string {
@@ -6108,7 +6252,7 @@ type SetGroupAddMembersAdminsOnlyResponse struct {
 
 func (x *SetGroupAddMembersAdminsOnlyResponse) Reset() {
 	*x = SetGroupAddMembersAdminsOnlyResponse{}
-	mi := &file_proto_bridge_proto_msgTypes[95]
+	mi := &file_proto_bridge_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6120,7 +6264,7 @@ func (x *SetGroupAddMembersAdminsOnlyResponse) String() string {
 func (*SetGroupAddMembersAdminsOnlyResponse) ProtoMessage() {}
 
 func (x *SetGroupAddMembersAdminsOnlyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_bridge_proto_msgTypes[95]
+	mi := &file_proto_bridge_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6133,7 +6277,7 @@ func (x *SetGroupAddMembersAdminsOnlyResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use SetGroupAddMembersAdminsOnlyResponse.ProtoReflect.Descriptor instead.
 func (*SetGroupAddMembersAdminsOnlyResponse) Descriptor() ([]byte, []int) {
-	return file_proto_bridge_proto_rawDescGZIP(), []int{95}
+	return file_proto_bridge_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *SetGroupAddMembersAdminsOnlyResponse) GetSuccess() bool {
@@ -6224,6 +6368,19 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"\tmime_type\x18\a \x01(\tR\bmimeType\x12-\n" +
 	"\x13send_audio_as_voice\x18\b \x01(\bR\x10sendAudioAsVoice\"z\n" +
 	"\x11SendMediaResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1d\n" +
+	"\n" +
+	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\x99\x01\n" +
+	"\x0fSendLinkRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x0e\n" +
+	"\x02to\x18\x02 \x01(\tR\x02to\x12\x19\n" +
+	"\blink_url\x18\x03 \x01(\tR\alinkUrl\x12\x18\n" +
+	"\acaption\x18\x04 \x01(\tR\acaption\x12\"\n" +
+	"\rquoted_msg_id\x18\x05 \x01(\tR\vquotedMsgId\"y\n" +
+	"\x10SendLinkResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x16\n" +
@@ -6671,7 +6828,7 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"adminsOnly\"V\n" +
 	"$SetGroupAddMembersAdminsOnlyResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error2\xb9\x1a\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error2\xf8\x1a\n" +
 	"\x0eWhatsAppBridge\x12:\n" +
 	"\aConnect\x12\x16.bridge.ConnectRequest\x1a\x17.bridge.ConnectResponse\x12C\n" +
 	"\n" +
@@ -6679,7 +6836,8 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"\tGetQRCode\x12\x15.bridge.QRCodeRequest\x1a\x16.bridge.QRCodeResponse0\x01\x12@\n" +
 	"\vGetLinkCode\x12\x17.bridge.LinkCodeRequest\x1a\x18.bridge.LinkCodeResponse\x12F\n" +
 	"\vSendMessage\x12\x1a.bridge.SendMessageRequest\x1a\x1b.bridge.SendMessageResponse\x12@\n" +
-	"\tSendMedia\x12\x18.bridge.SendMediaRequest\x1a\x19.bridge.SendMediaResponse\x12F\n" +
+	"\tSendMedia\x12\x18.bridge.SendMediaRequest\x1a\x19.bridge.SendMediaResponse\x12=\n" +
+	"\bSendLink\x12\x17.bridge.SendLinkRequest\x1a\x18.bridge.SendLinkResponse\x12F\n" +
 	"\vSendContact\x12\x1a.bridge.SendContactRequest\x1a\x1b.bridge.SendContactResponse\x12O\n" +
 	"\x10GetMessageStatus\x12\x1c.bridge.MessageStatusRequest\x1a\x1d.bridge.MessageStatusResponse\x12F\n" +
 	"\vGetContacts\x12\x1a.bridge.GetContactsRequest\x1a\x1b.bridge.GetContactsResponse\x12F\n" +
@@ -6733,7 +6891,7 @@ func file_proto_bridge_proto_rawDescGZIP() []byte {
 	return file_proto_bridge_proto_rawDescData
 }
 
-var file_proto_bridge_proto_msgTypes = make([]protoimpl.MessageInfo, 97)
+var file_proto_bridge_proto_msgTypes = make([]protoimpl.MessageInfo, 99)
 var file_proto_bridge_proto_goTypes = []any{
 	(*ProxyConfig)(nil),                          // 0: bridge.ProxyConfig
 	(*ConnectRequest)(nil),                       // 1: bridge.ConnectRequest
@@ -6746,195 +6904,199 @@ var file_proto_bridge_proto_goTypes = []any{
 	(*SendMessageResponse)(nil),                  // 8: bridge.SendMessageResponse
 	(*SendMediaRequest)(nil),                     // 9: bridge.SendMediaRequest
 	(*SendMediaResponse)(nil),                    // 10: bridge.SendMediaResponse
-	(*MessageContent)(nil),                       // 11: bridge.MessageContent
-	(*GetContactsRequest)(nil),                   // 12: bridge.GetContactsRequest
-	(*GetContactsResponse)(nil),                  // 13: bridge.GetContactsResponse
-	(*Contact)(nil),                              // 14: bridge.Contact
-	(*GetGroupsRequest)(nil),                     // 15: bridge.GetGroupsRequest
-	(*GetGroupsResponse)(nil),                    // 16: bridge.GetGroupsResponse
-	(*Group)(nil),                                // 17: bridge.Group
-	(*GetGroupMembersRequest)(nil),               // 18: bridge.GetGroupMembersRequest
-	(*GetGroupMembersResponse)(nil),              // 19: bridge.GetGroupMembersResponse
-	(*GroupMember)(nil),                          // 20: bridge.GroupMember
-	(*AccountStatusRequest)(nil),                 // 21: bridge.AccountStatusRequest
-	(*AccountStatusResponse)(nil),                // 22: bridge.AccountStatusResponse
-	(*BrowserWindow)(nil),                        // 23: bridge.BrowserWindow
-	(*ConnectionStateRequest)(nil),               // 24: bridge.ConnectionStateRequest
-	(*ConnectionStateResponse)(nil),              // 25: bridge.ConnectionStateResponse
-	(*DisconnectRequest)(nil),                    // 26: bridge.DisconnectRequest
-	(*DisconnectResponse)(nil),                   // 27: bridge.DisconnectResponse
-	(*CheckNumberRequest)(nil),                   // 28: bridge.CheckNumberRequest
-	(*CheckNumberResponse)(nil),                  // 29: bridge.CheckNumberResponse
-	(*MessageStatusRequest)(nil),                 // 30: bridge.MessageStatusRequest
-	(*MessageStatusResponse)(nil),                // 31: bridge.MessageStatusResponse
-	(*CreateGroupRequest)(nil),                   // 32: bridge.CreateGroupRequest
-	(*CreateGroupResponse)(nil),                  // 33: bridge.CreateGroupResponse
-	(*UpdateGroupRequest)(nil),                   // 34: bridge.UpdateGroupRequest
-	(*UpdateGroupResponse)(nil),                  // 35: bridge.UpdateGroupResponse
-	(*AddGroupMembersRequest)(nil),               // 36: bridge.AddGroupMembersRequest
-	(*AddGroupMembersResponse)(nil),              // 37: bridge.AddGroupMembersResponse
-	(*RemoveGroupMembersRequest)(nil),            // 38: bridge.RemoveGroupMembersRequest
-	(*RemoveGroupMembersResponse)(nil),           // 39: bridge.RemoveGroupMembersResponse
-	(*PromoteGroupMembersRequest)(nil),           // 40: bridge.PromoteGroupMembersRequest
-	(*PromoteGroupMembersResponse)(nil),          // 41: bridge.PromoteGroupMembersResponse
-	(*DemoteGroupMembersRequest)(nil),            // 42: bridge.DemoteGroupMembersRequest
-	(*DemoteGroupMembersResponse)(nil),           // 43: bridge.DemoteGroupMembersResponse
-	(*LeaveGroupRequest)(nil),                    // 44: bridge.LeaveGroupRequest
-	(*LeaveGroupResponse)(nil),                   // 45: bridge.LeaveGroupResponse
-	(*SendContactRequest)(nil),                   // 46: bridge.SendContactRequest
-	(*SendContactResponse)(nil),                  // 47: bridge.SendContactResponse
-	(*AddContactRequest)(nil),                    // 48: bridge.AddContactRequest
-	(*AddContactResponse)(nil),                   // 49: bridge.AddContactResponse
-	(*GetContactDetailRequest)(nil),              // 50: bridge.GetContactDetailRequest
-	(*GetContactDetailResponse)(nil),             // 51: bridge.GetContactDetailResponse
-	(*ContactDetail)(nil),                        // 52: bridge.ContactDetail
-	(*SetProfilePictureRequest)(nil),             // 53: bridge.SetProfilePictureRequest
-	(*SetProfilePictureResponse)(nil),            // 54: bridge.SetProfilePictureResponse
-	(*SetStatusRequest)(nil),                     // 55: bridge.SetStatusRequest
-	(*SetStatusResponse)(nil),                    // 56: bridge.SetStatusResponse
-	(*SetDisplayNameRequest)(nil),                // 57: bridge.SetDisplayNameRequest
-	(*SetDisplayNameResponse)(nil),               // 58: bridge.SetDisplayNameResponse
-	(*GetAccountStatsRequest)(nil),               // 59: bridge.GetAccountStatsRequest
-	(*GetAccountStatsResponse)(nil),              // 60: bridge.GetAccountStatsResponse
-	(*GetBridgeStatsRequest)(nil),                // 61: bridge.GetBridgeStatsRequest
-	(*BridgeWorkerInfo)(nil),                     // 62: bridge.BridgeWorkerInfo
-	(*GetBridgeStatsResponse)(nil),               // 63: bridge.GetBridgeStatsResponse
-	(*WebServerStatSpec)(nil),                    // 64: bridge.WebServerStatSpec
-	(*GetWebServerStatsRequest)(nil),             // 65: bridge.GetWebServerStatsRequest
-	(*BatchGetWebServerStatsRequest)(nil),        // 66: bridge.BatchGetWebServerStatsRequest
-	(*WebServerStats)(nil),                       // 67: bridge.WebServerStats
-	(*BatchGetWebServerStatsResponse)(nil),       // 68: bridge.BatchGetWebServerStatsResponse
-	(*ReactToMessageRequest)(nil),                // 69: bridge.ReactToMessageRequest
-	(*ReactToMessageResponse)(nil),               // 70: bridge.ReactToMessageResponse
-	(*GetMessageReactionsRequest)(nil),           // 71: bridge.GetMessageReactionsRequest
-	(*ReactionSender)(nil),                       // 72: bridge.ReactionSender
-	(*ReactionGroup)(nil),                        // 73: bridge.ReactionGroup
-	(*GetMessageReactionsResponse)(nil),          // 74: bridge.GetMessageReactionsResponse
-	(*SendStatusRequest)(nil),                    // 75: bridge.SendStatusRequest
-	(*SendStatusResponse)(nil),                   // 76: bridge.SendStatusResponse
-	(*CommentStatusRequest)(nil),                 // 77: bridge.CommentStatusRequest
-	(*CommentStatusResponse)(nil),                // 78: bridge.CommentStatusResponse
-	(*LikeStatusRequest)(nil),                    // 79: bridge.LikeStatusRequest
-	(*LikeStatusResponse)(nil),                   // 80: bridge.LikeStatusResponse
-	(*GetStatusViewersRequest)(nil),              // 81: bridge.GetStatusViewersRequest
-	(*GetStatusViewersResponse)(nil),             // 82: bridge.GetStatusViewersResponse
-	(*StatusViewer)(nil),                         // 83: bridge.StatusViewer
-	(*JoinGroupByLinkRequest)(nil),               // 84: bridge.JoinGroupByLinkRequest
-	(*JoinGroupByLinkResponse)(nil),              // 85: bridge.JoinGroupByLinkResponse
-	(*CloseAllTabsRequest)(nil),                  // 86: bridge.CloseAllTabsRequest
-	(*CloseAllTabsResponse)(nil),                 // 87: bridge.CloseAllTabsResponse
-	(*DeleteMessageRequest)(nil),                 // 88: bridge.DeleteMessageRequest
-	(*DeleteMessageResponse)(nil),                // 89: bridge.DeleteMessageResponse
-	(*SetGroupAdminsOnlyRequest)(nil),            // 90: bridge.SetGroupAdminsOnlyRequest
-	(*SetGroupAdminsOnlyResponse)(nil),           // 91: bridge.SetGroupAdminsOnlyResponse
-	(*SetGroupInfoAdminsOnlyRequest)(nil),        // 92: bridge.SetGroupInfoAdminsOnlyRequest
-	(*SetGroupInfoAdminsOnlyResponse)(nil),       // 93: bridge.SetGroupInfoAdminsOnlyResponse
-	(*SetGroupAddMembersAdminsOnlyRequest)(nil),  // 94: bridge.SetGroupAddMembersAdminsOnlyRequest
-	(*SetGroupAddMembersAdminsOnlyResponse)(nil), // 95: bridge.SetGroupAddMembersAdminsOnlyResponse
-	nil, // 96: bridge.CheckNumberResponse.ResultsEntry
+	(*SendLinkRequest)(nil),                      // 11: bridge.SendLinkRequest
+	(*SendLinkResponse)(nil),                     // 12: bridge.SendLinkResponse
+	(*MessageContent)(nil),                       // 13: bridge.MessageContent
+	(*GetContactsRequest)(nil),                   // 14: bridge.GetContactsRequest
+	(*GetContactsResponse)(nil),                  // 15: bridge.GetContactsResponse
+	(*Contact)(nil),                              // 16: bridge.Contact
+	(*GetGroupsRequest)(nil),                     // 17: bridge.GetGroupsRequest
+	(*GetGroupsResponse)(nil),                    // 18: bridge.GetGroupsResponse
+	(*Group)(nil),                                // 19: bridge.Group
+	(*GetGroupMembersRequest)(nil),               // 20: bridge.GetGroupMembersRequest
+	(*GetGroupMembersResponse)(nil),              // 21: bridge.GetGroupMembersResponse
+	(*GroupMember)(nil),                          // 22: bridge.GroupMember
+	(*AccountStatusRequest)(nil),                 // 23: bridge.AccountStatusRequest
+	(*AccountStatusResponse)(nil),                // 24: bridge.AccountStatusResponse
+	(*BrowserWindow)(nil),                        // 25: bridge.BrowserWindow
+	(*ConnectionStateRequest)(nil),               // 26: bridge.ConnectionStateRequest
+	(*ConnectionStateResponse)(nil),              // 27: bridge.ConnectionStateResponse
+	(*DisconnectRequest)(nil),                    // 28: bridge.DisconnectRequest
+	(*DisconnectResponse)(nil),                   // 29: bridge.DisconnectResponse
+	(*CheckNumberRequest)(nil),                   // 30: bridge.CheckNumberRequest
+	(*CheckNumberResponse)(nil),                  // 31: bridge.CheckNumberResponse
+	(*MessageStatusRequest)(nil),                 // 32: bridge.MessageStatusRequest
+	(*MessageStatusResponse)(nil),                // 33: bridge.MessageStatusResponse
+	(*CreateGroupRequest)(nil),                   // 34: bridge.CreateGroupRequest
+	(*CreateGroupResponse)(nil),                  // 35: bridge.CreateGroupResponse
+	(*UpdateGroupRequest)(nil),                   // 36: bridge.UpdateGroupRequest
+	(*UpdateGroupResponse)(nil),                  // 37: bridge.UpdateGroupResponse
+	(*AddGroupMembersRequest)(nil),               // 38: bridge.AddGroupMembersRequest
+	(*AddGroupMembersResponse)(nil),              // 39: bridge.AddGroupMembersResponse
+	(*RemoveGroupMembersRequest)(nil),            // 40: bridge.RemoveGroupMembersRequest
+	(*RemoveGroupMembersResponse)(nil),           // 41: bridge.RemoveGroupMembersResponse
+	(*PromoteGroupMembersRequest)(nil),           // 42: bridge.PromoteGroupMembersRequest
+	(*PromoteGroupMembersResponse)(nil),          // 43: bridge.PromoteGroupMembersResponse
+	(*DemoteGroupMembersRequest)(nil),            // 44: bridge.DemoteGroupMembersRequest
+	(*DemoteGroupMembersResponse)(nil),           // 45: bridge.DemoteGroupMembersResponse
+	(*LeaveGroupRequest)(nil),                    // 46: bridge.LeaveGroupRequest
+	(*LeaveGroupResponse)(nil),                   // 47: bridge.LeaveGroupResponse
+	(*SendContactRequest)(nil),                   // 48: bridge.SendContactRequest
+	(*SendContactResponse)(nil),                  // 49: bridge.SendContactResponse
+	(*AddContactRequest)(nil),                    // 50: bridge.AddContactRequest
+	(*AddContactResponse)(nil),                   // 51: bridge.AddContactResponse
+	(*GetContactDetailRequest)(nil),              // 52: bridge.GetContactDetailRequest
+	(*GetContactDetailResponse)(nil),             // 53: bridge.GetContactDetailResponse
+	(*ContactDetail)(nil),                        // 54: bridge.ContactDetail
+	(*SetProfilePictureRequest)(nil),             // 55: bridge.SetProfilePictureRequest
+	(*SetProfilePictureResponse)(nil),            // 56: bridge.SetProfilePictureResponse
+	(*SetStatusRequest)(nil),                     // 57: bridge.SetStatusRequest
+	(*SetStatusResponse)(nil),                    // 58: bridge.SetStatusResponse
+	(*SetDisplayNameRequest)(nil),                // 59: bridge.SetDisplayNameRequest
+	(*SetDisplayNameResponse)(nil),               // 60: bridge.SetDisplayNameResponse
+	(*GetAccountStatsRequest)(nil),               // 61: bridge.GetAccountStatsRequest
+	(*GetAccountStatsResponse)(nil),              // 62: bridge.GetAccountStatsResponse
+	(*GetBridgeStatsRequest)(nil),                // 63: bridge.GetBridgeStatsRequest
+	(*BridgeWorkerInfo)(nil),                     // 64: bridge.BridgeWorkerInfo
+	(*GetBridgeStatsResponse)(nil),               // 65: bridge.GetBridgeStatsResponse
+	(*WebServerStatSpec)(nil),                    // 66: bridge.WebServerStatSpec
+	(*GetWebServerStatsRequest)(nil),             // 67: bridge.GetWebServerStatsRequest
+	(*BatchGetWebServerStatsRequest)(nil),        // 68: bridge.BatchGetWebServerStatsRequest
+	(*WebServerStats)(nil),                       // 69: bridge.WebServerStats
+	(*BatchGetWebServerStatsResponse)(nil),       // 70: bridge.BatchGetWebServerStatsResponse
+	(*ReactToMessageRequest)(nil),                // 71: bridge.ReactToMessageRequest
+	(*ReactToMessageResponse)(nil),               // 72: bridge.ReactToMessageResponse
+	(*GetMessageReactionsRequest)(nil),           // 73: bridge.GetMessageReactionsRequest
+	(*ReactionSender)(nil),                       // 74: bridge.ReactionSender
+	(*ReactionGroup)(nil),                        // 75: bridge.ReactionGroup
+	(*GetMessageReactionsResponse)(nil),          // 76: bridge.GetMessageReactionsResponse
+	(*SendStatusRequest)(nil),                    // 77: bridge.SendStatusRequest
+	(*SendStatusResponse)(nil),                   // 78: bridge.SendStatusResponse
+	(*CommentStatusRequest)(nil),                 // 79: bridge.CommentStatusRequest
+	(*CommentStatusResponse)(nil),                // 80: bridge.CommentStatusResponse
+	(*LikeStatusRequest)(nil),                    // 81: bridge.LikeStatusRequest
+	(*LikeStatusResponse)(nil),                   // 82: bridge.LikeStatusResponse
+	(*GetStatusViewersRequest)(nil),              // 83: bridge.GetStatusViewersRequest
+	(*GetStatusViewersResponse)(nil),             // 84: bridge.GetStatusViewersResponse
+	(*StatusViewer)(nil),                         // 85: bridge.StatusViewer
+	(*JoinGroupByLinkRequest)(nil),               // 86: bridge.JoinGroupByLinkRequest
+	(*JoinGroupByLinkResponse)(nil),              // 87: bridge.JoinGroupByLinkResponse
+	(*CloseAllTabsRequest)(nil),                  // 88: bridge.CloseAllTabsRequest
+	(*CloseAllTabsResponse)(nil),                 // 89: bridge.CloseAllTabsResponse
+	(*DeleteMessageRequest)(nil),                 // 90: bridge.DeleteMessageRequest
+	(*DeleteMessageResponse)(nil),                // 91: bridge.DeleteMessageResponse
+	(*SetGroupAdminsOnlyRequest)(nil),            // 92: bridge.SetGroupAdminsOnlyRequest
+	(*SetGroupAdminsOnlyResponse)(nil),           // 93: bridge.SetGroupAdminsOnlyResponse
+	(*SetGroupInfoAdminsOnlyRequest)(nil),        // 94: bridge.SetGroupInfoAdminsOnlyRequest
+	(*SetGroupInfoAdminsOnlyResponse)(nil),       // 95: bridge.SetGroupInfoAdminsOnlyResponse
+	(*SetGroupAddMembersAdminsOnlyRequest)(nil),  // 96: bridge.SetGroupAddMembersAdminsOnlyRequest
+	(*SetGroupAddMembersAdminsOnlyResponse)(nil), // 97: bridge.SetGroupAddMembersAdminsOnlyResponse
+	nil, // 98: bridge.CheckNumberResponse.ResultsEntry
 }
 var file_proto_bridge_proto_depIdxs = []int32{
 	0,  // 0: bridge.ConnectRequest.proxy:type_name -> bridge.ProxyConfig
-	11, // 1: bridge.SendMessageRequest.content:type_name -> bridge.MessageContent
-	14, // 2: bridge.GetContactsResponse.contacts:type_name -> bridge.Contact
-	17, // 3: bridge.GetGroupsResponse.groups:type_name -> bridge.Group
-	20, // 4: bridge.GetGroupMembersResponse.members:type_name -> bridge.GroupMember
-	23, // 5: bridge.AccountStatusResponse.windows:type_name -> bridge.BrowserWindow
-	96, // 6: bridge.CheckNumberResponse.results:type_name -> bridge.CheckNumberResponse.ResultsEntry
-	52, // 7: bridge.GetContactDetailResponse.contact:type_name -> bridge.ContactDetail
-	62, // 8: bridge.GetBridgeStatsResponse.workers:type_name -> bridge.BridgeWorkerInfo
-	64, // 9: bridge.GetWebServerStatsRequest.server:type_name -> bridge.WebServerStatSpec
-	64, // 10: bridge.BatchGetWebServerStatsRequest.servers:type_name -> bridge.WebServerStatSpec
-	67, // 11: bridge.BatchGetWebServerStatsResponse.stats:type_name -> bridge.WebServerStats
-	72, // 12: bridge.ReactionGroup.senders:type_name -> bridge.ReactionSender
-	73, // 13: bridge.GetMessageReactionsResponse.reactions:type_name -> bridge.ReactionGroup
-	83, // 14: bridge.GetStatusViewersResponse.viewers:type_name -> bridge.StatusViewer
+	13, // 1: bridge.SendMessageRequest.content:type_name -> bridge.MessageContent
+	16, // 2: bridge.GetContactsResponse.contacts:type_name -> bridge.Contact
+	19, // 3: bridge.GetGroupsResponse.groups:type_name -> bridge.Group
+	22, // 4: bridge.GetGroupMembersResponse.members:type_name -> bridge.GroupMember
+	25, // 5: bridge.AccountStatusResponse.windows:type_name -> bridge.BrowserWindow
+	98, // 6: bridge.CheckNumberResponse.results:type_name -> bridge.CheckNumberResponse.ResultsEntry
+	54, // 7: bridge.GetContactDetailResponse.contact:type_name -> bridge.ContactDetail
+	64, // 8: bridge.GetBridgeStatsResponse.workers:type_name -> bridge.BridgeWorkerInfo
+	66, // 9: bridge.GetWebServerStatsRequest.server:type_name -> bridge.WebServerStatSpec
+	66, // 10: bridge.BatchGetWebServerStatsRequest.servers:type_name -> bridge.WebServerStatSpec
+	69, // 11: bridge.BatchGetWebServerStatsResponse.stats:type_name -> bridge.WebServerStats
+	74, // 12: bridge.ReactionGroup.senders:type_name -> bridge.ReactionSender
+	75, // 13: bridge.GetMessageReactionsResponse.reactions:type_name -> bridge.ReactionGroup
+	85, // 14: bridge.GetStatusViewersResponse.viewers:type_name -> bridge.StatusViewer
 	1,  // 15: bridge.WhatsAppBridge.Connect:input_type -> bridge.ConnectRequest
-	26, // 16: bridge.WhatsAppBridge.Disconnect:input_type -> bridge.DisconnectRequest
+	28, // 16: bridge.WhatsAppBridge.Disconnect:input_type -> bridge.DisconnectRequest
 	3,  // 17: bridge.WhatsAppBridge.GetQRCode:input_type -> bridge.QRCodeRequest
 	5,  // 18: bridge.WhatsAppBridge.GetLinkCode:input_type -> bridge.LinkCodeRequest
 	7,  // 19: bridge.WhatsAppBridge.SendMessage:input_type -> bridge.SendMessageRequest
 	9,  // 20: bridge.WhatsAppBridge.SendMedia:input_type -> bridge.SendMediaRequest
-	46, // 21: bridge.WhatsAppBridge.SendContact:input_type -> bridge.SendContactRequest
-	30, // 22: bridge.WhatsAppBridge.GetMessageStatus:input_type -> bridge.MessageStatusRequest
-	12, // 23: bridge.WhatsAppBridge.GetContacts:input_type -> bridge.GetContactsRequest
-	28, // 24: bridge.WhatsAppBridge.CheckNumber:input_type -> bridge.CheckNumberRequest
-	48, // 25: bridge.WhatsAppBridge.AddContact:input_type -> bridge.AddContactRequest
-	50, // 26: bridge.WhatsAppBridge.GetContactDetail:input_type -> bridge.GetContactDetailRequest
-	53, // 27: bridge.WhatsAppBridge.SetProfilePicture:input_type -> bridge.SetProfilePictureRequest
-	55, // 28: bridge.WhatsAppBridge.SetStatus:input_type -> bridge.SetStatusRequest
-	57, // 29: bridge.WhatsAppBridge.SetDisplayName:input_type -> bridge.SetDisplayNameRequest
-	15, // 30: bridge.WhatsAppBridge.GetGroups:input_type -> bridge.GetGroupsRequest
-	18, // 31: bridge.WhatsAppBridge.GetGroupMembers:input_type -> bridge.GetGroupMembersRequest
-	32, // 32: bridge.WhatsAppBridge.CreateGroup:input_type -> bridge.CreateGroupRequest
-	34, // 33: bridge.WhatsAppBridge.UpdateGroup:input_type -> bridge.UpdateGroupRequest
-	36, // 34: bridge.WhatsAppBridge.AddGroupMembers:input_type -> bridge.AddGroupMembersRequest
-	38, // 35: bridge.WhatsAppBridge.RemoveGroupMembers:input_type -> bridge.RemoveGroupMembersRequest
-	40, // 36: bridge.WhatsAppBridge.PromoteGroupMembers:input_type -> bridge.PromoteGroupMembersRequest
-	42, // 37: bridge.WhatsAppBridge.DemoteGroupMembers:input_type -> bridge.DemoteGroupMembersRequest
-	44, // 38: bridge.WhatsAppBridge.LeaveGroup:input_type -> bridge.LeaveGroupRequest
-	88, // 39: bridge.WhatsAppBridge.DeleteMessage:input_type -> bridge.DeleteMessageRequest
-	90, // 40: bridge.WhatsAppBridge.SetGroupAdminsOnly:input_type -> bridge.SetGroupAdminsOnlyRequest
-	92, // 41: bridge.WhatsAppBridge.SetGroupInfoAdminsOnly:input_type -> bridge.SetGroupInfoAdminsOnlyRequest
-	94, // 42: bridge.WhatsAppBridge.SetGroupAddMembersAdminsOnly:input_type -> bridge.SetGroupAddMembersAdminsOnlyRequest
-	69, // 43: bridge.WhatsAppBridge.ReactToMessage:input_type -> bridge.ReactToMessageRequest
-	71, // 44: bridge.WhatsAppBridge.GetMessageReactions:input_type -> bridge.GetMessageReactionsRequest
-	75, // 45: bridge.WhatsAppBridge.SendStatus:input_type -> bridge.SendStatusRequest
-	77, // 46: bridge.WhatsAppBridge.CommentStatus:input_type -> bridge.CommentStatusRequest
-	79, // 47: bridge.WhatsAppBridge.LikeStatus:input_type -> bridge.LikeStatusRequest
-	81, // 48: bridge.WhatsAppBridge.GetStatusViewers:input_type -> bridge.GetStatusViewersRequest
-	84, // 49: bridge.WhatsAppBridge.JoinGroupByLink:input_type -> bridge.JoinGroupByLinkRequest
-	86, // 50: bridge.WhatsAppBridge.CloseAllTabs:input_type -> bridge.CloseAllTabsRequest
-	21, // 51: bridge.WhatsAppBridge.GetAccountStatus:input_type -> bridge.AccountStatusRequest
-	24, // 52: bridge.WhatsAppBridge.GetConnectionState:input_type -> bridge.ConnectionStateRequest
-	59, // 53: bridge.WhatsAppBridge.GetAccountStats:input_type -> bridge.GetAccountStatsRequest
-	61, // 54: bridge.WhatsAppBridge.GetBridgeStats:input_type -> bridge.GetBridgeStatsRequest
-	65, // 55: bridge.WhatsAppBridge.GetWebServerStats:input_type -> bridge.GetWebServerStatsRequest
-	66, // 56: bridge.WhatsAppBridge.BatchGetWebServerStats:input_type -> bridge.BatchGetWebServerStatsRequest
-	2,  // 57: bridge.WhatsAppBridge.Connect:output_type -> bridge.ConnectResponse
-	27, // 58: bridge.WhatsAppBridge.Disconnect:output_type -> bridge.DisconnectResponse
-	4,  // 59: bridge.WhatsAppBridge.GetQRCode:output_type -> bridge.QRCodeResponse
-	6,  // 60: bridge.WhatsAppBridge.GetLinkCode:output_type -> bridge.LinkCodeResponse
-	8,  // 61: bridge.WhatsAppBridge.SendMessage:output_type -> bridge.SendMessageResponse
-	10, // 62: bridge.WhatsAppBridge.SendMedia:output_type -> bridge.SendMediaResponse
-	47, // 63: bridge.WhatsAppBridge.SendContact:output_type -> bridge.SendContactResponse
-	31, // 64: bridge.WhatsAppBridge.GetMessageStatus:output_type -> bridge.MessageStatusResponse
-	13, // 65: bridge.WhatsAppBridge.GetContacts:output_type -> bridge.GetContactsResponse
-	29, // 66: bridge.WhatsAppBridge.CheckNumber:output_type -> bridge.CheckNumberResponse
-	49, // 67: bridge.WhatsAppBridge.AddContact:output_type -> bridge.AddContactResponse
-	51, // 68: bridge.WhatsAppBridge.GetContactDetail:output_type -> bridge.GetContactDetailResponse
-	54, // 69: bridge.WhatsAppBridge.SetProfilePicture:output_type -> bridge.SetProfilePictureResponse
-	56, // 70: bridge.WhatsAppBridge.SetStatus:output_type -> bridge.SetStatusResponse
-	58, // 71: bridge.WhatsAppBridge.SetDisplayName:output_type -> bridge.SetDisplayNameResponse
-	16, // 72: bridge.WhatsAppBridge.GetGroups:output_type -> bridge.GetGroupsResponse
-	19, // 73: bridge.WhatsAppBridge.GetGroupMembers:output_type -> bridge.GetGroupMembersResponse
-	33, // 74: bridge.WhatsAppBridge.CreateGroup:output_type -> bridge.CreateGroupResponse
-	35, // 75: bridge.WhatsAppBridge.UpdateGroup:output_type -> bridge.UpdateGroupResponse
-	37, // 76: bridge.WhatsAppBridge.AddGroupMembers:output_type -> bridge.AddGroupMembersResponse
-	39, // 77: bridge.WhatsAppBridge.RemoveGroupMembers:output_type -> bridge.RemoveGroupMembersResponse
-	41, // 78: bridge.WhatsAppBridge.PromoteGroupMembers:output_type -> bridge.PromoteGroupMembersResponse
-	43, // 79: bridge.WhatsAppBridge.DemoteGroupMembers:output_type -> bridge.DemoteGroupMembersResponse
-	45, // 80: bridge.WhatsAppBridge.LeaveGroup:output_type -> bridge.LeaveGroupResponse
-	89, // 81: bridge.WhatsAppBridge.DeleteMessage:output_type -> bridge.DeleteMessageResponse
-	91, // 82: bridge.WhatsAppBridge.SetGroupAdminsOnly:output_type -> bridge.SetGroupAdminsOnlyResponse
-	93, // 83: bridge.WhatsAppBridge.SetGroupInfoAdminsOnly:output_type -> bridge.SetGroupInfoAdminsOnlyResponse
-	95, // 84: bridge.WhatsAppBridge.SetGroupAddMembersAdminsOnly:output_type -> bridge.SetGroupAddMembersAdminsOnlyResponse
-	70, // 85: bridge.WhatsAppBridge.ReactToMessage:output_type -> bridge.ReactToMessageResponse
-	74, // 86: bridge.WhatsAppBridge.GetMessageReactions:output_type -> bridge.GetMessageReactionsResponse
-	76, // 87: bridge.WhatsAppBridge.SendStatus:output_type -> bridge.SendStatusResponse
-	78, // 88: bridge.WhatsAppBridge.CommentStatus:output_type -> bridge.CommentStatusResponse
-	80, // 89: bridge.WhatsAppBridge.LikeStatus:output_type -> bridge.LikeStatusResponse
-	82, // 90: bridge.WhatsAppBridge.GetStatusViewers:output_type -> bridge.GetStatusViewersResponse
-	85, // 91: bridge.WhatsAppBridge.JoinGroupByLink:output_type -> bridge.JoinGroupByLinkResponse
-	87, // 92: bridge.WhatsAppBridge.CloseAllTabs:output_type -> bridge.CloseAllTabsResponse
-	22, // 93: bridge.WhatsAppBridge.GetAccountStatus:output_type -> bridge.AccountStatusResponse
-	25, // 94: bridge.WhatsAppBridge.GetConnectionState:output_type -> bridge.ConnectionStateResponse
-	60, // 95: bridge.WhatsAppBridge.GetAccountStats:output_type -> bridge.GetAccountStatsResponse
-	63, // 96: bridge.WhatsAppBridge.GetBridgeStats:output_type -> bridge.GetBridgeStatsResponse
-	67, // 97: bridge.WhatsAppBridge.GetWebServerStats:output_type -> bridge.WebServerStats
-	68, // 98: bridge.WhatsAppBridge.BatchGetWebServerStats:output_type -> bridge.BatchGetWebServerStatsResponse
-	57, // [57:99] is the sub-list for method output_type
-	15, // [15:57] is the sub-list for method input_type
+	11, // 21: bridge.WhatsAppBridge.SendLink:input_type -> bridge.SendLinkRequest
+	48, // 22: bridge.WhatsAppBridge.SendContact:input_type -> bridge.SendContactRequest
+	32, // 23: bridge.WhatsAppBridge.GetMessageStatus:input_type -> bridge.MessageStatusRequest
+	14, // 24: bridge.WhatsAppBridge.GetContacts:input_type -> bridge.GetContactsRequest
+	30, // 25: bridge.WhatsAppBridge.CheckNumber:input_type -> bridge.CheckNumberRequest
+	50, // 26: bridge.WhatsAppBridge.AddContact:input_type -> bridge.AddContactRequest
+	52, // 27: bridge.WhatsAppBridge.GetContactDetail:input_type -> bridge.GetContactDetailRequest
+	55, // 28: bridge.WhatsAppBridge.SetProfilePicture:input_type -> bridge.SetProfilePictureRequest
+	57, // 29: bridge.WhatsAppBridge.SetStatus:input_type -> bridge.SetStatusRequest
+	59, // 30: bridge.WhatsAppBridge.SetDisplayName:input_type -> bridge.SetDisplayNameRequest
+	17, // 31: bridge.WhatsAppBridge.GetGroups:input_type -> bridge.GetGroupsRequest
+	20, // 32: bridge.WhatsAppBridge.GetGroupMembers:input_type -> bridge.GetGroupMembersRequest
+	34, // 33: bridge.WhatsAppBridge.CreateGroup:input_type -> bridge.CreateGroupRequest
+	36, // 34: bridge.WhatsAppBridge.UpdateGroup:input_type -> bridge.UpdateGroupRequest
+	38, // 35: bridge.WhatsAppBridge.AddGroupMembers:input_type -> bridge.AddGroupMembersRequest
+	40, // 36: bridge.WhatsAppBridge.RemoveGroupMembers:input_type -> bridge.RemoveGroupMembersRequest
+	42, // 37: bridge.WhatsAppBridge.PromoteGroupMembers:input_type -> bridge.PromoteGroupMembersRequest
+	44, // 38: bridge.WhatsAppBridge.DemoteGroupMembers:input_type -> bridge.DemoteGroupMembersRequest
+	46, // 39: bridge.WhatsAppBridge.LeaveGroup:input_type -> bridge.LeaveGroupRequest
+	90, // 40: bridge.WhatsAppBridge.DeleteMessage:input_type -> bridge.DeleteMessageRequest
+	92, // 41: bridge.WhatsAppBridge.SetGroupAdminsOnly:input_type -> bridge.SetGroupAdminsOnlyRequest
+	94, // 42: bridge.WhatsAppBridge.SetGroupInfoAdminsOnly:input_type -> bridge.SetGroupInfoAdminsOnlyRequest
+	96, // 43: bridge.WhatsAppBridge.SetGroupAddMembersAdminsOnly:input_type -> bridge.SetGroupAddMembersAdminsOnlyRequest
+	71, // 44: bridge.WhatsAppBridge.ReactToMessage:input_type -> bridge.ReactToMessageRequest
+	73, // 45: bridge.WhatsAppBridge.GetMessageReactions:input_type -> bridge.GetMessageReactionsRequest
+	77, // 46: bridge.WhatsAppBridge.SendStatus:input_type -> bridge.SendStatusRequest
+	79, // 47: bridge.WhatsAppBridge.CommentStatus:input_type -> bridge.CommentStatusRequest
+	81, // 48: bridge.WhatsAppBridge.LikeStatus:input_type -> bridge.LikeStatusRequest
+	83, // 49: bridge.WhatsAppBridge.GetStatusViewers:input_type -> bridge.GetStatusViewersRequest
+	86, // 50: bridge.WhatsAppBridge.JoinGroupByLink:input_type -> bridge.JoinGroupByLinkRequest
+	88, // 51: bridge.WhatsAppBridge.CloseAllTabs:input_type -> bridge.CloseAllTabsRequest
+	23, // 52: bridge.WhatsAppBridge.GetAccountStatus:input_type -> bridge.AccountStatusRequest
+	26, // 53: bridge.WhatsAppBridge.GetConnectionState:input_type -> bridge.ConnectionStateRequest
+	61, // 54: bridge.WhatsAppBridge.GetAccountStats:input_type -> bridge.GetAccountStatsRequest
+	63, // 55: bridge.WhatsAppBridge.GetBridgeStats:input_type -> bridge.GetBridgeStatsRequest
+	67, // 56: bridge.WhatsAppBridge.GetWebServerStats:input_type -> bridge.GetWebServerStatsRequest
+	68, // 57: bridge.WhatsAppBridge.BatchGetWebServerStats:input_type -> bridge.BatchGetWebServerStatsRequest
+	2,  // 58: bridge.WhatsAppBridge.Connect:output_type -> bridge.ConnectResponse
+	29, // 59: bridge.WhatsAppBridge.Disconnect:output_type -> bridge.DisconnectResponse
+	4,  // 60: bridge.WhatsAppBridge.GetQRCode:output_type -> bridge.QRCodeResponse
+	6,  // 61: bridge.WhatsAppBridge.GetLinkCode:output_type -> bridge.LinkCodeResponse
+	8,  // 62: bridge.WhatsAppBridge.SendMessage:output_type -> bridge.SendMessageResponse
+	10, // 63: bridge.WhatsAppBridge.SendMedia:output_type -> bridge.SendMediaResponse
+	12, // 64: bridge.WhatsAppBridge.SendLink:output_type -> bridge.SendLinkResponse
+	49, // 65: bridge.WhatsAppBridge.SendContact:output_type -> bridge.SendContactResponse
+	33, // 66: bridge.WhatsAppBridge.GetMessageStatus:output_type -> bridge.MessageStatusResponse
+	15, // 67: bridge.WhatsAppBridge.GetContacts:output_type -> bridge.GetContactsResponse
+	31, // 68: bridge.WhatsAppBridge.CheckNumber:output_type -> bridge.CheckNumberResponse
+	51, // 69: bridge.WhatsAppBridge.AddContact:output_type -> bridge.AddContactResponse
+	53, // 70: bridge.WhatsAppBridge.GetContactDetail:output_type -> bridge.GetContactDetailResponse
+	56, // 71: bridge.WhatsAppBridge.SetProfilePicture:output_type -> bridge.SetProfilePictureResponse
+	58, // 72: bridge.WhatsAppBridge.SetStatus:output_type -> bridge.SetStatusResponse
+	60, // 73: bridge.WhatsAppBridge.SetDisplayName:output_type -> bridge.SetDisplayNameResponse
+	18, // 74: bridge.WhatsAppBridge.GetGroups:output_type -> bridge.GetGroupsResponse
+	21, // 75: bridge.WhatsAppBridge.GetGroupMembers:output_type -> bridge.GetGroupMembersResponse
+	35, // 76: bridge.WhatsAppBridge.CreateGroup:output_type -> bridge.CreateGroupResponse
+	37, // 77: bridge.WhatsAppBridge.UpdateGroup:output_type -> bridge.UpdateGroupResponse
+	39, // 78: bridge.WhatsAppBridge.AddGroupMembers:output_type -> bridge.AddGroupMembersResponse
+	41, // 79: bridge.WhatsAppBridge.RemoveGroupMembers:output_type -> bridge.RemoveGroupMembersResponse
+	43, // 80: bridge.WhatsAppBridge.PromoteGroupMembers:output_type -> bridge.PromoteGroupMembersResponse
+	45, // 81: bridge.WhatsAppBridge.DemoteGroupMembers:output_type -> bridge.DemoteGroupMembersResponse
+	47, // 82: bridge.WhatsAppBridge.LeaveGroup:output_type -> bridge.LeaveGroupResponse
+	91, // 83: bridge.WhatsAppBridge.DeleteMessage:output_type -> bridge.DeleteMessageResponse
+	93, // 84: bridge.WhatsAppBridge.SetGroupAdminsOnly:output_type -> bridge.SetGroupAdminsOnlyResponse
+	95, // 85: bridge.WhatsAppBridge.SetGroupInfoAdminsOnly:output_type -> bridge.SetGroupInfoAdminsOnlyResponse
+	97, // 86: bridge.WhatsAppBridge.SetGroupAddMembersAdminsOnly:output_type -> bridge.SetGroupAddMembersAdminsOnlyResponse
+	72, // 87: bridge.WhatsAppBridge.ReactToMessage:output_type -> bridge.ReactToMessageResponse
+	76, // 88: bridge.WhatsAppBridge.GetMessageReactions:output_type -> bridge.GetMessageReactionsResponse
+	78, // 89: bridge.WhatsAppBridge.SendStatus:output_type -> bridge.SendStatusResponse
+	80, // 90: bridge.WhatsAppBridge.CommentStatus:output_type -> bridge.CommentStatusResponse
+	82, // 91: bridge.WhatsAppBridge.LikeStatus:output_type -> bridge.LikeStatusResponse
+	84, // 92: bridge.WhatsAppBridge.GetStatusViewers:output_type -> bridge.GetStatusViewersResponse
+	87, // 93: bridge.WhatsAppBridge.JoinGroupByLink:output_type -> bridge.JoinGroupByLinkResponse
+	89, // 94: bridge.WhatsAppBridge.CloseAllTabs:output_type -> bridge.CloseAllTabsResponse
+	24, // 95: bridge.WhatsAppBridge.GetAccountStatus:output_type -> bridge.AccountStatusResponse
+	27, // 96: bridge.WhatsAppBridge.GetConnectionState:output_type -> bridge.ConnectionStateResponse
+	62, // 97: bridge.WhatsAppBridge.GetAccountStats:output_type -> bridge.GetAccountStatsResponse
+	65, // 98: bridge.WhatsAppBridge.GetBridgeStats:output_type -> bridge.GetBridgeStatsResponse
+	69, // 99: bridge.WhatsAppBridge.GetWebServerStats:output_type -> bridge.WebServerStats
+	70, // 100: bridge.WhatsAppBridge.BatchGetWebServerStats:output_type -> bridge.BatchGetWebServerStatsResponse
+	58, // [58:101] is the sub-list for method output_type
+	15, // [15:58] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -6951,7 +7113,7 @@ func file_proto_bridge_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_bridge_proto_rawDesc), len(file_proto_bridge_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   97,
+			NumMessages:   99,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

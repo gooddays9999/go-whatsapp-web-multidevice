@@ -24,6 +24,10 @@ type UtilsTestSuite struct {
 	suite.Suite
 }
 
+func getMetaDataFromTestURL(rawURL string) (utils.Metadata, error) {
+	return utils.GetMetaDataFromURLWithOptions(rawURL, utils.MetadataFetchOptions{AllowPrivateNetwork: true})
+}
+
 func (suite *UtilsTestSuite) TestContainsMention() {
 	type args struct {
 		message string
@@ -102,11 +106,35 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURL() {
 	}))
 	defer server.Close() // Ensure the server is closed when the test ends
 
-	meta, err := utils.GetMetaDataFromURL(server.URL)
+	meta, err := getMetaDataFromTestURL(server.URL)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "Test Title", meta.Title)
 	assert.Equal(suite.T(), "Test Description", meta.Description)
 	assert.Equal(suite.T(), "http://example.com/image.jpg", meta.Image)
+}
+
+func (suite *UtilsTestSuite) TestGetMetaDataFromURLRejectsLocalTargets() {
+	_, err := utils.GetMetaDataFromURL("http://localhost/admin")
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "private or local")
+
+	_, err = utils.GetMetaDataFromURL("file:///etc/passwd")
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "http/https")
+}
+
+func (suite *UtilsTestSuite) TestGetMetaDataFromURLRejectsPrivateRedirectTargets() {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://127.0.0.1/metadata", http.StatusFound)
+	}))
+	defer server.Close()
+
+	_, err := utils.GetMetaDataFromURLWithOptions(server.URL, utils.MetadataFetchOptions{
+		AllowPrivateNetwork:   true,
+		BlockPrivateRedirects: true,
+	})
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "private or local")
 }
 
 func (suite *UtilsTestSuite) TestGetMetaDataFromURLSendsBrowserHeaders() {
@@ -135,7 +163,7 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLSendsBrowserHeaders() {
 	serverURL = server.URL
 	defer server.Close()
 
-	meta, err := utils.GetMetaDataFromURL(server.URL)
+	meta, err := getMetaDataFromTestURL(server.URL)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "Header Test", meta.Title)
 	assert.Contains(suite.T(), meta.Image, "/test-image.jpg")
@@ -149,7 +177,7 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLEdgeCases() {
 	}))
 	defer server1.Close()
 
-	meta, err := utils.GetMetaDataFromURL(server1.URL)
+	meta, err := getMetaDataFromTestURL(server1.URL)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "OG Title", meta.Title)
 	assert.Contains(suite.T(), meta.Image, "relative-image.jpg")
@@ -160,14 +188,14 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLEdgeCases() {
 	}))
 	defer server2.Close()
 
-	meta, err = utils.GetMetaDataFromURL(server2.URL)
+	meta, err = getMetaDataFromTestURL(server2.URL)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "Fallback Title", meta.Title)
 
 	// Test invalid URL
 	_, err = utils.GetMetaDataFromURL("not-a-valid-url")
 	assert.Error(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "unsupported protocol scheme")
+	assert.Contains(suite.T(), err.Error(), "http/https")
 
 	// Test HTTP error
 	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +203,7 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLEdgeCases() {
 	}))
 	defer errorServer.Close()
 
-	_, err = utils.GetMetaDataFromURL(errorServer.URL)
+	_, err = getMetaDataFromTestURL(errorServer.URL)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "HTTP request failed")
 
@@ -185,7 +213,7 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLEdgeCases() {
 	}))
 	defer malformedServer.Close()
 
-	meta, err = utils.GetMetaDataFromURL(malformedServer.URL)
+	meta, err = getMetaDataFromTestURL(malformedServer.URL)
 	assert.NoError(suite.T(), err) // Should handle malformed HTML gracefully
 	assert.Equal(suite.T(), "Test", meta.Title)
 
@@ -196,7 +224,7 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLEdgeCases() {
 	}))
 	defer slowServer.Close()
 
-	_, err = utils.GetMetaDataFromURL(slowServer.URL)
+	_, err = getMetaDataFromTestURL(slowServer.URL)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "deadline exceeded")
 
@@ -206,7 +234,7 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLEdgeCases() {
 	}))
 	defer redirectServer.Close()
 
-	_, err = utils.GetMetaDataFromURL(redirectServer.URL)
+	_, err = getMetaDataFromTestURL(redirectServer.URL)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "too many redirects")
 
@@ -224,7 +252,7 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLEdgeCases() {
 	imageServerURL = imageServer.URL
 	defer imageServer.Close()
 
-	meta, err = utils.GetMetaDataFromURL(imageServer.URL)
+	meta, err = getMetaDataFromTestURL(imageServer.URL)
 	assert.NoError(suite.T(), err) // Should handle invalid image gracefully
 	assert.Equal(suite.T(), "Image Test", meta.Title)
 	assert.Contains(suite.T(), meta.Image, "/invalid.jpg")
@@ -254,7 +282,7 @@ func (suite *UtilsTestSuite) TestGetMetaDataFromURLNormalizesLinkPreviewThumbnai
 	serverURL = server.URL
 	defer server.Close()
 
-	meta, err := utils.GetMetaDataFromURL(server.URL)
+	meta, err := getMetaDataFromTestURL(server.URL)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), serverURL+"/preview.png", meta.Image)
 	assert.NotEmpty(suite.T(), meta.ImageThumb)

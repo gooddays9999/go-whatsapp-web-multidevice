@@ -25,6 +25,7 @@ const (
 	WhatsAppBridge_GetLinkCode_FullMethodName                  = "/bridge.WhatsAppBridge/GetLinkCode"
 	WhatsAppBridge_SendMessage_FullMethodName                  = "/bridge.WhatsAppBridge/SendMessage"
 	WhatsAppBridge_SendMedia_FullMethodName                    = "/bridge.WhatsAppBridge/SendMedia"
+	WhatsAppBridge_SendLink_FullMethodName                     = "/bridge.WhatsAppBridge/SendLink"
 	WhatsAppBridge_SendContact_FullMethodName                  = "/bridge.WhatsAppBridge/SendContact"
 	WhatsAppBridge_GetMessageStatus_FullMethodName             = "/bridge.WhatsAppBridge/GetMessageStatus"
 	WhatsAppBridge_GetContacts_FullMethodName                  = "/bridge.WhatsAppBridge/GetContacts"
@@ -79,6 +80,8 @@ type WhatsAppBridgeClient interface {
 	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
 	// Send media message (image/video/document)
 	SendMedia(ctx context.Context, in *SendMediaRequest, opts ...grpc.CallOption) (*SendMediaResponse, error)
+	// Send hyperlink message
+	SendLink(ctx context.Context, in *SendLinkRequest, opts ...grpc.CallOption) (*SendLinkResponse, error)
 	// Send contact card (vCard)
 	SendContact(ctx context.Context, in *SendContactRequest, opts ...grpc.CallOption) (*SendContactResponse, error)
 	// Get message status
@@ -224,6 +227,16 @@ func (c *whatsAppBridgeClient) SendMedia(ctx context.Context, in *SendMediaReque
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SendMediaResponse)
 	err := c.cc.Invoke(ctx, WhatsAppBridge_SendMedia_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *whatsAppBridgeClient) SendLink(ctx context.Context, in *SendLinkRequest, opts ...grpc.CallOption) (*SendLinkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendLinkResponse)
+	err := c.cc.Invoke(ctx, WhatsAppBridge_SendLink_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -606,6 +619,8 @@ type WhatsAppBridgeServer interface {
 	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
 	// Send media message (image/video/document)
 	SendMedia(context.Context, *SendMediaRequest) (*SendMediaResponse, error)
+	// Send hyperlink message
+	SendLink(context.Context, *SendLinkRequest) (*SendLinkResponse, error)
 	// Send contact card (vCard)
 	SendContact(context.Context, *SendContactRequest) (*SendContactResponse, error)
 	// Get message status
@@ -705,6 +720,9 @@ func (UnimplementedWhatsAppBridgeServer) SendMessage(context.Context, *SendMessa
 }
 func (UnimplementedWhatsAppBridgeServer) SendMedia(context.Context, *SendMediaRequest) (*SendMediaResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SendMedia not implemented")
+}
+func (UnimplementedWhatsAppBridgeServer) SendLink(context.Context, *SendLinkRequest) (*SendLinkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendLink not implemented")
 }
 func (UnimplementedWhatsAppBridgeServer) SendContact(context.Context, *SendContactRequest) (*SendContactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SendContact not implemented")
@@ -932,6 +950,24 @@ func _WhatsAppBridge_SendMedia_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WhatsAppBridgeServer).SendMedia(ctx, req.(*SendMediaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WhatsAppBridge_SendLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WhatsAppBridgeServer).SendLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WhatsAppBridge_SendLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WhatsAppBridgeServer).SendLink(ctx, req.(*SendLinkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1610,6 +1646,10 @@ var WhatsAppBridge_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendMedia",
 			Handler:    _WhatsAppBridge_SendMedia_Handler,
+		},
+		{
+			MethodName: "SendLink",
+			Handler:    _WhatsAppBridge_SendLink_Handler,
 		},
 		{
 			MethodName: "SendContact",

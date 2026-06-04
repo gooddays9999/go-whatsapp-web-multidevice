@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -86,12 +88,90 @@ type Metadata struct {
 	Width       *uint32
 }
 
+type MetadataFetchOptions struct {
+	AllowPrivateNetwork   bool
+	BlockPrivateRedirects bool
+}
+
 const (
 	linkPreviewMaxImageDimension = 1024
 	linkPreviewMaxJPEGDimension  = 400
 	linkPreviewImageQuality      = 85
 	linkPreviewJPEGQuality       = 80
 )
+
+func isPrivateOrLocalIP(ip net.IP) bool {
+	return ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsUnspecified() ||
+		ip.IsMulticast()
+}
+
+func validateMetadataURL(rawURL string, allowPrivateNetwork bool) (*url.URL, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("metadata URL must use http/https")
+	}
+	host := strings.TrimSpace(parsed.Hostname())
+	if host == "" {
+		return nil, fmt.Errorf("metadata URL host is required")
+	}
+	if allowPrivateNetwork {
+		return parsed, nil
+	}
+	normalizedHost := strings.TrimSuffix(strings.ToLower(host), ".")
+	if normalizedHost == "localhost" {
+		return nil, fmt.Errorf("metadata URL points to private or local network")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if isPrivateOrLocalIP(ip) {
+			return nil, fmt.Errorf("metadata URL points to private or local network")
+		}
+		return parsed, nil
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("metadata URL host lookup failed: %w", err)
+	}
+	for _, ip := range ips {
+		if isPrivateOrLocalIP(ip) {
+			return nil, fmt.Errorf("metadata URL resolves to private or local network")
+		}
+	}
+	return parsed, nil
+}
+
+func newMetadataHTTPClient(opts MetadataFetchOptions) *http.Client {
+	dialer := &net.Dialer{Timeout: 15 * time.Second}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			host = address
+		}
+		if _, err := validateMetadataURL("http://"+host, opts.AllowPrivateNetwork); err != nil {
+			return nil, err
+		}
+		return dialer.DialContext(ctx, network, address)
+	}
+	return &http.Client{
+		Timeout:   15 * time.Second,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("too many redirects")
+			}
+			allowPrivate := opts.AllowPrivateNetwork && !opts.BlockPrivateRedirects
+			_, err := validateMetadataURL(req.URL.String(), allowPrivate)
+			return err
+		},
+	}
+}
 
 func resizeWithinBounds(src image.Image, maxDimension int) image.Image {
 	bounds := src.Bounds()
@@ -170,22 +250,16 @@ func isRetryableStatus(statusCode int) bool {
 }
 
 func GetMetaDataFromURL(urlStr string) (meta Metadata, err error) {
-	// Create HTTP client with timeout
-	client := &http.Client{
-		Timeout: 15 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 10 {
-				return fmt.Errorf("too many redirects")
-			}
-			return nil
-		},
-	}
+	return GetMetaDataFromURLWithOptions(urlStr, MetadataFetchOptions{BlockPrivateRedirects: true})
+}
 
+func GetMetaDataFromURLWithOptions(urlStr string, opts MetadataFetchOptions) (meta Metadata, err error) {
 	// Parse the base URL for resolving relative URLs later
-	baseURL, err := url.Parse(urlStr)
+	baseURL, err := validateMetadataURL(urlStr, opts.AllowPrivateNetwork)
 	if err != nil {
-		return meta, fmt.Errorf("invalid URL: %v", err)
+		return meta, err
 	}
+	client := newMetadataHTTPClient(opts)
 
 	// Send an HTTP GET request with browser-like headers and retry on transient blocks
 	const maxRetries = 3

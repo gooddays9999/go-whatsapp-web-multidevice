@@ -154,6 +154,30 @@ func (s *Service) SendMedia(ctx context.Context, req *bridgepb.SendMediaRequest)
 	return &bridgepb.SendMediaResponse{Success: true, MessageId: msgID, Status: "sent"}, nil
 }
 
+func (s *Service) SendLink(ctx context.Context, req *bridgepb.SendLinkRequest) (*bridgepb.SendLinkResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetTo(), "error": err.Error()})
+		return nil, grpcError(err)
+	}
+	caption := strings.TrimSpace(req.GetCaption())
+	if caption == "" {
+		caption = req.GetLinkUrl()
+	}
+	resp, err := s.deps.SendUsecase.SendLink(scoped, domainSend.LinkRequest{
+		BaseRequest: domainSend.BaseRequest{Phone: req.GetTo()},
+		Link:        req.GetLinkUrl(),
+		Caption:     caption,
+	})
+	if err != nil {
+		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetTo(), "error": err.Error()})
+		return &bridgepb.SendLinkResponse{Success: false, Status: "failed", Error: err.Error()}, nil
+	}
+	s.markRecentIncomingAsRead(scoped, req.GetTo())
+	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": resp.MessageID, "to": req.GetTo()})
+	return &bridgepb.SendLinkResponse{Success: true, MessageId: resp.MessageID, Status: "sent"}, nil
+}
+
 func mediaFailed(s *Service, req *bridgepb.SendMediaRequest, err error) *bridgepb.SendMediaResponse {
 	s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetTo(), "error": err.Error()})
 	return &bridgepb.SendMediaResponse{Success: false, Status: "failed", Error: err.Error()}

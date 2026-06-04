@@ -27,6 +27,9 @@ service WhatsAppBridge {
     // Send media message (image/video/document)
     rpc SendMedia(SendMediaRequest) returns (SendMediaResponse);
 
+    // Send hyperlink message
+    rpc SendLink(SendLinkRequest) returns (SendLinkResponse);
+
     // Send contact card (vCard)
     rpc SendContact(SendContactRequest) returns (SendContactResponse);
 
@@ -235,6 +238,21 @@ message SendMediaRequest {
 }
 
 message SendMediaResponse {
+    bool success = 1;
+    string message_id = 2;
+    string status = 3;
+    string error = 4;
+}
+
+message SendLinkRequest {
+    string account_id = 1;
+    string to = 2;
+    string link_url = 3;
+    string caption = 4;
+    string quoted_msg_id = 5;
+}
+
+message SendLinkResponse {
     bool success = 1;
     string message_id = 2;
     string status = 3;
