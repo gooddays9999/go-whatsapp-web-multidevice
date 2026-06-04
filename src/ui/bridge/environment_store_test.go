@@ -146,3 +146,43 @@ func TestProxySpecURLValidation(t *testing.T) {
 		t.Fatalf("expected invalid port to fail")
 	}
 }
+
+func TestEnvironmentStoreListByAccountIDs(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	store := NewEnvironmentStore(db, newTestUAPool(), Config{})
+	if err := store.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, accountID := range []string{"acc-1", "acc-2", "acc-3"} {
+		if _, _, err := store.GetOrCreate(ctx, accountID, "tenant", &bridgepb.ProxyConfig{
+			Type: "socks5", Host: "127.0.0.1", Port: 1080,
+		}, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	envs, err := store.ListByAccountIDs(ctx, []string{"acc-3", "missing", "acc-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(envs) != 2 {
+		t.Fatalf("expected 2 environments, got %d", len(envs))
+	}
+	if envs[0].AccountID != "acc-1" || envs[1].AccountID != "acc-3" {
+		t.Fatalf("unexpected environments: %s, %s", envs[0].AccountID, envs[1].AccountID)
+	}
+
+	empty, err := store.ListByAccountIDs(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("expected empty result for empty account list, got %d", len(empty))
+	}
+}

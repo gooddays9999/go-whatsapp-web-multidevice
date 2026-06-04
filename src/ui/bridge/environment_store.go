@@ -99,6 +99,47 @@ func (s *EnvironmentStore) List(ctx context.Context) ([]*BridgeEnvironment, erro
 	if err != nil {
 		return nil, err
 	}
+	return scanBridgeEnvironments(rows)
+}
+
+func (s *EnvironmentStore) ListByAccountIDs(ctx context.Context, accountIDs []string) ([]*BridgeEnvironment, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+
+	const batchSize = 500
+	envs := make([]*BridgeEnvironment, 0, len(accountIDs))
+	for start := 0; start < len(accountIDs); start += batchSize {
+		end := start + batchSize
+		if end > len(accountIDs) {
+			end = len(accountIDs)
+		}
+		batch := accountIDs[start:end]
+		placeholders := strings.TrimRight(strings.Repeat("?,", len(batch)), ",")
+		args := make([]any, 0, len(batch))
+		for _, accountID := range batch {
+			args = append(args, accountID)
+		}
+		rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
+			SELECT account_id, tenant_id, proxy_type, proxy_host, proxy_port, proxy_username, proxy_password,
+			       user_agent, browser_family, os_name, created_at, updated_at
+			FROM bridge_environments
+			WHERE account_id IN (%s)
+			ORDER BY account_id
+		`, placeholders), args...)
+		if err != nil {
+			return nil, err
+		}
+		batchEnvs, err := scanBridgeEnvironments(rows)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, batchEnvs...)
+	}
+	return envs, nil
+}
+
+func scanBridgeEnvironments(rows *sql.Rows) ([]*BridgeEnvironment, error) {
 	defer rows.Close()
 
 	envs := make([]*BridgeEnvironment, 0)

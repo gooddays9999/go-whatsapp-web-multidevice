@@ -3,6 +3,7 @@ package bridge
 import (
 	"context"
 	"database/sql"
+	"reflect"
 	"testing"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
@@ -91,6 +92,21 @@ func TestAccountProxyStoreWebOnlineForAccount(t *testing.T) {
 	}
 }
 
+func TestAccountProxyStoreRestorableAccountIDs(t *testing.T) {
+	ctx := context.Background()
+	db := newAccountProxyTestDB(t)
+	store := &AccountProxyStore{db: db}
+
+	accountIDs, err := store.RestorableAccountIDs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"1", "8"}
+	if !reflect.DeepEqual(accountIDs, want) {
+		t.Fatalf("RestorableAccountIDs() = %#v, want %#v", accountIDs, want)
+	}
+}
+
 func TestEnvironmentForAccountPrefersAccountDatabaseProxy(t *testing.T) {
 	ctx := context.Background()
 	envDB, err := sql.Open("sqlite3", ":memory:")
@@ -148,9 +164,16 @@ func newAccountProxyTestDB(t *testing.T) *sql.DB {
 		`CREATE TABLE accounts (id INTEGER PRIMARY KEY, phone TEXT, proxy_id INTEGER, web_online INTEGER DEFAULT 0, deleted_at TIMESTAMP NULL)`,
 		`CREATE TABLE proxies (id INTEGER PRIMARY KEY, type TEXT, host TEXT, port INTEGER, username TEXT, password TEXT)`,
 		`INSERT INTO proxies (id, type, host, port, username, password) VALUES (10, 'SOCKS5', '127.0.0.1', 1080, 'user', 'pass')`,
+		`INSERT INTO proxies (id, type, host, port, username, password) VALUES (11, 'HTTP', '10.0.0.1', 8080, '', '')`,
+		`INSERT INTO proxies (id, type, host, port, username, password) VALUES (12, 'SOCKS5', '', 1080, '', '')`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (1, '15510000001', 10, 1, NULL)`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (2, '15510000002', NULL, 2, NULL)`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (3, '15510000003', 10, 1, CURRENT_TIMESTAMP)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (4, '15510000004', 10, 0, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (5, '15510000005', 10, 3, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (6, '15510000006', 10, 2, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (7, '15510000007', 12, 1, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (8, '15510000008', 11, 1, NULL)`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)

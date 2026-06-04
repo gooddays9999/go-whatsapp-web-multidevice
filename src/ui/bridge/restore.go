@@ -30,12 +30,15 @@ func (s *Service) restorePersistedAccounts(ctx context.Context) {
 		return
 	}
 
-	envs, err := s.envStore.List(ctx)
+	envs, restorableAccounts, err := s.restoreCandidateEnvironments(ctx)
 	if err != nil {
 		logrus.WithError(err).Warn("failed to list bridge environments for startup restore")
 		return
 	}
 	if len(envs) == 0 {
+		if restorableAccounts > 0 {
+			logrus.WithField("restorable_accounts", restorableAccounts).Info("no persisted bridge environments found for startup restore")
+		}
 		return
 	}
 	concurrency := s.cfg.StartupRestoreConcurrency
@@ -45,10 +48,16 @@ func (s *Service) restorePersistedAccounts(ctx context.Context) {
 	if concurrency > len(envs) {
 		concurrency = len(envs)
 	}
-	logrus.WithFields(logrus.Fields{
+	fields := logrus.Fields{
 		"accounts":    len(envs),
 		"concurrency": concurrency,
-	}).Info("starting bridge environment restore")
+	}
+	if restorableAccounts > 0 {
+		fields["restorable_accounts"] = restorableAccounts
+		fields["missing_environments"] = restorableAccounts - len(envs)
+		fields["source"] = "account_database"
+	}
+	logrus.WithFields(fields).Info("starting bridge environment restore")
 
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
@@ -70,6 +79,28 @@ func (s *Service) restorePersistedAccounts(ctx context.Context) {
 	}
 	wg.Wait()
 	logrus.Info("bridge environment restore finished")
+}
+
+func (s *Service) restoreCandidateEnvironments(ctx context.Context) ([]*BridgeEnvironment, int, error) {
+	if s.accountProxyStore == nil {
+		envs, err := s.envStore.List(ctx)
+		return envs, 0, err
+	}
+
+	accountIDs, err := s.accountProxyStore.RestorableAccountIDs(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(accountIDs) == 0 {
+		logrus.Info("no account database records are eligible for bridge startup restore")
+		return nil, 0, nil
+	}
+
+	envs, err := s.envStore.ListByAccountIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, len(accountIDs), err
+	}
+	return envs, len(accountIDs), nil
 }
 
 func (s *Service) setRestoring(restoring bool) {

@@ -95,3 +95,38 @@ func (s *AccountProxyStore) WebOnlineForAccount(ctx context.Context, accountID s
 	}
 	return webOnline, true, nil
 }
+
+func (s *AccountProxyStore) RestorableAccountIDs(ctx context.Context) ([]string, error) {
+	if s == nil || s.db == nil {
+		return nil, nil
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT CAST(a.id AS CHAR)
+		FROM accounts a
+		INNER JOIN proxies p ON p.id = a.proxy_id
+		WHERE a.deleted_at IS NULL
+		  AND COALESCE(a.web_online, 0) = ?
+		  AND LOWER(TRIM(COALESCE(p.type, ''))) IN ('socks5', 'http', 'https')
+		  AND TRIM(COALESCE(p.host, '')) <> ''
+		  AND COALESCE(p.port, 0) BETWEEN 1 AND 65535
+		ORDER BY a.id
+	`, accountWebOnlineOnline)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	accountIDs := make([]string, 0)
+	for rows.Next() {
+		var accountID string
+		if err := rows.Scan(&accountID); err != nil {
+			return nil, err
+		}
+		accountIDs = append(accountIDs, accountID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return accountIDs, nil
+}
