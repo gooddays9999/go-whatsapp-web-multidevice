@@ -12,6 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
+	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -81,6 +83,8 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 		s.handleMessageEvent(ctx, accountID, instance, evt)
 	case *events.Receipt:
 		s.handleReceiptEvent(ctx, accountID, instance, evt)
+	case *events.HistorySync:
+		s.handleHistorySyncEvent(ctx, accountID, instance, evt)
 	case *events.GroupInfo:
 		s.handleGroupInfoEvent(accountID, evt)
 	case *events.JoinedGroup:
@@ -330,6 +334,134 @@ func (s *Service) receiptAppliesToOutgoing(ctx context.Context, instance *whatsa
 	default:
 		return false
 	}
+}
+
+func (s *Service) handleHistorySyncEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.HistorySync) {
+	for _, payload := range historySyncStatusEvents(ctx, instance, evt.Data) {
+		s.publish("message.status", accountID, payload)
+	}
+}
+
+func historySyncStatusEvents(ctx context.Context, instance *whatsapp.DeviceInstance, data *waHistorySync.HistorySync) []map[string]any {
+	if data == nil {
+		return nil
+	}
+
+	eventsByID := make(map[string]map[string]any)
+	order := make([]string, 0)
+	for _, conv := range data.GetConversations() {
+		if conv == nil {
+			continue
+		}
+		conversationJID := normalizedHistoryJID(ctx, instance, conv.GetID())
+		for _, histMsg := range conv.GetMessages() {
+			if histMsg == nil || histMsg.Message == nil {
+				continue
+			}
+			msg := histMsg.Message
+			key := msg.GetKey()
+			if key == nil || !key.GetFromMe() || key.GetID() == "" {
+				continue
+			}
+			status, ok := historyMessageStatus(msg.GetStatus())
+			if !ok {
+				continue
+			}
+
+			chatID := normalizedHistoryJID(ctx, instance, key.GetRemoteJID())
+			if chatID == "" {
+				chatID = conversationJID
+			}
+			payload := map[string]any{
+				"messageId": key.GetID(),
+				"status":    status,
+				"fromMe":    true,
+				"timestamp": historyStatusTimestamp(msg, status),
+				"source":    "history_sync",
+			}
+			if chatID != "" {
+				payload["chatId"] = chatID
+			}
+
+			if existing, ok := eventsByID[key.GetID()]; ok {
+				if historyStatusRank(status) > historyStatusRank(existing["status"].(string)) {
+					eventsByID[key.GetID()] = payload
+				}
+				continue
+			}
+			eventsByID[key.GetID()] = payload
+			order = append(order, key.GetID())
+		}
+	}
+
+	results := make([]map[string]any, 0, len(order))
+	for _, id := range order {
+		results = append(results, eventsByID[id])
+	}
+	return results
+}
+
+func historyMessageStatus(status waWeb.WebMessageInfo_Status) (string, bool) {
+	switch status {
+	case waWeb.WebMessageInfo_DELIVERY_ACK:
+		return "delivered", true
+	case waWeb.WebMessageInfo_READ, waWeb.WebMessageInfo_PLAYED:
+		return "read", true
+	default:
+		return "", false
+	}
+}
+
+func historyStatusTimestamp(msg *waWeb.WebMessageInfo, status string) int64 {
+	var ts int64
+	for _, receipt := range msg.GetUserReceipt() {
+		if receipt == nil {
+			continue
+		}
+		switch status {
+		case "read":
+			ts = maxInt64(ts, receipt.GetReadTimestamp())
+			ts = maxInt64(ts, receipt.GetPlayedTimestamp())
+		case "delivered":
+			ts = maxInt64(ts, receipt.GetReceiptTimestamp())
+		}
+	}
+	if ts == 0 {
+		ts = int64(msg.GetMessageTimestamp())
+	}
+	return ts * 1000
+}
+
+func maxInt64(a, b int64) int64 {
+	if b > a {
+		return b
+	}
+	return a
+}
+
+func historyStatusRank(status string) int {
+	switch status {
+	case "read":
+		return 3
+	case "delivered":
+		return 2
+	case "sent":
+		return 1
+	default:
+		return 0
+	}
+}
+
+func normalizedHistoryJID(ctx context.Context, instance *whatsapp.DeviceInstance, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	jid, err := types.ParseJID(raw)
+	if err != nil || jid.IsEmpty() {
+		return raw
+	}
+	return normalizedEventJID(ctx, instance, jid).ToNonAD().String()
 }
 
 func (s *Service) handleGroupInfoEvent(accountID string, evt *events.GroupInfo) {
