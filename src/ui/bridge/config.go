@@ -10,30 +10,37 @@ import (
 )
 
 type Config struct {
-	GRPCPort                    int
-	MetricsPort                 int
-	InstanceID                  string
-	NATSURL                     string
-	UAFilePath                  string
-	HeartbeatInterval           time.Duration
-	ConnectTimeout              time.Duration
-	StatusSendConcurrency       int
-	StatusSendMinInterval       time.Duration
-	StatusSendQueueTimeout      time.Duration
-	StatusAccountContextTimeout time.Duration
-	StatusRecipientTimeout      time.Duration
-	StatusBuildTimeout          time.Duration
-	StatusMessageTimeout        time.Duration
-	MessageSendTimeout          time.Duration
-	MessageReactionTimeout      time.Duration
-	StartupRestoreConcurrency   int
-	ReconnectConcurrency        int
-	ReconnectQueueTimeout       time.Duration
-	MediaDownloadPath           string
-	UploadMediaURL              string
-	UploadAPIKey                string
-	AccountDBDSN                string
-	DefaultProxy                ProxySpec
+	GRPCPort                        int
+	MetricsPort                     int
+	InstanceID                      string
+	NATSURL                         string
+	UAFilePath                      string
+	HeartbeatInterval               time.Duration
+	ConnectTimeout                  time.Duration
+	StatusSendConcurrency           int
+	StatusSendMinInterval           time.Duration
+	StatusSendQueueTimeout          time.Duration
+	StatusAccountContextTimeout     time.Duration
+	StatusRecipientTimeout          time.Duration
+	StatusBuildTimeout              time.Duration
+	StatusMessageTimeout            time.Duration
+	MessageSendTimeout              time.Duration
+	MessageReactionTimeout          time.Duration
+	HistorySyncOnConnect            bool
+	HistorySyncMaxChats             int
+	HistorySyncMessageCount         int
+	HistorySyncExactOutgoingPerChat int
+	HistorySyncTimeout              time.Duration
+	HistorySyncMinInterval          time.Duration
+	HistorySyncConcurrency          int
+	StartupRestoreConcurrency       int
+	ReconnectConcurrency            int
+	ReconnectQueueTimeout           time.Duration
+	MediaDownloadPath               string
+	UploadMediaURL                  string
+	UploadAPIKey                    string
+	AccountDBDSN                    string
+	DefaultProxy                    ProxySpec
 }
 
 type configFile struct {
@@ -85,28 +92,35 @@ type ProxySpec struct {
 
 func LoadConfig() Config {
 	cfg := Config{
-		GRPCPort:                    9091,
-		MetricsPort:                 9191,
-		InstanceID:                  "ims-bridge-go",
-		NATSURL:                     "nats://localhost:4222",
-		UAFilePath:                  "/Users/eric/Downloads/ua_US.txt",
-		HeartbeatInterval:           30 * time.Second,
-		ConnectTimeout:              45 * time.Second,
-		StatusSendConcurrency:       1,
-		StatusSendMinInterval:       1500 * time.Millisecond,
-		StatusSendQueueTimeout:      5 * time.Second,
-		StatusAccountContextTimeout: 12 * time.Second,
-		StatusRecipientTimeout:      8 * time.Second,
-		StatusBuildTimeout:          30 * time.Second,
-		StatusMessageTimeout:        25 * time.Second,
-		MessageSendTimeout:          25 * time.Second,
-		MessageReactionTimeout:      15 * time.Second,
-		StartupRestoreConcurrency:   20,
-		ReconnectConcurrency:        10,
-		ReconnectQueueTimeout:       15 * time.Second,
-		MediaDownloadPath:           "/tmp/media",
-		UploadMediaURL:              "http://localhost:8080/internal/media/upload",
-		UploadAPIKey:                "",
+		GRPCPort:                        9091,
+		MetricsPort:                     9191,
+		InstanceID:                      "ims-bridge-go",
+		NATSURL:                         "nats://localhost:4222",
+		UAFilePath:                      "/Users/eric/Downloads/ua_US.txt",
+		HeartbeatInterval:               30 * time.Second,
+		ConnectTimeout:                  45 * time.Second,
+		StatusSendConcurrency:           1,
+		StatusSendMinInterval:           1500 * time.Millisecond,
+		StatusSendQueueTimeout:          5 * time.Second,
+		StatusAccountContextTimeout:     12 * time.Second,
+		StatusRecipientTimeout:          8 * time.Second,
+		StatusBuildTimeout:              30 * time.Second,
+		StatusMessageTimeout:            25 * time.Second,
+		MessageSendTimeout:              25 * time.Second,
+		MessageReactionTimeout:          15 * time.Second,
+		HistorySyncOnConnect:            true,
+		HistorySyncMaxChats:             20,
+		HistorySyncMessageCount:         50,
+		HistorySyncExactOutgoingPerChat: 2,
+		HistorySyncTimeout:              30 * time.Second,
+		HistorySyncMinInterval:          5 * time.Minute,
+		HistorySyncConcurrency:          5,
+		StartupRestoreConcurrency:       20,
+		ReconnectConcurrency:            10,
+		ReconnectQueueTimeout:           15 * time.Second,
+		MediaDownloadPath:               "/tmp/media",
+		UploadMediaURL:                  "http://localhost:8080/internal/media/upload",
+		UploadAPIKey:                    "",
 	}
 
 	if path := os.Getenv("CONFIG_PATH"); path != "" {
@@ -265,6 +279,39 @@ func applyEnvOverrides(cfg *Config) {
 	if value := os.Getenv("BRIDGE_MESSAGE_REACTION_TIMEOUT_MS"); value != "" {
 		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
 			cfg.MessageReactionTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_HISTORY_SYNC_ON_CONNECT"); value != "" {
+		cfg.HistorySyncOnConnect = value != "false" && value != "0"
+	}
+	if value := os.Getenv("BRIDGE_HISTORY_SYNC_MAX_CHATS"); value != "" {
+		if maxChats, err := strconv.Atoi(value); err == nil && maxChats >= 0 {
+			cfg.HistorySyncMaxChats = maxChats
+		}
+	}
+	if value := os.Getenv("BRIDGE_HISTORY_SYNC_MESSAGE_COUNT"); value != "" {
+		if count, err := strconv.Atoi(value); err == nil && count >= 0 {
+			cfg.HistorySyncMessageCount = count
+		}
+	}
+	if value := os.Getenv("BRIDGE_HISTORY_SYNC_EXACT_OUTGOING_PER_CHAT"); value != "" {
+		if count, err := strconv.Atoi(value); err == nil && count >= 0 {
+			cfg.HistorySyncExactOutgoingPerChat = count
+		}
+	}
+	if value := os.Getenv("BRIDGE_HISTORY_SYNC_TIMEOUT_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds > 0 {
+			cfg.HistorySyncTimeout = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_HISTORY_SYNC_MIN_INTERVAL_MS"); value != "" {
+		if milliseconds, err := strconv.Atoi(value); err == nil && milliseconds >= 0 {
+			cfg.HistorySyncMinInterval = time.Duration(milliseconds) * time.Millisecond
+		}
+	}
+	if value := os.Getenv("BRIDGE_HISTORY_SYNC_CONCURRENCY"); value != "" {
+		if concurrency, err := strconv.Atoi(value); err == nil && concurrency > 0 {
+			cfg.HistorySyncConcurrency = concurrency
 		}
 	}
 	if value := os.Getenv("BRIDGE_STARTUP_RESTORE_CONCURRENCY"); value != "" {

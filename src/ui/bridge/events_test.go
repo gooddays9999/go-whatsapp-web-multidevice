@@ -118,6 +118,36 @@ func TestHistorySyncStatusEventsUsesReceiptTimestamp(t *testing.T) {
 	}
 }
 
+func TestWebMessageStatusEventUsesSourceWebMsgStatus(t *testing.T) {
+	chatJID := "15812751827@s.whatsapp.net"
+	readAt := time.Date(2026, time.June, 11, 3, 24, 7, 0, time.UTC).Unix()
+	status := waWeb.WebMessageInfo_READ
+	msg := historyStatusMessage("read-msg", chatJID, true, status, uint64(readAt-10)).Message
+	msg.UserReceipt = []*waWeb.UserReceipt{{
+		UserJID:         proto.String(chatJID),
+		ReadTimestamp:   proto.Int64(readAt),
+		PlayedTimestamp: proto.Int64(0),
+	}}
+
+	event, ok := webMessageStatusEvent(context.Background(), nil, msg)
+
+	if !ok {
+		t.Fatal("webMessageStatusEvent ok = false, want true")
+	}
+	if event["messageId"] != "read-msg" || event["status"] != "read" {
+		t.Fatalf("event = %#v, want read message status", event)
+	}
+	if event["fromMe"] != true {
+		t.Fatalf("fromMe = %v, want true", event["fromMe"])
+	}
+	if event["chatId"] != chatJID {
+		t.Fatalf("chatId = %v, want %s", event["chatId"], chatJID)
+	}
+	if event["timestamp"] != readAt*1000 {
+		t.Fatalf("timestamp = %v, want %d", event["timestamp"], readAt*1000)
+	}
+}
+
 func historyStatusMessage(id, chatJID string, fromMe bool, status waWeb.WebMessageInfo_Status, ts uint64) *waHistorySync.HistorySyncMsg {
 	return &waHistorySync.HistorySyncMsg{
 		Message: &waWeb.WebMessageInfo{

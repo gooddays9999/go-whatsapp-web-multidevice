@@ -46,16 +46,18 @@ type Service struct {
 	startedAt         time.Time
 	workerID          string
 
-	mu              sync.RWMutex
-	connected       map[string]time.Time
-	statuses        map[string]string
-	reconnecting    map[string]time.Time
-	explicitOffline map[string]time.Time
-	restoring       bool
-	reconnectSlots  chan struct{}
-	statusSendSlots chan struct{}
-	statusSendMu    sync.Mutex
-	lastStatusSend  time.Time
+	mu                   sync.RWMutex
+	connected            map[string]time.Time
+	statuses             map[string]string
+	reconnecting         map[string]time.Time
+	explicitOffline      map[string]time.Time
+	historySyncRequested map[string]time.Time
+	restoring            bool
+	reconnectSlots       chan struct{}
+	statusSendSlots      chan struct{}
+	historySyncSlots     chan struct{}
+	statusSendMu         sync.Mutex
+	lastStatusSend       time.Time
 }
 
 func NewService(cfg Config, deps Dependencies) (*Service, error) {
@@ -79,6 +81,9 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 	if cfg.ReconnectConcurrency <= 0 {
 		cfg.ReconnectConcurrency = 10
 	}
+	if cfg.HistorySyncConcurrency <= 0 {
+		cfg.HistorySyncConcurrency = 5
+	}
 	if cfg.ReconnectQueueTimeout <= 0 {
 		cfg.ReconnectQueueTimeout = 15 * time.Second
 	}
@@ -93,20 +98,22 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 	}
 	workerID := fmt.Sprintf("%s-%d", cfg.InstanceID, os.Getpid())
 	service := &Service{
-		cfg:               cfg,
-		deps:              deps,
-		envStore:          envStore,
-		uaPool:            uaPool,
-		publisher:         NewNATSPublisher(cfg.NATSURL),
-		accountProxyStore: accountProxyStore,
-		startedAt:         time.Now(),
-		workerID:          workerID,
-		connected:         make(map[string]time.Time),
-		statuses:          make(map[string]string),
-		reconnecting:      make(map[string]time.Time),
-		explicitOffline:   make(map[string]time.Time),
-		reconnectSlots:    make(chan struct{}, cfg.ReconnectConcurrency),
-		statusSendSlots:   make(chan struct{}, cfg.StatusSendConcurrency),
+		cfg:                  cfg,
+		deps:                 deps,
+		envStore:             envStore,
+		uaPool:               uaPool,
+		publisher:            NewNATSPublisher(cfg.NATSURL),
+		accountProxyStore:    accountProxyStore,
+		startedAt:            time.Now(),
+		workerID:             workerID,
+		connected:            make(map[string]time.Time),
+		statuses:             make(map[string]string),
+		reconnecting:         make(map[string]time.Time),
+		explicitOffline:      make(map[string]time.Time),
+		historySyncRequested: make(map[string]time.Time),
+		reconnectSlots:       make(chan struct{}, cfg.ReconnectConcurrency),
+		statusSendSlots:      make(chan struct{}, cfg.StatusSendConcurrency),
+		historySyncSlots:     make(chan struct{}, cfg.HistorySyncConcurrency),
 	}
 	return service, nil
 }

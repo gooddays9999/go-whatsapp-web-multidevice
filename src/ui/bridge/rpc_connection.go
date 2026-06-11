@@ -114,6 +114,7 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 			"connectedAt": time.Now().UnixMilli(),
 			"verified":    true,
 		})
+		s.scheduleRecentHistorySync(ctx, req.GetAccountId(), inst, "bridge connect")
 		return &bridgepb.ConnectResponse{Success: true, Status: "connected", Message: "Connected to worker " + s.workerID}, nil
 	}
 	if client.Store == nil || client.Store.ID == nil {

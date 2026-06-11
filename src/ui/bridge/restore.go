@@ -168,6 +168,7 @@ func (s *Service) restorePersistedAccount(parent context.Context, env *BridgeEnv
 	}
 	if cachedLoggedIn(inst.UpdateStateFromClient()) {
 		s.markConnected(env.AccountID)
+		s.scheduleRecentHistorySync(parent, env.AccountID, inst, "bridge startup restore cached")
 		return
 	}
 
@@ -189,5 +190,6 @@ func (s *Service) restorePersistedAccount(parent context.Context, env *BridgeEnv
 			"connectedAt": time.Now().UnixMilli(),
 			"verified":    true,
 		})
+		s.scheduleRecentHistorySync(ctx, env.AccountID, inst, "bridge startup restore")
 	}
 }

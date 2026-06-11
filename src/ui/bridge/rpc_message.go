@@ -878,6 +878,7 @@ func (s *Service) recycleAccountClient(ctx context.Context, accountID string) er
 		"connectedAt": time.Now().UnixMilli(),
 		"verified":    true,
 	})
+	s.scheduleRecentHistorySync(ctx, accountID, inst, "bridge account client recycle")
 	return nil
 }
 

@@ -41,6 +41,7 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 			"connectedAt": time.Now().UnixMilli(),
 			"verified":    instance.IsLoggedIn(),
 		})
+		s.scheduleRecentHistorySync(ctx, accountID, instance, "whatsapp connected event")
 	case *events.Disconnected:
 		state := instance.MarkDisconnected()
 		if s.isExplicitOffline(accountID) {
@@ -112,6 +113,9 @@ func (s *Service) handleMessageEvent(ctx context.Context, accountID string, inst
 	})
 	if evt.Info.IsFromMe && evt.Info.ID != "" {
 		s.publish("message.status", accountID, outgoingSentStatusEvent(message, evt))
+		if payload, ok := webMessageStatusEvent(ctx, instance, evt.SourceWebMsg); ok {
+			s.publish("message.status", accountID, payload)
+		}
 	}
 	if downloadable := downloadableMessage(msg); downloadable != nil {
 		go s.downloadAndPublishMedia(ctx, accountID, instance, evt, downloadable, message)
@@ -363,25 +367,15 @@ func historySyncStatusEvents(ctx context.Context, instance *whatsapp.DeviceInsta
 			if key == nil || !key.GetFromMe() || key.GetID() == "" {
 				continue
 			}
-			status, ok := historyMessageStatus(msg.GetStatus())
+			payload, ok := webMessageStatusEvent(ctx, instance, msg)
 			if !ok {
 				continue
 			}
-
-			chatID := normalizedHistoryJID(ctx, instance, key.GetRemoteJID())
-			if chatID == "" {
-				chatID = conversationJID
+			payload["source"] = "history_sync"
+			if _, ok := payload["chatId"]; !ok && conversationJID != "" {
+				payload["chatId"] = conversationJID
 			}
-			payload := map[string]any{
-				"messageId": key.GetID(),
-				"status":    status,
-				"fromMe":    true,
-				"timestamp": historyStatusTimestamp(msg, status),
-				"source":    "history_sync",
-			}
-			if chatID != "" {
-				payload["chatId"] = chatID
-			}
+			status := payload["status"].(string)
 
 			if existing, ok := eventsByID[key.GetID()]; ok {
 				if historyStatusRank(status) > historyStatusRank(existing["status"].(string)) {
@@ -399,6 +393,26 @@ func historySyncStatusEvents(ctx context.Context, instance *whatsapp.DeviceInsta
 		results = append(results, eventsByID[id])
 	}
 	return results
+}
+
+func webMessageStatusEvent(ctx context.Context, instance *whatsapp.DeviceInstance, msg *waWeb.WebMessageInfo) (map[string]any, bool) {
+	if msg == nil || msg.GetKey() == nil || !msg.GetKey().GetFromMe() || msg.GetKey().GetID() == "" {
+		return nil, false
+	}
+	status, ok := historyMessageStatus(msg.GetStatus())
+	if !ok {
+		return nil, false
+	}
+	payload := map[string]any{
+		"messageId": msg.GetKey().GetID(),
+		"status":    status,
+		"fromMe":    true,
+		"timestamp": historyStatusTimestamp(msg, status),
+	}
+	if chatID := normalizedHistoryJID(ctx, instance, msg.GetKey().GetRemoteJID()); chatID != "" {
+		payload["chatId"] = chatID
+	}
+	return payload, true
 }
 
 func historyMessageStatus(status waWeb.WebMessageInfo_Status) (string, bool) {
