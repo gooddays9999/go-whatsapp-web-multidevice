@@ -341,7 +341,16 @@ func (s *Service) receiptAppliesToOutgoing(ctx context.Context, instance *whatsa
 }
 
 func (s *Service) handleHistorySyncEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.HistorySync) {
-	for _, payload := range historySyncStatusEvents(ctx, instance, evt.Data) {
+	payloads := historySyncStatusEvents(ctx, instance, evt.Data)
+	if evt != nil && evt.Data != nil {
+		logrus.WithFields(logrus.Fields{
+			"account_id":         accountID,
+			"sync_type":          evt.Data.GetSyncType().String(),
+			"conversation_count": len(evt.Data.GetConversations()),
+			"status_events":      len(payloads),
+		}).Info("received WhatsApp history sync")
+	}
+	for _, payload := range payloads {
 		s.publish("message.status", accountID, payload)
 	}
 }

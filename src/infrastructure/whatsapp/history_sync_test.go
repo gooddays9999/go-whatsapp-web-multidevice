@@ -77,6 +77,58 @@ func TestProcessConversationMessagesPersistsReactionEvents(t *testing.T) {
 	}
 }
 
+func TestProcessHistorySyncProcessesOnDemandMessages(t *testing.T) {
+	originalLog := log
+	log = waLog.Noop
+	defer func() { log = originalLog }()
+
+	deviceID := "device-a@s.whatsapp.net"
+	chatJID := "628123456789@s.whatsapp.net"
+	repo := &historyReactionRepoSpy{}
+
+	ctx := ContextWithDevice(context.Background(), NewDeviceInstance(deviceID, nil, nil))
+	syncType := waHistorySync.HistorySync_ON_DEMAND
+	reactionTimestamp := uint64(time.Date(2026, time.May, 16, 8, 2, 0, 0, time.UTC).Unix())
+	data := &waHistorySync.HistorySync{
+		SyncType: &syncType,
+		Conversations: []*waHistorySync.Conversation{
+			{
+				ID: proto.String(chatJID),
+				Messages: []*waHistorySync.HistorySyncMsg{
+					{
+						Message: &waWeb.WebMessageInfo{
+							Key: &waCommon.MessageKey{
+								RemoteJID: proto.String(chatJID),
+								FromMe:    proto.Bool(false),
+								ID:        proto.String("reaction-event-2"),
+							},
+							Message: &waE2E.Message{
+								ReactionMessage: &waE2E.ReactionMessage{
+									Key: &waCommon.MessageKey{
+										RemoteJID: proto.String(chatJID),
+										FromMe:    proto.Bool(false),
+										ID:        proto.String("msg-2"),
+									},
+									Text: proto.String("ok"),
+								},
+							},
+							MessageTimestamp: &reactionTimestamp,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := processHistorySync(ctx, data, repo, nil); err != nil {
+		t.Fatalf("process history sync: %v", err)
+	}
+
+	if repo.createReactionCalls != 1 {
+		t.Fatalf("expected on-demand history reaction event to be persisted once, got %d", repo.createReactionCalls)
+	}
+}
+
 type historyReactionRepoSpy struct {
 	domainChatStorage.IChatStorageRepository
 	createReactionCalls int
