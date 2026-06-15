@@ -816,10 +816,11 @@ func (s *Service) scheduleReconnectWithMode(accountID, reason string, recycle bo
 		ctx, cancel := context.WithTimeout(context.Background(), timeout+5*time.Second)
 		defer cancel()
 		var err error
+		var scoped context.Context
 		if recycle {
 			err = s.recycleAccountClient(ctx, accountID)
 		} else {
-			_, err = s.accountContext(ctx, accountID)
+			scoped, err = s.reconnectAccountContext(ctx, accountID)
 		}
 		if err != nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
@@ -829,12 +830,30 @@ func (s *Service) scheduleReconnectWithMode(accountID, reason string, recycle bo
 			}).Warn("scheduled WhatsApp reconnect failed")
 			return
 		}
+		if !recycle {
+			s.scheduleRecentHistorySyncFromContext(scoped, accountID, reason)
+		}
 		logrus.WithFields(logrus.Fields{
 			"account_id": accountID,
 			"reason":     reason,
 			"recycle":    recycle,
 		}).Info("scheduled WhatsApp reconnect completed")
 	}()
+}
+
+func (s *Service) reconnectAccountContext(ctx context.Context, accountID string) (context.Context, error) {
+	if s != nil && s.accountContextForReconnect != nil {
+		return s.accountContextForReconnect(ctx, accountID)
+	}
+	return s.accountContext(ctx, accountID)
+}
+
+func (s *Service) scheduleRecentHistorySyncFromContext(ctx context.Context, accountID, reason string) {
+	inst, ok := whatsapp.DeviceFromContext(ctx)
+	if !ok || inst == nil {
+		return
+	}
+	s.scheduleRecentHistorySync(ctx, accountID, inst, reason)
 }
 
 func (s *Service) recycleAccountClient(ctx context.Context, accountID string) error {

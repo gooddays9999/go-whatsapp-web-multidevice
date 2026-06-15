@@ -58,6 +58,8 @@ type Service struct {
 	historySyncSlots     chan struct{}
 	statusSendMu         sync.Mutex
 	lastStatusSend       time.Time
+
+	accountContextForReconnect func(context.Context, string) (context.Context, error)
 }
 
 func NewService(cfg Config, deps Dependencies) (*Service, error) {
