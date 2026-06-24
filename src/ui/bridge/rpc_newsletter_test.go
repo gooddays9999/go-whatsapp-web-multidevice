@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"testing"
+	"time"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	waBinary "go.mau.fi/whatsmeow/binary"
@@ -72,6 +73,7 @@ func TestNewsletterBridgeProtoHasVerificationRequests(t *testing.T) {
 	_ = &bridgepb.CreateNewsletterRequest{AccountId: "357", Name: "Test", Description: "Desc"}
 	_ = &bridgepb.FollowNewsletterRequest{AccountId: "434", NewsletterId: "120363123456789@newsletter"}
 	_ = &bridgepb.GetNewslettersRequest{AccountId: "357"}
+	_ = &bridgepb.GetNewsletterMessagesRequest{AccountId: "357", NewsletterId: "120363123456789@newsletter", Count: 10}
 	_ = &bridgepb.SendNewsletterPollRequest{
 		AccountId:    "357",
 		NewsletterId: "120363123456789@newsletter",
@@ -130,5 +132,79 @@ func TestBuildNewsletterPollNodeUsesChannelPollCreationType(t *testing.T) {
 	}
 	if decoded.GetPollCreationMessage().GetName() != "Pick one" {
 		t.Fatalf("poll name = %q", decoded.GetPollCreationMessage().GetName())
+	}
+}
+
+func TestNewsletterMessageToProtoTextMessage(t *testing.T) {
+	msg := &types.NewsletterMessage{
+		MessageServerID: 101,
+		MessageID:       "3EB0TEXT",
+		Type:            "text",
+		Timestamp:       time.Unix(1719200000, 0),
+		ViewsCount:      7,
+		ReactionCounts:  map[string]int{"👍": 2},
+		Message:         &waE2E.Message{Conversation: proto.String("IMS channel text test")},
+	}
+
+	got := newsletterMessageToProto(msg)
+
+	if got.GetServerId() != "101" {
+		t.Fatalf("server_id = %q", got.GetServerId())
+	}
+	if got.GetMessageId() != "3EB0TEXT" {
+		t.Fatalf("message_id = %q", got.GetMessageId())
+	}
+	if got.GetType() != "text" {
+		t.Fatalf("type = %q", got.GetType())
+	}
+	if got.GetTimestamp() != 1719200000 {
+		t.Fatalf("timestamp = %d", got.GetTimestamp())
+	}
+	if got.GetText() != "IMS channel text test" {
+		t.Fatalf("text = %q", got.GetText())
+	}
+	if got.GetHasPoll() {
+		t.Fatalf("has_poll = true")
+	}
+	if got.GetViewsCount() != 7 {
+		t.Fatalf("views_count = %d", got.GetViewsCount())
+	}
+	if got.GetReactionCounts()["👍"] != 2 {
+		t.Fatalf("reaction count = %d", got.GetReactionCounts()["👍"])
+	}
+}
+
+func TestNewsletterMessageToProtoPollV3Message(t *testing.T) {
+	msg := &types.NewsletterMessage{
+		MessageServerID: 102,
+		MessageID:       "3EB0POLL",
+		Type:            "pollCreation",
+		Timestamp:       time.Unix(1719200100, 0),
+		Message: &waE2E.Message{PollCreationMessageV3: &waE2E.PollCreationMessage{
+			Name: proto.String("Pick one"),
+			Options: []*waE2E.PollCreationMessage_Option{
+				{OptionName: proto.String("A")},
+				{OptionName: proto.String("B")},
+			},
+			SelectableOptionsCount: proto.Uint32(1),
+		}},
+	}
+
+	got := newsletterMessageToProto(msg)
+
+	if !got.GetHasPoll() {
+		t.Fatalf("has_poll = false")
+	}
+	if got.GetPollField() != "pollCreationMessageV3" {
+		t.Fatalf("poll_field = %q", got.GetPollField())
+	}
+	if got.GetPollName() != "Pick one" {
+		t.Fatalf("poll_name = %q", got.GetPollName())
+	}
+	if got.GetOptionCount() != 2 {
+		t.Fatalf("option_count = %d", got.GetOptionCount())
+	}
+	if got.GetSelectableOptionsCount() != 1 {
+		t.Fatalf("selectable_options_count = %d", got.GetSelectableOptionsCount())
 	}
 }

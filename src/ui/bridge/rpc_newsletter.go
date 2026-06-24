@@ -23,6 +23,9 @@ const (
 	newsletterTOSNoticeID = "20601218"
 	newsletterTOSStage    = "5"
 	newsletterPollType    = "pollCreation"
+
+	defaultNewsletterMessageCount = 20
+	maxNewsletterMessageCount     = 100
 )
 
 func (s *Service) CreateNewsletter(ctx context.Context, req *bridgepb.CreateNewsletterRequest) (*bridgepb.CreateNewsletterResponse, error) {
@@ -96,6 +99,46 @@ func (s *Service) GetNewsletters(ctx context.Context, req *bridgepb.GetNewslette
 		}
 	}
 	return &bridgepb.GetNewslettersResponse{Newsletters: newsletters}, nil
+}
+
+func (s *Service) GetNewsletterMessages(ctx context.Context, req *bridgepb.GetNewsletterMessagesRequest) (*bridgepb.GetNewsletterMessagesResponse, error) {
+	if strings.TrimSpace(req.GetAccountId()) == "" || strings.TrimSpace(req.GetNewsletterId()) == "" {
+		return nil, grpcError(fmt.Errorf("account_id and newsletter_id are required"))
+	}
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	client, err := clientFromScopedContext(scoped)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	jid, err := resolveNewsletterJID(scoped, client, req.GetNewsletterId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	count := int(req.GetCount())
+	if count <= 0 {
+		count = defaultNewsletterMessageCount
+	}
+	if count > maxNewsletterMessageCount {
+		count = maxNewsletterMessageCount
+	}
+	params := &whatsmeow.GetNewsletterMessagesParams{Count: count}
+	if req.GetBefore() > 0 {
+		params.Before = waTypes.MessageServerID(req.GetBefore())
+	}
+	items, err := client.GetNewsletterMessages(scoped, jid, params)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	messages := make([]*bridgepb.NewsletterMessage, 0, len(items))
+	for _, item := range items {
+		if converted := newsletterMessageToProto(item); converted != nil {
+			messages = append(messages, converted)
+		}
+	}
+	return &bridgepb.GetNewsletterMessagesResponse{Messages: messages}, nil
 }
 
 func (s *Service) SendNewsletterPoll(ctx context.Context, req *bridgepb.SendNewsletterPollRequest) (*bridgepb.SendNewsletterPollResponse, error) {
@@ -270,4 +313,70 @@ func newsletterMetadataToProto(meta *waTypes.NewsletterMetadata) *bridgepb.Newsl
 		item.Role = string(meta.ViewerMeta.Role)
 	}
 	return item
+}
+
+func newsletterMessageToProto(msg *waTypes.NewsletterMessage) *bridgepb.NewsletterMessage {
+	if msg == nil {
+		return nil
+	}
+	item := &bridgepb.NewsletterMessage{
+		ServerId:   fmt.Sprint(msg.MessageServerID),
+		MessageId:  string(msg.MessageID),
+		Type:       msg.Type,
+		ViewsCount: int32(msg.ViewsCount),
+		Text:       newsletterMessageText(msg.Message),
+	}
+	if !msg.Timestamp.IsZero() {
+		item.Timestamp = msg.Timestamp.Unix()
+	}
+	if len(msg.ReactionCounts) > 0 {
+		item.ReactionCounts = make(map[string]int32, len(msg.ReactionCounts))
+		for code, count := range msg.ReactionCounts {
+			item.ReactionCounts[code] = int32(count)
+		}
+	}
+	if field, poll := newsletterMessagePoll(msg.Message); field != "" {
+		item.HasPoll = true
+		item.PollField = field
+		if poll != nil {
+			item.PollName = poll.GetName()
+			item.OptionCount = int32(len(poll.GetOptions()))
+			item.SelectableOptionsCount = int32(poll.GetSelectableOptionsCount())
+		}
+	}
+	return item
+}
+
+func newsletterMessageText(message *waE2E.Message) string {
+	if message == nil {
+		return ""
+	}
+	if text := message.GetConversation(); text != "" {
+		return text
+	}
+	return message.GetExtendedTextMessage().GetText()
+}
+
+func newsletterMessagePoll(message *waE2E.Message) (string, *waE2E.PollCreationMessage) {
+	if message == nil {
+		return "", nil
+	}
+	switch {
+	case message.GetPollCreationMessage() != nil:
+		return "pollCreationMessage", message.GetPollCreationMessage()
+	case message.GetPollCreationMessageV2() != nil:
+		return "pollCreationMessageV2", message.GetPollCreationMessageV2()
+	case message.GetPollCreationMessageV3() != nil:
+		return "pollCreationMessageV3", message.GetPollCreationMessageV3()
+	case message.GetPollCreationMessageV4() != nil:
+		return "pollCreationMessageV4", nil
+	case message.GetPollCreationMessageV5() != nil:
+		return "pollCreationMessageV5", message.GetPollCreationMessageV5()
+	case message.GetPollCreationMessageV6() != nil:
+		return "pollCreationMessageV6", message.GetPollCreationMessageV6()
+	case message.GetPollUpdateMessage() != nil:
+		return "pollUpdateMessage", nil
+	default:
+		return "", nil
+	}
 }

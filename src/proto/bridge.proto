@@ -47,6 +47,9 @@ service WhatsAppBridge {
     // Get subscribed WhatsApp channels/newsletters
     rpc GetNewsletters(GetNewslettersRequest) returns (GetNewslettersResponse);
 
+    // Get recent messages from a WhatsApp channel/newsletter for diagnostics
+    rpc GetNewsletterMessages(GetNewsletterMessagesRequest) returns (GetNewsletterMessagesResponse);
+
     // Send a poll to a WhatsApp channel/newsletter
     rpc SendNewsletterPoll(SendNewsletterPollRequest) returns (SendNewsletterPollResponse);
 
@@ -433,6 +436,32 @@ message GetNewslettersRequest {
 
 message GetNewslettersResponse {
     repeated Newsletter newsletters = 1;
+}
+
+message GetNewsletterMessagesRequest {
+    string account_id = 1;
+    string newsletter_id = 2;
+    int32 count = 3;
+    uint64 before = 4;          // Optional newsletter message server_id for pagination
+}
+
+message NewsletterMessage {
+    string server_id = 1;       // Newsletter message server_id, stringified to avoid JS precision issues
+    string message_id = 2;      // WhatsApp message ID
+    string type = 3;            // WhatsApp newsletter message type
+    int64 timestamp = 4;
+    string text = 5;
+    bool has_poll = 6;
+    string poll_field = 7;      // pollCreationMessage / pollCreationMessageV2/V3/V5/V6 / pollUpdateMessage
+    string poll_name = 8;
+    int32 option_count = 9;
+    int32 selectable_options_count = 10;
+    int32 views_count = 11;
+    map<string, int32> reaction_counts = 12;
+}
+
+message GetNewsletterMessagesResponse {
+    repeated NewsletterMessage messages = 1;
 }
 
 message SendNewsletterPollRequest {

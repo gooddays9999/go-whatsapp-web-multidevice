@@ -31,6 +31,7 @@ const (
 	WhatsAppBridge_CreateNewsletter_FullMethodName             = "/bridge.WhatsAppBridge/CreateNewsletter"
 	WhatsAppBridge_FollowNewsletter_FullMethodName             = "/bridge.WhatsAppBridge/FollowNewsletter"
 	WhatsAppBridge_GetNewsletters_FullMethodName               = "/bridge.WhatsAppBridge/GetNewsletters"
+	WhatsAppBridge_GetNewsletterMessages_FullMethodName        = "/bridge.WhatsAppBridge/GetNewsletterMessages"
 	WhatsAppBridge_SendNewsletterPoll_FullMethodName           = "/bridge.WhatsAppBridge/SendNewsletterPoll"
 	WhatsAppBridge_GetContacts_FullMethodName                  = "/bridge.WhatsAppBridge/GetContacts"
 	WhatsAppBridge_CheckNumber_FullMethodName                  = "/bridge.WhatsAppBridge/CheckNumber"
@@ -96,6 +97,8 @@ type WhatsAppBridgeClient interface {
 	FollowNewsletter(ctx context.Context, in *FollowNewsletterRequest, opts ...grpc.CallOption) (*FollowNewsletterResponse, error)
 	// Get subscribed WhatsApp channels/newsletters
 	GetNewsletters(ctx context.Context, in *GetNewslettersRequest, opts ...grpc.CallOption) (*GetNewslettersResponse, error)
+	// Get recent messages from a WhatsApp channel/newsletter for diagnostics
+	GetNewsletterMessages(ctx context.Context, in *GetNewsletterMessagesRequest, opts ...grpc.CallOption) (*GetNewsletterMessagesResponse, error)
 	// Send a poll to a WhatsApp channel/newsletter
 	SendNewsletterPoll(ctx context.Context, in *SendNewsletterPollRequest, opts ...grpc.CallOption) (*SendNewsletterPollResponse, error)
 	// Get contacts list
@@ -299,6 +302,16 @@ func (c *whatsAppBridgeClient) GetNewsletters(ctx context.Context, in *GetNewsle
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetNewslettersResponse)
 	err := c.cc.Invoke(ctx, WhatsAppBridge_GetNewsletters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *whatsAppBridgeClient) GetNewsletterMessages(ctx context.Context, in *GetNewsletterMessagesRequest, opts ...grpc.CallOption) (*GetNewsletterMessagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetNewsletterMessagesResponse)
+	err := c.cc.Invoke(ctx, WhatsAppBridge_GetNewsletterMessages_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -683,6 +696,8 @@ type WhatsAppBridgeServer interface {
 	FollowNewsletter(context.Context, *FollowNewsletterRequest) (*FollowNewsletterResponse, error)
 	// Get subscribed WhatsApp channels/newsletters
 	GetNewsletters(context.Context, *GetNewslettersRequest) (*GetNewslettersResponse, error)
+	// Get recent messages from a WhatsApp channel/newsletter for diagnostics
+	GetNewsletterMessages(context.Context, *GetNewsletterMessagesRequest) (*GetNewsletterMessagesResponse, error)
 	// Send a poll to a WhatsApp channel/newsletter
 	SendNewsletterPoll(context.Context, *SendNewsletterPollRequest) (*SendNewsletterPollResponse, error)
 	// Get contacts list
@@ -798,6 +813,9 @@ func (UnimplementedWhatsAppBridgeServer) FollowNewsletter(context.Context, *Foll
 }
 func (UnimplementedWhatsAppBridgeServer) GetNewsletters(context.Context, *GetNewslettersRequest) (*GetNewslettersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNewsletters not implemented")
+}
+func (UnimplementedWhatsAppBridgeServer) GetNewsletterMessages(context.Context, *GetNewsletterMessagesRequest) (*GetNewsletterMessagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNewsletterMessages not implemented")
 }
 func (UnimplementedWhatsAppBridgeServer) SendNewsletterPoll(context.Context, *SendNewsletterPollRequest) (*SendNewsletterPollResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SendNewsletterPoll not implemented")
@@ -1130,6 +1148,24 @@ func _WhatsAppBridge_GetNewsletters_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WhatsAppBridgeServer).GetNewsletters(ctx, req.(*GetNewslettersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WhatsAppBridge_GetNewsletterMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNewsletterMessagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WhatsAppBridgeServer).GetNewsletterMessages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WhatsAppBridge_GetNewsletterMessages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WhatsAppBridgeServer).GetNewsletterMessages(ctx, req.(*GetNewsletterMessagesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1814,6 +1850,10 @@ var WhatsAppBridge_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNewsletters",
 			Handler:    _WhatsAppBridge_GetNewsletters_Handler,
+		},
+		{
+			MethodName: "GetNewsletterMessages",
+			Handler:    _WhatsAppBridge_GetNewsletterMessages_Handler,
 		},
 		{
 			MethodName: "SendNewsletterPoll",
