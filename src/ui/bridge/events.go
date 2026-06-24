@@ -139,7 +139,7 @@ func outgoingSentStatusEvent(message map[string]any, evt *events.Message) map[st
 func (s *Service) toWhatsAppMessage(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Message) map[string]any {
 	msg := utils.BuildEventMessage(evt)
 	unwrapped := utils.UnwrapMessage(evt.Message)
-	mediaType, filename, _, _, _, _, _ := utils.ExtractMediaInfo(unwrapped)
+	mediaType, filename, _, _, _, _, _, _ := utils.ExtractMediaInfo(unwrapped)
 	content := msg.Text
 	if content == "" {
 		content = utils.ExtractMediaCaption(unwrapped)
