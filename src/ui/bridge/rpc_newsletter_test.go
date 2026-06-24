@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
+	waBinary "go.mau.fi/whatsmeow/binary"
+	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestNewsletterMetadataToProtoIncludesStableFields(t *testing.T) {
@@ -75,5 +78,57 @@ func TestNewsletterBridgeProtoHasVerificationRequests(t *testing.T) {
 		Question:     "Pick one",
 		Options:      []string{"A", "B"},
 		MaxAnswer:    1,
+	}
+}
+
+func TestBuildNewsletterPollNodeUsesChannelPollCreationType(t *testing.T) {
+	jid := types.NewJID("120363123456789", types.NewsletterServer)
+	messageID := types.MessageID("3EB01234567890")
+	message := &waE2E.Message{
+		PollCreationMessage: &waE2E.PollCreationMessage{
+			Name: proto.String("Pick one"),
+			Options: []*waE2E.PollCreationMessage_Option{
+				{OptionName: proto.String("A")},
+				{OptionName: proto.String("B")},
+			},
+			SelectableOptionsCount: proto.Uint32(1),
+		},
+		MessageContextInfo: &waE2E.MessageContextInfo{MessageSecret: []byte("secret")},
+	}
+
+	node, err := buildNewsletterPollNode(jid, messageID, message)
+	if err != nil {
+		t.Fatalf("buildNewsletterPollNode returned error: %v", err)
+	}
+
+	if node.Tag != "message" {
+		t.Fatalf("node tag = %q", node.Tag)
+	}
+	if got := node.Attrs["to"]; got != jid {
+		t.Fatalf("to attr = %#v, want %#v", got, jid)
+	}
+	if got := node.Attrs["id"]; got != messageID {
+		t.Fatalf("id attr = %#v, want %#v", got, messageID)
+	}
+	if got := node.Attrs["type"]; got != newsletterPollType {
+		t.Fatalf("type attr = %#v, want %#v", got, newsletterPollType)
+	}
+	content, ok := node.Content.([]waBinary.Node)
+	if !ok {
+		t.Fatalf("node content has type %T", node.Content)
+	}
+	if len(content) != 1 {
+		t.Fatalf("content nodes = %d", len(content))
+	}
+	plaintext, ok := content[0].Content.([]byte)
+	if !ok {
+		t.Fatalf("plaintext content has type %T", content[0].Content)
+	}
+	var decoded waE2E.Message
+	if err := proto.Unmarshal(plaintext, &decoded); err != nil {
+		t.Fatalf("unmarshal plaintext: %v", err)
+	}
+	if decoded.GetPollCreationMessage().GetName() != "Pick one" {
+		t.Fatalf("poll name = %q", decoded.GetPollCreationMessage().GetName())
 	}
 }
