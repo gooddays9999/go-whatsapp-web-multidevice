@@ -181,6 +181,7 @@ func (s *Service) SendNewsletterPoll(ctx context.Context, req *bridgepb.SendNews
 		}
 		message.PollCreationMessage.ContextInfo.Expiration = proto.Uint32(uint32(*pollReq.Duration))
 	}
+	useNewsletterPollV3(message)
 	messageID, serverID, err := sendNewsletterPollMessage(sendCtx, client, jid, message, timeout)
 	cancel()
 	if err != nil {
@@ -197,7 +198,7 @@ func sendNewsletterPollMessage(ctx context.Context, client *whatsmeow.Client, to
 	if to.IsEmpty() {
 		return "", 0, fmt.Errorf("newsletter JID is required")
 	}
-	if message == nil || message.GetPollCreationMessage() == nil {
+	if message == nil || newsletterPollCreation(message) == nil {
 		return "", 0, fmt.Errorf("poll creation message is required")
 	}
 	messageID := client.GenerateMessageID()
@@ -245,7 +246,7 @@ func buildNewsletterPollNode(to waTypes.JID, id waTypes.MessageID, message *waE2
 	if id == "" {
 		return waBinary.Node{}, fmt.Errorf("message ID is required")
 	}
-	if message == nil || message.GetPollCreationMessage() == nil {
+	if message == nil || newsletterPollCreation(message) == nil {
 		return waBinary.Node{}, fmt.Errorf("poll creation message is required")
 	}
 	plaintext, err := proto.Marshal(message)
@@ -283,6 +284,34 @@ func newsletterPollAckServerID(node *waBinary.Node) (waTypes.MessageServerID, er
 		return 0, fmt.Errorf("newsletter poll send was acknowledged without server_id")
 	}
 	return serverID, nil
+}
+
+func useNewsletterPollV3(message *waE2E.Message) {
+	if message == nil || message.PollCreationMessage == nil {
+		return
+	}
+	message.PollCreationMessageV3 = message.PollCreationMessage
+	message.PollCreationMessage = nil
+}
+
+func newsletterPollCreation(message *waE2E.Message) *waE2E.PollCreationMessage {
+	if message == nil {
+		return nil
+	}
+	switch {
+	case message.GetPollCreationMessage() != nil:
+		return message.GetPollCreationMessage()
+	case message.GetPollCreationMessageV2() != nil:
+		return message.GetPollCreationMessageV2()
+	case message.GetPollCreationMessageV3() != nil:
+		return message.GetPollCreationMessageV3()
+	case message.GetPollCreationMessageV5() != nil:
+		return message.GetPollCreationMessageV5()
+	case message.GetPollCreationMessageV6() != nil:
+		return message.GetPollCreationMessageV6()
+	default:
+		return nil
+	}
 }
 
 func clientFromScopedContext(ctx context.Context) (*whatsmeow.Client, error) {

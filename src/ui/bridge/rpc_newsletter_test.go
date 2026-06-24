@@ -169,6 +169,21 @@ func TestNewsletterPollAckServerIDReadsServerID(t *testing.T) {
 	}
 }
 
+func TestUseNewsletterPollV3MovesPollCreationField(t *testing.T) {
+	message := &waE2E.Message{
+		PollCreationMessage: &waE2E.PollCreationMessage{Name: proto.String("Pick one")},
+	}
+
+	useNewsletterPollV3(message)
+
+	if message.GetPollCreationMessage() != nil {
+		t.Fatalf("pollCreationMessage was not cleared")
+	}
+	if message.GetPollCreationMessageV3().GetName() != "Pick one" {
+		t.Fatalf("pollCreationMessageV3 name = %q", message.GetPollCreationMessageV3().GetName())
+	}
+}
+
 func TestNewsletterMessageToProtoTextMessage(t *testing.T) {
 	msg := &types.NewsletterMessage{
 		MessageServerID: 101,
