@@ -13,7 +13,6 @@ import (
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/validations"
 	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	waTypes "go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
@@ -22,11 +21,14 @@ import (
 const (
 	newsletterTOSNoticeID = "20601218"
 	newsletterTOSStage    = "5"
-	newsletterPollType    = "pollCreation"
 
 	defaultNewsletterMessageCount = 20
 	maxNewsletterMessageCount     = 100
 )
+
+type newsletterPollSender interface {
+	SendMessage(context.Context, waTypes.JID, *waE2E.Message, ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error)
+}
 
 func (s *Service) CreateNewsletter(ctx context.Context, req *bridgepb.CreateNewsletterRequest) (*bridgepb.CreateNewsletterResponse, error) {
 	if strings.TrimSpace(req.GetAccountId()) == "" || strings.TrimSpace(req.GetName()) == "" {
@@ -181,7 +183,7 @@ func (s *Service) SendNewsletterPoll(ctx context.Context, req *bridgepb.SendNews
 		}
 		message.PollCreationMessage.ContextInfo.Expiration = proto.Uint32(uint32(*pollReq.Duration))
 	}
-	messageID, err := sendNewsletterPollNode(sendCtx, client, jid, message)
+	messageID, serverID, err := sendNewsletterPollMessage(sendCtx, client, jid, message, timeout)
 	cancel()
 	if err != nil {
 		stageErr := accountOperationError("SendNewsletterPoll", timeout, err)
@@ -189,54 +191,25 @@ func (s *Service) SendNewsletterPoll(ctx context.Context, req *bridgepb.SendNews
 		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetNewsletterId(), "error": stageErr.Error()})
 		return &bridgepb.SendNewsletterPollResponse{Success: false, Status: "failed", Error: stageErr.Error()}, nil
 	}
-	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": string(messageID), "to": jid.String(), "type": "poll"})
+	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": string(messageID), "serverId": serverID, "to": jid.String(), "type": "poll"})
 	return &bridgepb.SendNewsletterPollResponse{Success: true, MessageId: string(messageID), Status: "sent"}, nil
 }
 
-func sendNewsletterPollNode(ctx context.Context, client *whatsmeow.Client, to waTypes.JID, message *waE2E.Message) (waTypes.MessageID, error) {
-	messageID := client.GenerateMessageID()
-	node, err := buildNewsletterPollNode(to, messageID, message)
-	if err != nil {
-		return "", err
-	}
-	if _, err := client.DangerousInternals().SendNodeAndGetData(ctx, node); err != nil {
-		return "", fmt.Errorf("failed to send newsletter poll node: %w", err)
-	}
-	if secret := message.GetMessageContextInfo().GetMessageSecret(); len(secret) > 0 && client.Store != nil && client.Store.MsgSecrets != nil && client.Store.ID != nil {
-		if err := client.Store.MsgSecrets.PutMessageSecret(ctx, to, *client.Store.ID, messageID, secret); err != nil {
-			client.Log.Warnf("Failed to store message secret key for outgoing newsletter poll %s: %v", messageID, err)
-		}
-	}
-	return messageID, nil
-}
-
-func buildNewsletterPollNode(to waTypes.JID, id waTypes.MessageID, message *waE2E.Message) (waBinary.Node, error) {
+func sendNewsletterPollMessage(ctx context.Context, sender newsletterPollSender, to waTypes.JID, message *waE2E.Message, timeout time.Duration) (waTypes.MessageID, waTypes.MessageServerID, error) {
 	if to.IsEmpty() {
-		return waBinary.Node{}, fmt.Errorf("newsletter JID is required")
-	}
-	if id == "" {
-		return waBinary.Node{}, fmt.Errorf("message ID is required")
+		return "", 0, fmt.Errorf("newsletter JID is required")
 	}
 	if message == nil || message.GetPollCreationMessage() == nil {
-		return waBinary.Node{}, fmt.Errorf("poll creation message is required")
+		return "", 0, fmt.Errorf("poll creation message is required")
 	}
-	plaintext, err := proto.Marshal(message)
+	resp, err := sender.SendMessage(ctx, to, message, whatsmeow.SendRequestExtra{Timeout: timeout})
 	if err != nil {
-		return waBinary.Node{}, err
+		return "", 0, fmt.Errorf("failed to send newsletter poll message: %w", err)
 	}
-	return waBinary.Node{
-		Tag: "message",
-		Attrs: waBinary.Attrs{
-			"to":   to,
-			"id":   id,
-			"type": newsletterPollType,
-		},
-		Content: []waBinary.Node{{
-			Tag:     "plaintext",
-			Content: plaintext,
-			Attrs:   waBinary.Attrs{},
-		}},
-	}, nil
+	if resp.ServerID == 0 {
+		return resp.ID, 0, fmt.Errorf("newsletter poll send was acknowledged without server_id")
+	}
+	return resp.ID, resp.ServerID, nil
 }
 
 func clientFromScopedContext(ctx context.Context) (*whatsmeow.Client, error) {

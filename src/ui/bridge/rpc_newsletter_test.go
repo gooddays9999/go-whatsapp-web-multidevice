@@ -1,11 +1,13 @@
 package bridge
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
-	waBinary "go.mau.fi/whatsmeow/binary"
+	"go.mau.fi/whatsmeow"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
@@ -83,9 +85,8 @@ func TestNewsletterBridgeProtoHasVerificationRequests(t *testing.T) {
 	}
 }
 
-func TestBuildNewsletterPollNodeUsesChannelPollCreationType(t *testing.T) {
+func TestSendNewsletterPollMessageUsesWhatsmeowNewsletterSendPath(t *testing.T) {
 	jid := types.NewJID("120363123456789", types.NewsletterServer)
-	messageID := types.MessageID("3EB01234567890")
 	message := &waE2E.Message{
 		PollCreationMessage: &waE2E.PollCreationMessage{
 			Name: proto.String("Pick one"),
@@ -97,42 +98,73 @@ func TestBuildNewsletterPollNodeUsesChannelPollCreationType(t *testing.T) {
 		},
 		MessageContextInfo: &waE2E.MessageContextInfo{MessageSecret: []byte("secret")},
 	}
+	sender := &fakeNewsletterPollSender{
+		response: whatsmeow.SendResponse{
+			ID:       types.MessageID("3EB01234567890"),
+			ServerID: 101,
+		},
+	}
 
-	node, err := buildNewsletterPollNode(jid, messageID, message)
+	messageID, serverID, err := sendNewsletterPollMessage(t.Context(), sender, jid, message, 15*time.Second)
 	if err != nil {
-		t.Fatalf("buildNewsletterPollNode returned error: %v", err)
+		t.Fatalf("sendNewsletterPollMessage returned error: %v", err)
 	}
 
-	if node.Tag != "message" {
-		t.Fatalf("node tag = %q", node.Tag)
+	if messageID != "3EB01234567890" {
+		t.Fatalf("message id = %q", messageID)
 	}
-	if got := node.Attrs["to"]; got != jid {
-		t.Fatalf("to attr = %#v, want %#v", got, jid)
+	if serverID != 101 {
+		t.Fatalf("server id = %d", serverID)
 	}
-	if got := node.Attrs["id"]; got != messageID {
-		t.Fatalf("id attr = %#v, want %#v", got, messageID)
+	if sender.to != jid {
+		t.Fatalf("to = %#v, want %#v", sender.to, jid)
 	}
-	if got := node.Attrs["type"]; got != newsletterPollType {
-		t.Fatalf("type attr = %#v, want %#v", got, newsletterPollType)
+	if sender.message != message {
+		t.Fatalf("message was not sent through whatsmeow SendMessage")
 	}
-	content, ok := node.Content.([]waBinary.Node)
-	if !ok {
-		t.Fatalf("node content has type %T", node.Content)
+	if len(sender.extra) != 1 || sender.extra[0].Timeout != 15*time.Second {
+		t.Fatalf("send extra = %#v", sender.extra)
 	}
-	if len(content) != 1 {
-		t.Fatalf("content nodes = %d", len(content))
+}
+
+func TestSendNewsletterPollMessageRejectsAckWithoutServerID(t *testing.T) {
+	jid := types.NewJID("120363123456789", types.NewsletterServer)
+	message := &waE2E.Message{
+		PollCreationMessage: &waE2E.PollCreationMessage{
+			Name: proto.String("Pick one"),
+			Options: []*waE2E.PollCreationMessage_Option{
+				{OptionName: proto.String("A")},
+				{OptionName: proto.String("B")},
+			},
+			SelectableOptionsCount: proto.Uint32(1),
+		},
 	}
-	plaintext, ok := content[0].Content.([]byte)
-	if !ok {
-		t.Fatalf("plaintext content has type %T", content[0].Content)
+	sender := &fakeNewsletterPollSender{
+		response: whatsmeow.SendResponse{ID: types.MessageID("3EB0NO_SERVER_ID")},
 	}
-	var decoded waE2E.Message
-	if err := proto.Unmarshal(plaintext, &decoded); err != nil {
-		t.Fatalf("unmarshal plaintext: %v", err)
+
+	_, _, err := sendNewsletterPollMessage(t.Context(), sender, jid, message, 15*time.Second)
+	if err == nil {
+		t.Fatalf("expected missing server_id to fail")
 	}
-	if decoded.GetPollCreationMessage().GetName() != "Pick one" {
-		t.Fatalf("poll name = %q", decoded.GetPollCreationMessage().GetName())
+	if !strings.Contains(err.Error(), "without server_id") {
+		t.Fatalf("error = %v", err)
 	}
+}
+
+type fakeNewsletterPollSender struct {
+	to       types.JID
+	message  *waE2E.Message
+	extra    []whatsmeow.SendRequestExtra
+	response whatsmeow.SendResponse
+	err      error
+}
+
+func (f *fakeNewsletterPollSender) SendMessage(ctx context.Context, to types.JID, message *waE2E.Message, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
+	f.to = to
+	f.message = message
+	f.extra = extra
+	return f.response, f.err
 }
 
 func TestNewsletterMessageToProtoTextMessage(t *testing.T) {
