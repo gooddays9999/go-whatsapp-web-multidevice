@@ -347,3 +347,44 @@ func assertStoreHasDevice(t *testing.T, devices []*store.Device, jid string) {
 	}
 	t.Fatalf("expected store to contain device %s", jid)
 }
+
+func TestHasPersistedDeviceForJID(t *testing.T) {
+	ctx := context.Background()
+	storeContainer := newTestSQLStore(t)
+	adJID := types.NewADJID("6281333333333", types.WhatsAppDomain, 7)
+	device := newTestStoreDevice(storeContainer, adJID, "stored-device")
+	if err := storeContainer.PutDevice(ctx, device); err != nil {
+		t.Fatalf("put device: %v", err)
+	}
+
+	manager := NewDeviceManager(storeContainer, nil, nil)
+
+	cases := []struct {
+		name string
+		jid  string
+		want bool
+	}{
+		{"ad jid", adJID.String(), true},
+		{"non-ad jid", adJID.ToNonAD().String(), true},
+		{"unknown jid", types.NewADJID("6289999999999", types.WhatsAppDomain, 9).String(), false},
+		{"empty", "", false},
+		{"invalid", "not-a-jid", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := manager.HasPersistedDeviceForJID(ctx, tc.jid); got != tc.want {
+				t.Fatalf("HasPersistedDeviceForJID(%q) = %v, want %v", tc.jid, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestHasPersistedDeviceForJIDNilSafe(t *testing.T) {
+	var manager *DeviceManager
+	if manager.HasPersistedDeviceForJID(context.Background(), "6281333333333@s.whatsapp.net") {
+		t.Fatal("nil manager must not report a persisted device")
+	}
+	if (&DeviceManager{}).HasPersistedDeviceForJID(context.Background(), "6281333333333@s.whatsapp.net") {
+		t.Fatal("manager without a store must not report a persisted device")
+	}
+}

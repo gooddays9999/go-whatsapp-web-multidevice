@@ -697,6 +697,32 @@ func (m *DeviceManager) configureKeysStore(ctx context.Context, device *store.De
 	return nil
 }
 
+// HasPersistedDeviceForJID reports whether the whatsmeow store still holds a
+// persisted device (a recoverable session) for the given JID string. It lets
+// callers distinguish a genuinely logged-out account that needs a fresh QR
+// login from an in-memory client that simply has not loaded its still-valid
+// persisted session yet, so a healthy account is not falsely reported as
+// logged out.
+func (m *DeviceManager) HasPersistedDeviceForJID(ctx context.Context, jidStr string) bool {
+	if m == nil || m.store == nil {
+		return false
+	}
+	trimmed := strings.TrimSpace(jidStr)
+	if trimmed == "" {
+		return false
+	}
+	jid, err := types.ParseJID(trimmed)
+	if err != nil || jid.IsEmpty() {
+		return false
+	}
+	dev, err := findStoreDeviceByJID(ctx, m.store, jid)
+	if err != nil {
+		logrus.WithError(err).WithField("jid", trimmed).Warn("[DEVICE_MANAGER] failed to check persisted device for JID")
+		return false
+	}
+	return dev != nil && dev.ID != nil
+}
+
 func findStoreDeviceByJID(ctx context.Context, container *sqlstore.Container, jid types.JID) (*store.Device, error) {
 	if container == nil || jid.IsEmpty() {
 		return nil, nil

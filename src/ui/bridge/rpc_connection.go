@@ -34,6 +34,14 @@ func clientHasPersistedSession(client *whatsmeow.Client) bool {
 	return client != nil && client.Store != nil && client.Store.ID != nil
 }
 
+// hasRecoverablePersistedSession reports whether the whatsmeow store still
+// holds a valid session for the account's JID. When true, an in-memory client
+// that has not loaded its session is recoverable via reconnect and must not be
+// reported as logged out.
+func (s *Service) hasRecoverablePersistedSession(ctx context.Context, jid string) bool {
+	return s != nil && s.deps.DeviceManager != nil && s.deps.DeviceManager.HasPersistedDeviceForJID(ctx, jid)
+}
+
 func isDeletedWhatsmeowDevice(err error) bool {
 	return errors.Is(err, store.ErrDeviceDeleted)
 }
@@ -305,6 +313,16 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 		if created, exists := s.deps.DeviceManager.GetDevice(req.GetAccountId()); exists && created != nil {
 			client := created.GetClient()
 			if client != nil && !clientHasPersistedSession(client) {
+				if s.hasRecoverablePersistedSession(ctx, created.JID()) {
+					s.scheduleReconnect(req.GetAccountId(), "status check client without loaded session")
+					return &bridgepb.AccountStatusResponse{
+						AccountId:    req.GetAccountId(),
+						Status:       "connecting",
+						StatusDetail: "Session reload in progress",
+						IsUsable:     false,
+						Windows:      []*bridgepb.BrowserWindow{},
+					}, nil
+				}
 				return &bridgepb.AccountStatusResponse{
 					AccountId:    req.GetAccountId(),
 					Status:       "qr_pending",
@@ -344,8 +362,18 @@ func (s *Service) GetAccountStatus(ctx context.Context, req *bridgepb.AccountSta
 		status = "qr_pending"
 		detail = "Connected but not authenticated"
 	case client != nil && !hasSession:
-		status = "qr_pending"
-		detail = "No persisted WhatsApp session; login required"
+		if s.hasRecoverablePersistedSession(ctx, snapshot.JID) {
+			// Store still holds a valid device for this account; the in-memory
+			// client just has not loaded it yet. Report a recoverable state and
+			// trigger a reconnect instead of a false "logged out", so upstream
+			// reconciliation does not strand a healthy account.
+			status = "connecting"
+			detail = "Session reload in progress"
+			s.scheduleReconnect(req.GetAccountId(), "status check client without loaded session")
+		} else {
+			status = "qr_pending"
+			detail = "No persisted WhatsApp session; login required"
+		}
 	case cachedConnected(snapshot.State) && hasSession:
 		status = "connecting"
 		detail = "Session reconnect in progress"
