@@ -223,17 +223,13 @@ func (s *Service) VoteNewsletterPoll(ctx context.Context, req *bridgepb.VoteNews
 	if err != nil {
 		return &bridgepb.VoteNewsletterPollResponse{Success: false, Status: "failed", Error: err.Error()}, nil
 	}
-	if err := storeNewsletterPollSecret(scoped, client, jid, pollMsg); err != nil {
-		return &bridgepb.VoteNewsletterPollResponse{Success: false, Status: "failed", Error: err.Error()}, nil
-	}
-	vote, err := client.BuildPollVote(scoped, newsletterPollMessageInfo(jid, pollMsg), req.GetOptions())
-	if err != nil {
+	if err := validateNewsletterPollOptions(pollMsg, req.GetOptions()); err != nil {
 		return &bridgepb.VoteNewsletterPollResponse{Success: false, Status: "failed", Error: err.Error()}, nil
 	}
 	inst, _ := whatsapp.DeviceFromContext(scoped)
 	timeout := statusTimeout(s.cfg.MessageSendTimeout, 25*time.Second)
 	sendCtx, cancel := statusDeviceContext(ctx, inst, timeout)
-	resp, err := client.SendMessage(sendCtx, jid, vote, whatsmeow.SendRequestExtra{Timeout: timeout})
+	resp, err := client.NewsletterSendPollVote(sendCtx, jid, pollMsg.MessageServerID, req.GetOptions(), "")
 	cancel()
 	if err != nil {
 		stageErr := accountOperationError("VoteNewsletterPoll", timeout, err)
@@ -287,6 +283,26 @@ func newsletterPollMessageInfo(jid waTypes.JID, msg *waTypes.NewsletterMessage) 
 		Type:          msg.Type,
 		Timestamp:     msg.Timestamp,
 	}
+}
+
+func validateNewsletterPollOptions(msg *waTypes.NewsletterMessage, requested []string) error {
+	if len(requested) == 0 {
+		return fmt.Errorf("options are required")
+	}
+	_, poll := newsletterMessagePoll(msg.Message)
+	if poll == nil {
+		return fmt.Errorf("newsletter message is not a poll creation")
+	}
+	known := make(map[string]struct{}, len(poll.GetOptions()))
+	for _, option := range poll.GetOptions() {
+		known[option.GetOptionName()] = struct{}{}
+	}
+	for _, option := range requested {
+		if _, ok := known[option]; !ok {
+			return fmt.Errorf("poll option %q not found", option)
+		}
+	}
+	return nil
 }
 
 func storeNewsletterPollSecret(ctx context.Context, client *whatsmeow.Client, jid waTypes.JID, msg *waTypes.NewsletterMessage) error {

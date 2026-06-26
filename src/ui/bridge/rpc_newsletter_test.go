@@ -238,6 +238,17 @@ func TestNewsletterPollMessageInfoUsesNewsletterAsChatAndSender(t *testing.T) {
 	}
 }
 
+func TestValidateNewsletterPollOptions(t *testing.T) {
+	msg := &types.NewsletterMessage{Message: testNewsletterPollMessage("pick one")}
+
+	if err := validateNewsletterPollOptions(msg, []string{"A"}); err != nil {
+		t.Fatalf("validateNewsletterPollOptions returned error: %v", err)
+	}
+	if err := validateNewsletterPollOptions(msg, []string{"C"}); err == nil {
+		t.Fatalf("expected unknown option to fail")
+	}
+}
+
 func testNewsletterPollMessage(name string) *waE2E.Message {
 	return &waE2E.Message{PollCreationMessage: &waE2E.PollCreationMessage{
 		Name: proto.String(name),

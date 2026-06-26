@@ -8,6 +8,7 @@ package whatsmeow
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -108,6 +109,98 @@ func (cli *Client) NewsletterSendReaction(ctx context.Context, jid types.JID, se
 			Attrs: reactionAttrs,
 		}},
 	})
+}
+
+// NewsletterSendPollVote sends a vote to a channel poll.
+//
+// Channel poll votes use a newsletter add-on stanza with SHA-256 hashes of the
+// option names, unlike regular chat poll votes which use encrypted poll updates.
+func (cli *Client) NewsletterSendPollVote(ctx context.Context, jid types.JID, serverID types.MessageServerID, optionNames []string, messageID types.MessageID) (resp SendResponse, err error) {
+	if cli == nil {
+		err = ErrClientIsNil
+		return
+	}
+	if messageID == "" {
+		messageID = cli.GenerateMessageID()
+	}
+	resp.ID = messageID
+	node, err := buildNewsletterPollVoteNode(jid, serverID, optionNames, messageID)
+	if err != nil {
+		return
+	}
+	respChan := cli.waitResponse(messageID)
+	data, err := cli.sendNodeAndGetData(ctx, node)
+	if err != nil {
+		cli.cancelResponse(messageID, respChan)
+		return
+	}
+	var respNode *waBinary.Node
+	select {
+	case respNode = <-respChan:
+	case <-ctx.Done():
+		cli.cancelResponse(messageID, respChan)
+		err = ctx.Err()
+		return
+	}
+	if isDisconnectNode(respNode) {
+		respNode, err = cli.retryFrame(ctx, "newsletter poll vote send", messageID, data, respNode, 0)
+		if err != nil {
+			return
+		}
+	}
+	ag := respNode.AttrGetter()
+	resp.ServerID = types.MessageServerID(ag.OptionalInt("server_id"))
+	resp.Timestamp = ag.UnixTime("t")
+	if errorCode := ag.Int("error"); errorCode != 0 {
+		err = fmt.Errorf("%w %d", ErrServerReturnedError, errorCode)
+	}
+	return
+}
+
+func buildNewsletterPollVoteNode(jid types.JID, serverID types.MessageServerID, optionNames []string, messageID types.MessageID) (waBinary.Node, error) {
+	if jid.Server != types.NewsletterServer {
+		return waBinary.Node{}, fmt.Errorf("jid must be a newsletter jid")
+	}
+	if messageID == "" {
+		return waBinary.Node{}, fmt.Errorf("message id is required")
+	}
+	if serverID == 0 {
+		return waBinary.Node{}, fmt.Errorf("server id is required")
+	}
+	if len(optionNames) == 0 {
+		return waBinary.Node{}, fmt.Errorf("option names are required")
+	}
+	votes := make([]waBinary.Node, 0, len(optionNames))
+	for _, optionName := range optionNames {
+		hash := sha256.Sum256([]byte(optionName))
+		voteHash := make([]byte, sha256.Size)
+		copy(voteHash, hash[:])
+		votes = append(votes, waBinary.Node{
+			Tag:     "vote",
+			Content: voteHash,
+		})
+	}
+	return waBinary.Node{
+		Tag: "message",
+		Attrs: waBinary.Attrs{
+			"to":        jid,
+			"id":        messageID,
+			"server_id": fmt.Sprintf("%d", serverID),
+			"type":      "poll",
+		},
+		Content: []waBinary.Node{
+			{
+				Tag: "meta",
+				Attrs: waBinary.Attrs{
+					"polltype": "vote",
+				},
+			},
+			{
+				Tag:     "votes",
+				Content: votes,
+			},
+		},
+	}, nil
 }
 
 const (
