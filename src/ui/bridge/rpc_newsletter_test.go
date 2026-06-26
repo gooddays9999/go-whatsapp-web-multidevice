@@ -1,12 +1,10 @@
 package bridge
 
 import (
-	"strings"
 	"testing"
 	"time"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
-	waBinary "go.mau.fi/whatsmeow/binary"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
@@ -82,105 +80,13 @@ func TestNewsletterBridgeProtoHasVerificationRequests(t *testing.T) {
 		Options:      []string{"A", "B"},
 		MaxAnswer:    1,
 	}
-}
-
-func TestBuildNewsletterPollNodeUsesChannelPollCreationType(t *testing.T) {
-	jid := types.NewJID("120363123456789", types.NewsletterServer)
-	messageID := types.MessageID("3EB01234567890")
-	message := &waE2E.Message{
-		PollCreationMessage: &waE2E.PollCreationMessage{
-			Name: proto.String("Pick one"),
-			Options: []*waE2E.PollCreationMessage_Option{
-				{OptionName: proto.String("A")},
-				{OptionName: proto.String("B")},
-			},
-			SelectableOptionsCount: proto.Uint32(1),
-		},
-		MessageContextInfo: &waE2E.MessageContextInfo{MessageSecret: []byte("secret")},
-	}
-
-	node, err := buildNewsletterPollNode(jid, messageID, message)
-	if err != nil {
-		t.Fatalf("buildNewsletterPollNode returned error: %v", err)
-	}
-
-	if node.Tag != "message" {
-		t.Fatalf("node tag = %q", node.Tag)
-	}
-	if got := node.Attrs["to"]; got != jid {
-		t.Fatalf("to attr = %#v, want %#v", got, jid)
-	}
-	if got := node.Attrs["id"]; got != messageID {
-		t.Fatalf("id attr = %#v, want %#v", got, messageID)
-	}
-	if got := node.Attrs["type"]; got != newsletterPollType {
-		t.Fatalf("type attr = %#v, want %#v", got, newsletterPollType)
-	}
-	content, ok := node.Content.([]waBinary.Node)
-	if !ok {
-		t.Fatalf("node content has type %T", node.Content)
-	}
-	if len(content) != 1 {
-		t.Fatalf("content nodes = %d", len(content))
-	}
-	plaintext, ok := content[0].Content.([]byte)
-	if !ok {
-		t.Fatalf("plaintext content has type %T", content[0].Content)
-	}
-	var decoded waE2E.Message
-	if err := proto.Unmarshal(plaintext, &decoded); err != nil {
-		t.Fatalf("unmarshal plaintext: %v", err)
-	}
-	if decoded.GetPollCreationMessage().GetName() != "Pick one" {
-		t.Fatalf("poll name = %q", decoded.GetPollCreationMessage().GetName())
-	}
-}
-
-func TestNewsletterPollAckServerIDRejectsAckWithoutServerID(t *testing.T) {
-	ack := &waBinary.Node{Tag: "ack", Attrs: waBinary.Attrs{"id": "3EB0NO_SERVER_ID"}}
-	_, err := newsletterPollAckServerID(ack)
-	if err == nil {
-		t.Fatalf("expected missing server_id to fail")
-	}
-	if !strings.Contains(err.Error(), "without server_id") {
-		t.Fatalf("error = %v", err)
-	}
-}
-
-func TestNewsletterPollAckServerIDRejectsServerError(t *testing.T) {
-	ack := &waBinary.Node{Tag: "ack", Attrs: waBinary.Attrs{"id": "3EB0ERROR", "error": "479"}}
-	_, err := newsletterPollAckServerID(ack)
-	if err == nil {
-		t.Fatalf("expected server error to fail")
-	}
-	if !strings.Contains(err.Error(), "server returned error 479") {
-		t.Fatalf("error = %v", err)
-	}
-}
-
-func TestNewsletterPollAckServerIDReadsServerID(t *testing.T) {
-	ack := &waBinary.Node{Tag: "ack", Attrs: waBinary.Attrs{"id": "3EB0OK", "server_id": "101"}}
-	got, err := newsletterPollAckServerID(ack)
-	if err != nil {
-		t.Fatalf("newsletterPollAckServerID returned error: %v", err)
-	}
-	if got != 101 {
-		t.Fatalf("server id = %d", got)
-	}
-}
-
-func TestUseNewsletterPollV3MovesPollCreationField(t *testing.T) {
-	message := &waE2E.Message{
-		PollCreationMessage: &waE2E.PollCreationMessage{Name: proto.String("Pick one")},
-	}
-
-	useNewsletterPollV3(message)
-
-	if message.GetPollCreationMessage() != nil {
-		t.Fatalf("pollCreationMessage was not cleared")
-	}
-	if message.GetPollCreationMessageV3().GetName() != "Pick one" {
-		t.Fatalf("pollCreationMessageV3 name = %q", message.GetPollCreationMessageV3().GetName())
+	_ = &bridgepb.VoteNewsletterPollRequest{
+		AccountId:    "434",
+		NewsletterId: "120363123456789@newsletter",
+		MessageId:    "3EB0POLL",
+		ServerId:     102,
+		Options:      []string{"A"},
+		Count:        50,
 	}
 }
 
@@ -256,4 +162,89 @@ func TestNewsletterMessageToProtoPollV3Message(t *testing.T) {
 	if got.GetSelectableOptionsCount() != 1 {
 		t.Fatalf("selectable_options_count = %d", got.GetSelectableOptionsCount())
 	}
+}
+
+func TestFindNewsletterPollMessageFindsByMessageID(t *testing.T) {
+	items := []*types.NewsletterMessage{
+		{MessageServerID: 101, MessageID: "3EB0TEXT", Message: &waE2E.Message{Conversation: proto.String("text")}},
+		{MessageServerID: 102, MessageID: "3EB0POLL", Message: testNewsletterPollMessage("Pick one")},
+	}
+
+	got, err := findNewsletterPollMessage(items, "3EB0POLL", 0)
+	if err != nil {
+		t.Fatalf("findNewsletterPollMessage returned error: %v", err)
+	}
+	if got.MessageServerID != 102 {
+		t.Fatalf("server id = %d", got.MessageServerID)
+	}
+}
+
+func TestFindNewsletterPollMessageFindsByServerID(t *testing.T) {
+	items := []*types.NewsletterMessage{
+		{MessageServerID: 101, MessageID: "3EB0TEXT", Message: &waE2E.Message{Conversation: proto.String("text")}},
+		{MessageServerID: 102, MessageID: "3EB0POLL", Message: testNewsletterPollMessage("Pick one")},
+	}
+
+	got, err := findNewsletterPollMessage(items, "", 102)
+	if err != nil {
+		t.Fatalf("findNewsletterPollMessage returned error: %v", err)
+	}
+	if got.MessageID != "3EB0POLL" {
+		t.Fatalf("message id = %s", got.MessageID)
+	}
+}
+
+func TestFindNewsletterPollMessageRejectsNonPoll(t *testing.T) {
+	items := []*types.NewsletterMessage{
+		{MessageServerID: 101, MessageID: "3EB0TEXT", Message: &waE2E.Message{Conversation: proto.String("text")}},
+	}
+
+	if _, err := findNewsletterPollMessage(items, "3EB0TEXT", 0); err == nil {
+		t.Fatalf("expected non-poll message to fail")
+	}
+}
+
+func TestNewsletterVoteLookupCount(t *testing.T) {
+	if got := newsletterVoteLookupCount(0); got != defaultNewsletterVoteScan {
+		t.Fatalf("default count = %d", got)
+	}
+	if got := newsletterVoteLookupCount(200); got != maxNewsletterMessageCount {
+		t.Fatalf("max count = %d", got)
+	}
+	if got := newsletterVoteLookupCount(12); got != 12 {
+		t.Fatalf("explicit count = %d", got)
+	}
+}
+
+func TestNewsletterPollMessageInfoUsesNewsletterAsChatAndSender(t *testing.T) {
+	jid := types.NewJID("120363123456789", types.NewsletterServer)
+	msg := &types.NewsletterMessage{
+		MessageServerID: 102,
+		MessageID:       "3EB0POLL",
+		Type:            "poll",
+		Timestamp:       time.Unix(1719200100, 0),
+	}
+
+	got := newsletterPollMessageInfo(jid, msg)
+
+	if got.Chat != jid {
+		t.Fatalf("chat = %s", got.Chat)
+	}
+	if got.Sender != jid {
+		t.Fatalf("sender = %s", got.Sender)
+	}
+	if got.ID != "3EB0POLL" || got.ServerID != 102 || got.Type != "poll" {
+		t.Fatalf("info = %#v", got)
+	}
+}
+
+func testNewsletterPollMessage(name string) *waE2E.Message {
+	return &waE2E.Message{PollCreationMessage: &waE2E.PollCreationMessage{
+		Name: proto.String(name),
+		Options: []*waE2E.PollCreationMessage_Option{
+			{OptionName: proto.String("A")},
+			{OptionName: proto.String("B")},
+		},
+		SelectableOptionsCount: proto.Uint32(1),
+	}}
 }

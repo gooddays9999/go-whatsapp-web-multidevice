@@ -53,6 +53,9 @@ service WhatsAppBridge {
     // Send a poll to a WhatsApp channel/newsletter
     rpc SendNewsletterPoll(SendNewsletterPollRequest) returns (SendNewsletterPollResponse);
 
+    // Vote on a poll in a WhatsApp channel/newsletter
+    rpc VoteNewsletterPoll(VoteNewsletterPollRequest) returns (VoteNewsletterPollResponse);
+
     // ========== Contact Operations ==========
 
     // Get contacts list
@@ -474,6 +477,22 @@ message SendNewsletterPollRequest {
 }
 
 message SendNewsletterPollResponse {
+    bool success = 1;
+    string message_id = 2;
+    string status = 3;
+    string error = 4;
+}
+
+message VoteNewsletterPollRequest {
+    string account_id = 1;
+    string newsletter_id = 2;
+    string message_id = 3;      // Poll creation message ID
+    uint64 server_id = 4;       // Optional alternative lookup key for the poll message
+    repeated string options = 5;
+    int32 count = 6;            // Recent newsletter messages to scan; defaults to 50, max 100
+}
+
+message VoteNewsletterPollResponse {
     bool success = 1;
     string message_id = 2;
     string status = 3;
