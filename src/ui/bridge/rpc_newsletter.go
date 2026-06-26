@@ -241,6 +241,46 @@ func (s *Service) VoteNewsletterPoll(ctx context.Context, req *bridgepb.VoteNews
 	return &bridgepb.VoteNewsletterPollResponse{Success: true, MessageId: string(resp.ID), Status: "sent"}, nil
 }
 
+func (s *Service) ReactNewsletterMessage(ctx context.Context, req *bridgepb.ReactNewsletterMessageRequest) (*bridgepb.ReactNewsletterMessageResponse, error) {
+	if strings.TrimSpace(req.GetAccountId()) == "" || strings.TrimSpace(req.GetNewsletterId()) == "" {
+		return nil, grpcError(fmt.Errorf("account_id and newsletter_id are required"))
+	}
+	if req.GetServerId() == 0 {
+		return nil, grpcError(fmt.Errorf("server_id is required"))
+	}
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetNewsletterId(), "error": err.Error()})
+		return nil, grpcError(err)
+	}
+	client, err := clientFromScopedContext(scoped)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	jid, err := resolveNewsletterJID(scoped, client, req.GetNewsletterId())
+	if err != nil {
+		return &bridgepb.ReactNewsletterMessageResponse{Success: false, Status: "failed", Error: err.Error()}, nil
+	}
+	inst, _ := whatsapp.DeviceFromContext(scoped)
+	timeout := statusTimeout(s.cfg.MessageReactionTimeout, 15*time.Second)
+	reactCtx, cancel := statusDeviceContext(ctx, inst, timeout)
+	messageID := client.GenerateMessageID()
+	err = client.NewsletterSendReaction(reactCtx, jid, waTypes.MessageServerID(req.GetServerId()), req.GetEmoji(), messageID)
+	cancel()
+	if err != nil {
+		stageErr := accountOperationError("ReactNewsletterMessage", timeout, err)
+		s.handleAccountOperationFailure(req.GetAccountId(), inst, "ReactNewsletterMessage", err)
+		s.publish("message.failed", req.GetAccountId(), map[string]any{"to": req.GetNewsletterId(), "error": stageErr.Error()})
+		return &bridgepb.ReactNewsletterMessageResponse{Success: false, MessageId: string(messageID), Emoji: req.GetEmoji(), Status: "failed", Error: stageErr.Error()}, nil
+	}
+	action := "add"
+	if req.GetEmoji() == "" {
+		action = "remove"
+	}
+	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": string(messageID), "serverId": req.GetServerId(), "to": jid.String(), "type": "newsletter_reaction", "action": action})
+	return &bridgepb.ReactNewsletterMessageResponse{Success: true, MessageId: string(messageID), Emoji: req.GetEmoji(), Action: action, Status: "sent"}, nil
+}
+
 func newsletterVoteLookupCount(raw int32) int {
 	count := int(raw)
 	if count <= 0 {
@@ -369,7 +409,7 @@ func newsletterInviteCode(raw string) string {
 		return ""
 	}
 	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
-	if len(parts) == 2 && parts[0] == "channel" && parts[1] != "" {
+	if len(parts) >= 2 && parts[0] == "channel" && parts[1] != "" {
 		return parts[1]
 	}
 	return ""
@@ -422,6 +462,10 @@ func newsletterMessageToProto(msg *waTypes.NewsletterMessage) *bridgepb.Newslett
 			item.PollName = poll.GetName()
 			item.OptionCount = int32(len(poll.GetOptions()))
 			item.SelectableOptionsCount = int32(poll.GetSelectableOptionsCount())
+			item.PollOptions = make([]string, 0, len(poll.GetOptions()))
+			for _, option := range poll.GetOptions() {
+				item.PollOptions = append(item.PollOptions, option.GetOptionName())
+			}
 		}
 	}
 	return item

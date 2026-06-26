@@ -54,6 +54,7 @@ func TestNewsletterInviteCodeAcceptsLinksAndRawInvite(t *testing.T) {
 		want string
 	}{
 		{name: "whatsapp link", raw: "https://whatsapp.com/channel/abc123", want: "abc123"},
+		{name: "whatsapp message link", raw: "https://whatsapp.com/channel/abc123/104", want: "abc123"},
 		{name: "www whatsapp link", raw: "https://www.whatsapp.com/channel/xyz789", want: "xyz789"},
 		{name: "raw invite", raw: "inviteOnly", want: "inviteOnly"},
 		{name: "newsletter jid is not invite", raw: "120363123456789@newsletter", want: ""},
@@ -87,6 +88,12 @@ func TestNewsletterBridgeProtoHasVerificationRequests(t *testing.T) {
 		ServerId:     102,
 		Options:      []string{"A"},
 		Count:        50,
+	}
+	_ = &bridgepb.ReactNewsletterMessageRequest{
+		AccountId:    "434",
+		NewsletterId: "120363123456789@newsletter",
+		ServerId:     104,
+		Emoji:        "👍",
 	}
 }
 
@@ -161,6 +168,9 @@ func TestNewsletterMessageToProtoPollV3Message(t *testing.T) {
 	}
 	if got.GetSelectableOptionsCount() != 1 {
 		t.Fatalf("selectable_options_count = %d", got.GetSelectableOptionsCount())
+	}
+	if len(got.GetPollOptions()) != 2 || got.GetPollOptions()[0] != "A" || got.GetPollOptions()[1] != "B" {
+		t.Fatalf("poll_options = %#v", got.GetPollOptions())
 	}
 }
 

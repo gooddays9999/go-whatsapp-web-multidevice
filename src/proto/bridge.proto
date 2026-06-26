@@ -56,6 +56,9 @@ service WhatsAppBridge {
     // Vote on a poll in a WhatsApp channel/newsletter
     rpc VoteNewsletterPoll(VoteNewsletterPollRequest) returns (VoteNewsletterPollResponse);
 
+    // React to a WhatsApp channel/newsletter message
+    rpc ReactNewsletterMessage(ReactNewsletterMessageRequest) returns (ReactNewsletterMessageResponse);
+
     // ========== Contact Operations ==========
 
     // Get contacts list
@@ -461,6 +464,7 @@ message NewsletterMessage {
     int32 selectable_options_count = 10;
     int32 views_count = 11;
     map<string, int32> reaction_counts = 12;
+    repeated string poll_options = 13;
 }
 
 message GetNewsletterMessagesResponse {
@@ -497,6 +501,22 @@ message VoteNewsletterPollResponse {
     string message_id = 2;
     string status = 3;
     string error = 4;
+}
+
+message ReactNewsletterMessageRequest {
+    string account_id = 1;
+    string newsletter_id = 2;
+    uint64 server_id = 3;
+    string emoji = 4;           // Emoji to react with, empty string to remove
+}
+
+message ReactNewsletterMessageResponse {
+    bool success = 1;
+    string message_id = 2;
+    string emoji = 3;
+    string action = 4;          // "add" or "remove"
+    string status = 5;
+    string error = 6;
 }
 
 message CreateGroupRequest {

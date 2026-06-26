@@ -34,6 +34,7 @@ const (
 	WhatsAppBridge_GetNewsletterMessages_FullMethodName        = "/bridge.WhatsAppBridge/GetNewsletterMessages"
 	WhatsAppBridge_SendNewsletterPoll_FullMethodName           = "/bridge.WhatsAppBridge/SendNewsletterPoll"
 	WhatsAppBridge_VoteNewsletterPoll_FullMethodName           = "/bridge.WhatsAppBridge/VoteNewsletterPoll"
+	WhatsAppBridge_ReactNewsletterMessage_FullMethodName       = "/bridge.WhatsAppBridge/ReactNewsletterMessage"
 	WhatsAppBridge_GetContacts_FullMethodName                  = "/bridge.WhatsAppBridge/GetContacts"
 	WhatsAppBridge_CheckNumber_FullMethodName                  = "/bridge.WhatsAppBridge/CheckNumber"
 	WhatsAppBridge_AddContact_FullMethodName                   = "/bridge.WhatsAppBridge/AddContact"
@@ -104,6 +105,8 @@ type WhatsAppBridgeClient interface {
 	SendNewsletterPoll(ctx context.Context, in *SendNewsletterPollRequest, opts ...grpc.CallOption) (*SendNewsletterPollResponse, error)
 	// Vote on a poll in a WhatsApp channel/newsletter
 	VoteNewsletterPoll(ctx context.Context, in *VoteNewsletterPollRequest, opts ...grpc.CallOption) (*VoteNewsletterPollResponse, error)
+	// React to a WhatsApp channel/newsletter message
+	ReactNewsletterMessage(ctx context.Context, in *ReactNewsletterMessageRequest, opts ...grpc.CallOption) (*ReactNewsletterMessageResponse, error)
 	// Get contacts list
 	GetContacts(ctx context.Context, in *GetContactsRequest, opts ...grpc.CallOption) (*GetContactsResponse, error)
 	// Check if numbers are registered on WhatsApp
@@ -335,6 +338,16 @@ func (c *whatsAppBridgeClient) VoteNewsletterPoll(ctx context.Context, in *VoteN
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(VoteNewsletterPollResponse)
 	err := c.cc.Invoke(ctx, WhatsAppBridge_VoteNewsletterPoll_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *whatsAppBridgeClient) ReactNewsletterMessage(ctx context.Context, in *ReactNewsletterMessageRequest, opts ...grpc.CallOption) (*ReactNewsletterMessageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReactNewsletterMessageResponse)
+	err := c.cc.Invoke(ctx, WhatsAppBridge_ReactNewsletterMessage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -715,6 +728,8 @@ type WhatsAppBridgeServer interface {
 	SendNewsletterPoll(context.Context, *SendNewsletterPollRequest) (*SendNewsletterPollResponse, error)
 	// Vote on a poll in a WhatsApp channel/newsletter
 	VoteNewsletterPoll(context.Context, *VoteNewsletterPollRequest) (*VoteNewsletterPollResponse, error)
+	// React to a WhatsApp channel/newsletter message
+	ReactNewsletterMessage(context.Context, *ReactNewsletterMessageRequest) (*ReactNewsletterMessageResponse, error)
 	// Get contacts list
 	GetContacts(context.Context, *GetContactsRequest) (*GetContactsResponse, error)
 	// Check if numbers are registered on WhatsApp
@@ -837,6 +852,9 @@ func (UnimplementedWhatsAppBridgeServer) SendNewsletterPoll(context.Context, *Se
 }
 func (UnimplementedWhatsAppBridgeServer) VoteNewsletterPoll(context.Context, *VoteNewsletterPollRequest) (*VoteNewsletterPollResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method VoteNewsletterPoll not implemented")
+}
+func (UnimplementedWhatsAppBridgeServer) ReactNewsletterMessage(context.Context, *ReactNewsletterMessageRequest) (*ReactNewsletterMessageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReactNewsletterMessage not implemented")
 }
 func (UnimplementedWhatsAppBridgeServer) GetContacts(context.Context, *GetContactsRequest) (*GetContactsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetContacts not implemented")
@@ -1220,6 +1238,24 @@ func _WhatsAppBridge_VoteNewsletterPoll_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WhatsAppBridgeServer).VoteNewsletterPoll(ctx, req.(*VoteNewsletterPollRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WhatsAppBridge_ReactNewsletterMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReactNewsletterMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WhatsAppBridgeServer).ReactNewsletterMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WhatsAppBridge_ReactNewsletterMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WhatsAppBridgeServer).ReactNewsletterMessage(ctx, req.(*ReactNewsletterMessageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1898,6 +1934,10 @@ var WhatsAppBridge_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VoteNewsletterPoll",
 			Handler:    _WhatsAppBridge_VoteNewsletterPoll_Handler,
+		},
+		{
+			MethodName: "ReactNewsletterMessage",
+			Handler:    _WhatsAppBridge_ReactNewsletterMessage_Handler,
 		},
 		{
 			MethodName: "GetContacts",
