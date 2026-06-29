@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"reflect"
+	"strings"
 	"testing"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
@@ -15,41 +16,59 @@ func TestAccountProxyStoreProxyForAccount(t *testing.T) {
 	db := newAccountProxyTestDB(t)
 	store := &AccountProxyStore{db: db}
 
-	proxy, found, err := store.ProxyForAccount(ctx, "1")
+	got, err := store.ProxyForAccount(ctx, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !found {
+	if !got.Found {
 		t.Fatal("expected account proxy to be found")
 	}
+	if !got.HasProxyID {
+		t.Fatal("expected account 1 to have a proxy id")
+	}
+	proxy := got.Proxy
 	if proxy.Type != "socks5" || proxy.Host != "127.0.0.1" || proxy.Port != 1080 || proxy.Username != "user" || proxy.Password != "pass" {
 		t.Fatalf("unexpected proxy: %#v", proxy)
 	}
 
-	phoneProxy, found, err := store.ProxyForAccount(ctx, "15510000001")
+	phone, err := store.ProxyForAccount(ctx, "15510000001")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !found || phoneProxy.Host != proxy.Host {
-		t.Fatalf("expected phone lookup to return same proxy, found=%v proxy=%#v", found, phoneProxy)
+	if !phone.Found || phone.Proxy.Host != proxy.Host {
+		t.Fatalf("expected phone lookup to return same proxy, lookup=%#v", phone)
 	}
 
-	missingProxy, found, err := store.ProxyForAccount(ctx, "2")
+	noProxy, err := store.ProxyForAccount(ctx, "2")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !found {
+	if !noProxy.Found {
 		t.Fatal("expected account without proxy row to still be found")
 	}
-	if !missingProxy.IsEmpty() {
-		t.Fatalf("expected empty proxy for account without proxy, got %#v", missingProxy)
+	if noProxy.HasProxyID {
+		t.Fatal("expected account 2 to have no proxy id")
+	}
+	if !noProxy.Proxy.IsEmpty() {
+		t.Fatalf("expected empty proxy for account without proxy, got %#v", noProxy.Proxy)
 	}
 
-	_, found, err = store.ProxyForAccount(ctx, "3")
+	deletedProxy, err := store.ProxyForAccount(ctx, "9")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if found {
+	if !deletedProxy.Found || !deletedProxy.HasProxyID {
+		t.Fatalf("expected account 9 to be found with a proxy id, got %#v", deletedProxy)
+	}
+	if !deletedProxy.Proxy.IsEmpty() {
+		t.Fatalf("expected proxy_id pointing to a missing proxy to resolve empty, got %#v", deletedProxy.Proxy)
+	}
+
+	missing, err := store.ProxyForAccount(ctx, "3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if missing.Found {
 		t.Fatal("expected deleted account to not be found")
 	}
 }
@@ -153,6 +172,42 @@ func TestEnvironmentForAccountPrefersAccountDatabaseProxy(t *testing.T) {
 	}
 }
 
+func TestEnvironmentForAccountProxyErrorTyping(t *testing.T) {
+	ctx := context.Background()
+	accountDB := newAccountProxyTestDB(t)
+	envDB, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer envDB.Close()
+	envStore := NewEnvironmentStore(envDB, newTestUAPool(), Config{})
+	if err := envStore.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	svc := &Service{envStore: envStore, accountProxyStore: &AccountProxyStore{db: accountDB}}
+
+	cases := []struct {
+		name       string
+		account    string
+		wantSubstr string
+	}{
+		{"account without proxy_id", "2", "has no proxy configured"},
+		{"proxy_id set but deleted/invalid", "9", "resolves to empty"},
+		{"account not found", "404", "not found in account database"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := svc.environmentForAccount(ctx, tc.account, "tenant", nil, false)
+			if err == nil {
+				t.Fatalf("account %s: expected error, got nil", tc.account)
+			}
+			if !strings.Contains(err.Error(), tc.wantSubstr) {
+				t.Fatalf("account %s error = %q, want substring %q", tc.account, err.Error(), tc.wantSubstr)
+			}
+		})
+	}
+}
+
 func newAccountProxyTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -174,6 +229,7 @@ func newAccountProxyTestDB(t *testing.T) *sql.DB {
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (6, '15510000006', 10, 2, NULL)`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (7, '15510000007', 12, 1, NULL)`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (8, '15510000008', 11, 1, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (9, '15510000009', 999, 3, NULL)`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)

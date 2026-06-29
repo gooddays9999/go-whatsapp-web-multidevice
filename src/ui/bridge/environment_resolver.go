@@ -15,14 +15,19 @@ func (s *Service) environmentForAccount(ctx context.Context, accountID, tenantID
 	effectiveProxy := requestProxy
 	effectiveAllowRequestProxy := allowRequestProxy
 	if s.accountProxyStore != nil {
-		accountProxy, found, err := s.accountProxyStore.ProxyForAccount(ctx, accountID)
+		lookup, err := s.accountProxyStore.ProxyForAccount(ctx, accountID)
 		if err != nil {
-			return nil, false, fmt.Errorf("resolve account database proxy: %w", err)
+			return nil, false, fmt.Errorf("resolve account proxy failed: %w", err)
 		}
-		if !found || accountProxy.IsEmpty() {
-			return nil, false, fmt.Errorf("account %s proxy is required in account database", accountID)
+		switch {
+		case !lookup.Found:
+			return nil, false, fmt.Errorf("account %s not found in account database", accountID)
+		case !lookup.HasProxyID:
+			return nil, false, fmt.Errorf("account %s has no proxy configured", accountID)
+		case lookup.Proxy.IsEmpty():
+			return nil, false, fmt.Errorf("account %s proxy id set but resolves to empty (proxy deleted/invalid)", accountID)
 		}
-		effectiveProxy = proxyConfigFromSpec(accountProxy)
+		effectiveProxy = proxyConfigFromSpec(lookup.Proxy)
 		effectiveAllowRequestProxy = true
 	}
 

@@ -38,16 +38,26 @@ func (s *AccountProxyStore) Close() error {
 	return s.db.Close()
 }
 
-func (s *AccountProxyStore) ProxyForAccount(ctx context.Context, accountID string) (ProxySpec, bool, error) {
+// AccountProxyLookup is the outcome of resolving an account's proxy, with
+// enough detail to tell apart the distinct failure modes (account missing vs
+// no proxy assigned vs proxy assigned but unresolvable).
+type AccountProxyLookup struct {
+	Proxy      ProxySpec
+	Found      bool // the (non-deleted) account row exists
+	HasProxyID bool // account.proxy_id is assigned (non-null and > 0)
+}
+
+func (s *AccountProxyStore) ProxyForAccount(ctx context.Context, accountID string) (AccountProxyLookup, error) {
 	if s == nil || s.db == nil {
-		return ProxySpec{}, false, nil
+		return AccountProxyLookup{}, nil
 	}
 	if accountID == "" {
-		return ProxySpec{}, false, fmt.Errorf("account_id is required")
+		return AccountProxyLookup{}, fmt.Errorf("account_id is required")
 	}
 
 	row := s.db.QueryRowContext(ctx, `
 		SELECT
+			a.proxy_id,
 			COALESCE(p.type, ''),
 			COALESCE(p.host, ''),
 			COALESCE(p.port, 0),
@@ -60,14 +70,19 @@ func (s *AccountProxyStore) ProxyForAccount(ctx context.Context, accountID strin
 		LIMIT 1
 	`, accountID, accountID)
 
+	var proxyID sql.NullInt64
 	var proxy ProxySpec
-	if err := row.Scan(&proxy.Type, &proxy.Host, &proxy.Port, &proxy.Username, &proxy.Password); err != nil {
+	if err := row.Scan(&proxyID, &proxy.Type, &proxy.Host, &proxy.Port, &proxy.Username, &proxy.Password); err != nil {
 		if err == sql.ErrNoRows {
-			return ProxySpec{}, false, nil
+			return AccountProxyLookup{}, nil
 		}
-		return ProxySpec{}, false, err
+		return AccountProxyLookup{}, err
 	}
-	return normalizeProxySpec(proxy), true, nil
+	return AccountProxyLookup{
+		Proxy:      normalizeProxySpec(proxy),
+		Found:      true,
+		HasProxyID: proxyID.Valid && proxyID.Int64 > 0,
+	}, nil
 }
 
 func (s *AccountProxyStore) WebOnlineForAccount(ctx context.Context, accountID string) (int, bool, error) {
