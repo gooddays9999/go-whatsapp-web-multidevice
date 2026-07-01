@@ -71,6 +71,39 @@ func TestAccountProxyStoreProxyForAccount(t *testing.T) {
 	if missing.Found {
 		t.Fatal("expected deleted account to not be found")
 	}
+
+	// 非规范数字串(前导零)不可能等于 CAST(id AS CHAR),必须走 phone-only 回退分支。
+	leadingZero, err := store.ProxyForAccount(ctx, "015510000011")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !leadingZero.Found || leadingZero.Proxy.Host != "127.0.0.1" {
+		t.Fatalf("expected leading-zero phone to resolve via phone-only fallback, got %#v", leadingZero)
+	}
+}
+
+func TestCanonicalAccountID(t *testing.T) {
+	for _, tc := range []struct {
+		in string
+		id uint64
+		ok bool
+	}{
+		{"44190", 44190, true},
+		{"0", 0, true},
+		{"044190", 0, false},       // 前导零:CAST(id AS CHAR) 不可能产生
+		{"+15510000001", 0, false}, // 符号前缀
+		{"-5", 0, false},           // 负号
+		{"abc", 0, false},          // 非数字
+		{"", 0, false},             // 空串(调用方已前置拦截,双保险)
+		{"9223372036854775807", 9223372036854775807, true}, // signed BIGINT 上界
+		{"9223372036854775808", 0, false},                  // 超出 signed BIGINT 域
+		{"18446744073709551616", 0, false},                 // uint64 溢出
+	} {
+		id, ok := canonicalAccountID(tc.in)
+		if id != tc.id || ok != tc.ok {
+			t.Fatalf("canonicalAccountID(%q) = (%d,%v), want (%d,%v)", tc.in, id, ok, tc.id, tc.ok)
+		}
+	}
 }
 
 func TestAccountProxyStoreWebOnlineForAccount(t *testing.T) {
@@ -230,6 +263,7 @@ func newAccountProxyTestDB(t *testing.T) *sql.DB {
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (7, '15510000007', 12, 1, NULL)`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (8, '15510000008', 11, 1, NULL)`,
 		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (9, '15510000009', 999, 3, NULL)`,
+		`INSERT INTO accounts (id, phone, proxy_id, web_online, deleted_at) VALUES (11, '015510000011', 10, 0, NULL)`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatal(err)

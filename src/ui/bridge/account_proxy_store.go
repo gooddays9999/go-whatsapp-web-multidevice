@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -38,6 +39,32 @@ func (s *AccountProxyStore) Close() error {
 	return s.db.Close()
 }
 
+// canonicalAccountID reports whether s is the canonical decimal form of an
+// account primary key — i.e. exactly what CAST(id AS CHAR) would produce.
+// Non-canonical strings (leading zeros, signs, non-digits, overflow) can never
+// equal the cast of an id, so callers safely fall back to phone-only matching.
+// bitSize 63 keeps the value inside the signed-BIGINT id domain (larger values
+// cannot exist as ids) and inside what every sql driver binds losslessly.
+func canonicalAccountID(s string) (uint64, bool) {
+	id, err := strconv.ParseUint(s, 10, 63)
+	if err != nil || strconv.FormatUint(id, 10) != s {
+		return 0, false
+	}
+	return id, true
+}
+
+// accountIDOrPhoneWhere returns the WHERE tail and args matching an account by
+// canonical id or phone. The previous form `(CAST(a.id AS CHAR) = ? OR a.phone = ?)`
+// defeated every index (full scan of ~25k rows per call, 5-6 always-on concurrent
+// executions ≈ 5 CPU cores on prod MySQL); `(a.id = ? OR a.phone = ?)` uses
+// index_merge(PRIMARY, idx_accounts_phone) and examines ~2 rows instead.
+func accountIDOrPhoneWhere(accountID string) (string, []any) {
+	if id, ok := canonicalAccountID(accountID); ok {
+		return "(a.id = ? OR a.phone = ?)", []any{id, accountID}
+	}
+	return "a.phone = ?", []any{accountID}
+}
+
 // AccountProxyLookup is the outcome of resolving an account's proxy, with
 // enough detail to tell apart the distinct failure modes (account missing vs
 // no proxy assigned vs proxy assigned but unresolvable).
@@ -55,6 +82,7 @@ func (s *AccountProxyStore) ProxyForAccount(ctx context.Context, accountID strin
 		return AccountProxyLookup{}, fmt.Errorf("account_id is required")
 	}
 
+	where, args := accountIDOrPhoneWhere(accountID)
 	row := s.db.QueryRowContext(ctx, `
 		SELECT
 			a.proxy_id,
@@ -66,9 +94,9 @@ func (s *AccountProxyStore) ProxyForAccount(ctx context.Context, accountID strin
 		FROM accounts a
 		LEFT JOIN proxies p ON p.id = a.proxy_id
 		WHERE a.deleted_at IS NULL
-		  AND (CAST(a.id AS CHAR) = ? OR a.phone = ?)
+		  AND `+where+`
 		LIMIT 1
-	`, accountID, accountID)
+	`, args...)
 
 	var proxyID sql.NullInt64
 	var proxy ProxySpec
@@ -93,13 +121,14 @@ func (s *AccountProxyStore) WebOnlineForAccount(ctx context.Context, accountID s
 		return 0, false, fmt.Errorf("account_id is required")
 	}
 
+	where, args := accountIDOrPhoneWhere(accountID)
 	row := s.db.QueryRowContext(ctx, `
 		SELECT COALESCE(a.web_online, 0)
 		FROM accounts a
 		WHERE a.deleted_at IS NULL
-		  AND (CAST(a.id AS CHAR) = ? OR a.phone = ?)
+		  AND `+where+`
 		LIMIT 1
-	`, accountID, accountID)
+	`, args...)
 
 	var webOnline int
 	if err := row.Scan(&webOnline); err != nil {
