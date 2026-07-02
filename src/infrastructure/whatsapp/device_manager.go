@@ -39,6 +39,13 @@ type DeviceManager struct {
 	storage  domainChatStorage.IChatStorageRepository
 	initted  bool
 	initOnce sync.Once
+
+	// jidIndex caches a non-AD JID -> AD JID mapping so per-connect device
+	// lookups no longer scan (and re-derive the keys of) every stored device.
+	jidIndexMu     sync.Mutex
+	jidIndex       map[string]types.JID
+	jidIndexAt     time.Time
+	jidIndexBuilds int // observability/tests: full-store index rebuild count
 }
 
 func NewDeviceManager(store *sqlstore.Container, keys *sqlstore.Container, chatStorageRepo domainChatStorage.IChatStorageRepository) *DeviceManager {
@@ -656,7 +663,7 @@ func (m *DeviceManager) getOrCreateStoreDevice(ctx context.Context, deviceID str
 	// Try to reuse an existing device record if the ID maps to a JID.
 	if deviceID != "" {
 		if jid, err := types.ParseJID(deviceID); err == nil {
-			if dev, err := findStoreDeviceByJID(ctx, m.store, jid); err != nil {
+			if dev, err := m.storeDeviceByJID(ctx, jid); err != nil {
 				return nil, err
 			} else if dev != nil {
 				return dev, nil
@@ -673,7 +680,7 @@ func (m *DeviceManager) getOrCreateStoreDevice(ctx context.Context, deviceID str
 
 		if instJID != "" {
 			if jid, err := types.ParseJID(instJID); err == nil {
-				if dev, err := findStoreDeviceByJID(ctx, m.store, jid); err != nil {
+				if dev, err := m.storeDeviceByJID(ctx, jid); err != nil {
 					return nil, err
 				} else if dev != nil {
 					return dev, nil
@@ -715,12 +722,80 @@ func (m *DeviceManager) HasPersistedDeviceForJID(ctx context.Context, jidStr str
 	if err != nil || jid.IsEmpty() {
 		return false
 	}
-	dev, err := findStoreDeviceByJID(ctx, m.store, jid)
+	dev, err := m.storeDeviceByJID(ctx, jid)
 	if err != nil {
 		logrus.WithError(err).WithField("jid", trimmed).Warn("[DEVICE_MANAGER] failed to check persisted device for JID")
 		return false
 	}
 	return dev != nil && dev.ID != nil
+}
+
+// deviceJIDIndexTTL bounds how often the non-AD -> AD JID index is rebuilt from
+// the full device store. Cached lookups avoid GetAllDevices, whose per-device
+// keypair re-derivation (curve25519) dominated CPU once the store grew large.
+const deviceJIDIndexTTL = 30 * time.Second
+
+// storeDeviceByJID resolves a persisted device by JID without scanning every
+// stored device on each call. It tries an exact lookup first, then falls back
+// to a cached non-AD -> AD JID index and fetches only the matching device.
+func (m *DeviceManager) storeDeviceByJID(ctx context.Context, jid types.JID) (*store.Device, error) {
+	if m == nil || m.store == nil || jid.IsEmpty() {
+		return nil, nil
+	}
+	if dev, err := m.store.GetDevice(ctx, jid); err != nil {
+		return nil, err
+	} else if dev != nil {
+		return dev, nil
+	}
+
+	adJID, ok, err := m.adJIDForNonAD(ctx, jid.ToNonAD().String())
+	if err != nil {
+		return nil, err
+	}
+	if !ok || adJID.IsEmpty() || adJID.String() == jid.String() {
+		return nil, nil
+	}
+	return m.store.GetDevice(ctx, adJID)
+}
+
+// adJIDForNonAD returns the AD JID for a non-AD JID string using a cached index.
+// A hit is always served from the snapshot (a device's AD JID is immutable). A
+// miss is trusted while the snapshot is fresh and otherwise triggers a single
+// throttled rebuild so newly-persisted devices are picked up.
+func (m *DeviceManager) adJIDForNonAD(ctx context.Context, nonAD string) (types.JID, bool, error) {
+	m.jidIndexMu.Lock()
+	defer m.jidIndexMu.Unlock()
+
+	if m.jidIndex != nil {
+		if adJID, ok := m.jidIndex[nonAD]; ok {
+			return adJID, true, nil
+		}
+		if time.Since(m.jidIndexAt) < deviceJIDIndexTTL {
+			return types.JID{}, false, nil
+		}
+	}
+	if err := m.rebuildJIDIndexLocked(ctx); err != nil {
+		return types.JID{}, false, err
+	}
+	adJID, ok := m.jidIndex[nonAD]
+	return adJID, ok, nil
+}
+
+func (m *DeviceManager) rebuildJIDIndexLocked(ctx context.Context) error {
+	devices, err := m.store.GetAllDevices(ctx)
+	if err != nil {
+		return err
+	}
+	index := make(map[string]types.JID, len(devices))
+	for _, dev := range devices {
+		if dev != nil && dev.ID != nil {
+			index[dev.ID.ToNonAD().String()] = *dev.ID
+		}
+	}
+	m.jidIndex = index
+	m.jidIndexAt = time.Now()
+	m.jidIndexBuilds++
+	return nil
 }
 
 func findStoreDeviceByJID(ctx context.Context, container *sqlstore.Container, jid types.JID) (*store.Device, error) {

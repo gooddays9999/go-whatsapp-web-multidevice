@@ -379,6 +379,65 @@ func TestHasPersistedDeviceForJID(t *testing.T) {
 	}
 }
 
+func TestStoreDeviceByJIDCachesIndex(t *testing.T) {
+	ctx := context.Background()
+	container := newTestSQLStore(t)
+	jids := []types.JID{
+		types.NewADJID("6281000000001", types.WhatsAppDomain, 14),
+		types.NewADJID("6281000000002", types.WhatsAppDomain, 7),
+		types.NewADJID("6281000000003", types.WhatsAppDomain, 3),
+	}
+	for _, j := range jids {
+		if err := container.PutDevice(ctx, newTestStoreDevice(container, j, "n")); err != nil {
+			t.Fatalf("put device: %v", err)
+		}
+	}
+	m := NewDeviceManager(container, nil, nil)
+
+	// Each non-AD lookup must resolve to the stored AD device.
+	for _, j := range jids {
+		dev, err := m.storeDeviceByJID(ctx, j.ToNonAD())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dev == nil || dev.ID == nil || dev.ID.ToNonAD().String() != j.ToNonAD().String() {
+			t.Fatalf("non-AD lookup %s did not resolve to its device: %#v", j, dev)
+		}
+	}
+
+	// An unknown JID is served from the cached snapshot too.
+	missing := types.NewADJID("6289999999999", types.WhatsAppDomain, 1)
+	if dev, err := m.storeDeviceByJID(ctx, missing.ToNonAD()); err != nil || dev != nil {
+		t.Fatalf("unknown non-AD lookup = %#v, %v; want nil, nil", dev, err)
+	}
+
+	// The full-store index must be rebuilt exactly once, not per lookup.
+	if m.jidIndexBuilds != 1 {
+		t.Fatalf("index rebuilt %d times, want exactly 1", m.jidIndexBuilds)
+	}
+}
+
+func TestStoreDeviceByJIDExactHitSkipsScan(t *testing.T) {
+	ctx := context.Background()
+	container := newTestSQLStore(t)
+	jid := types.NewADJID("6281000000009", types.WhatsAppDomain, 5)
+	if err := container.PutDevice(ctx, newTestStoreDevice(container, jid, "n")); err != nil {
+		t.Fatalf("put device: %v", err)
+	}
+	m := NewDeviceManager(container, nil, nil)
+
+	dev, err := m.storeDeviceByJID(ctx, jid) // exact AD JID
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dev == nil || dev.ID == nil || dev.ID.String() != jid.String() {
+		t.Fatalf("exact AD lookup failed: %#v", dev)
+	}
+	if m.jidIndexBuilds != 0 {
+		t.Fatalf("exact hit must not build the index, builds=%d", m.jidIndexBuilds)
+	}
+}
+
 func TestHasPersistedDeviceForJIDNilSafe(t *testing.T) {
 	var manager *DeviceManager
 	if manager.HasPersistedDeviceForJID(context.Background(), "6281333333333@s.whatsapp.net") {
