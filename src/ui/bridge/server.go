@@ -122,7 +122,7 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 
 func (s *Service) Start(ctx context.Context) error {
 	whatsapp.RegisterEventSink("ims-bridge", s)
-	s.publish("bridge.started", "", map[string]any{"instanceId": s.cfg.InstanceID})
+	s.publish("bridge.started", "", map[string]any{"instanceId": s.cfg.InstanceID, "serverId": s.cfg.WebServerID})
 	s.publish("worker.ready", "", map[string]any{"workerId": s.workerID, "pid": os.Getpid()})
 	go s.heartbeatLoop(ctx)
 	go s.restorePersistedAccounts(ctx)

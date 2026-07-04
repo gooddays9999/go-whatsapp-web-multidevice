@@ -10,9 +10,14 @@ import (
 )
 
 type Config struct {
-	GRPCPort                        int
-	MetricsPort                     int
-	InstanceID                      string
+	GRPCPort    int
+	MetricsPort int
+	InstanceID  string
+	// WebServerID identifies this bridge's row in the ims web_servers table
+	// (its server_id, e.g. "api01"). It is published in bridge.started so
+	// ims-api can scope its restart handling to this bridge's accounts. Empty
+	// keeps the legacy behaviour (ims-api leaves web_online untouched).
+	WebServerID                     string
 	NATSURL                         string
 	UAFilePath                      string
 	HeartbeatInterval               time.Duration
@@ -48,6 +53,7 @@ type configFile struct {
 		GRPCPort    int    `yaml:"grpc_port"`
 		MetricsPort int    `yaml:"metrics_port"`
 		InstanceID  string `yaml:"instance_id"`
+		WebServerID string `yaml:"web_server_id"`
 	} `yaml:"server"`
 	Worker struct {
 		HeartbeatInterval             int `yaml:"heartbeat_interval"`
@@ -146,6 +152,9 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	if fileCfg.Server.InstanceID != "" {
 		cfg.InstanceID = fileCfg.Server.InstanceID
 	}
+	if fileCfg.Server.WebServerID != "" {
+		cfg.WebServerID = fileCfg.Server.WebServerID
+	}
 	if fileCfg.Worker.HeartbeatInterval > 0 {
 		cfg.HeartbeatInterval = time.Duration(fileCfg.Worker.HeartbeatInterval) * time.Second
 	}
@@ -224,6 +233,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := os.Getenv("INSTANCE_ID"); value != "" {
 		cfg.InstanceID = value
+	}
+	if value := os.Getenv("WEB_SERVER_ID"); value != "" {
+		cfg.WebServerID = value
 	}
 	if value := os.Getenv("NATS_URL"); value != "" {
 		cfg.NATSURL = value
