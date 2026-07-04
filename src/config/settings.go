@@ -27,6 +27,10 @@ var (
 
 	DBURI     = "file:storages/whatsapp.db"
 	DBKeysURI = ""
+	// DBMaxOpenConns bounds the whatsmeow store connection pool. It only applies
+	// to Postgres (SQLite is a local file); it stops a large account fleet from
+	// exhausting Postgres max_connections. 0 keeps the driver default.
+	DBMaxOpenConns = 80
 
 	WhatsappAutoReplyMessage          string
 	WhatsappAutoMarkRead              = false // Auto-mark incoming messages as read

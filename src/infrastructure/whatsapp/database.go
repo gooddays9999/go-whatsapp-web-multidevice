@@ -2,8 +2,10 @@ package whatsapp
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/config"
 	pkgError "github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/error"
@@ -35,8 +37,33 @@ func initDatabase(ctx context.Context, dbLog waLog.Logger, DBURI string) (*sqlst
 		DBURI = sqlite.FormatChatStorageURI(DBURI, true, true)
 		return sqlstore.New(ctx, sqlite.DriverName, DBURI, dbLog)
 	} else if strings.HasPrefix(DBURI, "postgres:") {
-		return sqlstore.New(ctx, "postgres", DBURI, dbLog)
+		return initPostgresStore(ctx, dbLog, DBURI)
 	}
 
 	return nil, fmt.Errorf("unknown database type: %s. Currently only sqlite3(file:) and postgres are supported", DBURI)
+}
+
+// initPostgresStore opens Postgres with a bounded connection pool before handing
+// it to whatsmeow, so a large account fleet cannot exhaust Postgres
+// max_connections (whatsmeow's own sqlstore.New leaves the pool unbounded).
+func initPostgresStore(ctx context.Context, dbLog waLog.Logger, DBURI string) (*sqlstore.Container, error) {
+	db, err := sql.Open("postgres", DBURI)
+	if err != nil {
+		return nil, fmt.Errorf("open postgres store: %w", err)
+	}
+	if maxConns := config.DBMaxOpenConns; maxConns > 0 {
+		db.SetMaxOpenConns(maxConns)
+		idle := maxConns / 4
+		if idle < 2 {
+			idle = 2
+		}
+		db.SetMaxIdleConns(idle)
+		db.SetConnMaxLifetime(5 * time.Minute)
+	}
+	container := sqlstore.NewWithDB(db, "postgres", dbLog)
+	if err := container.Upgrade(ctx); err != nil {
+		_ = container.Close()
+		return nil, fmt.Errorf("upgrade postgres store: %w", err)
+	}
+	return container, nil
 }

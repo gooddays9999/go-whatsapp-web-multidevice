@@ -119,6 +119,11 @@ func initEnvConfig() {
 			config.ChatStorageMaxOpenConns = n
 		}
 	}
+	if viper.IsSet("db_max_open_conns") {
+		if n := viper.GetInt("db_max_open_conns"); n > 0 {
+			config.DBMaxOpenConns = n
+		}
+	}
 
 	// WhatsApp settings
 	if envAutoReply := viper.GetString("whatsapp_auto_reply"); envAutoReply != "" {
@@ -313,6 +318,12 @@ func initFlags() {
 		"db-keys-uri", "",
 		config.DBKeysURI,
 		`the database uri to store the optional keys cache (by default, we'll use the same database uri). avoid in-memory storage in production. database uri --db-keys-uri <string> | example: --db-keys-uri="file:storages/whatsapp-keys.db?_foreign_keys=on"`,
+	)
+	rootCmd.PersistentFlags().IntVarP(
+		&config.DBMaxOpenConns,
+		"db-max-open-conns", "",
+		config.DBMaxOpenConns,
+		`max open connections for the Postgres whatsmeow store pool (ignored for sqlite). Keep it below the server's max_connections. example: --db-max-open-conns=80`,
 	)
 
 	// WhatsApp flags
