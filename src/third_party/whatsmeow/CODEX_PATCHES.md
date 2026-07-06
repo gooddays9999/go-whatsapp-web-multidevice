@@ -1,6 +1,6 @@
 # Local whatsmeow patches
 
-This vendored copy tracks `go.mau.fi/whatsmeow v0.0.0-20260622185415-5f04eac6dbbb` with the newsletter poll creation fix from upstream PR:
+This vendored copy tracks `go.mau.fi/whatsmeow v0.0.0-20260630180629-b572e5bcb92b` (bumped for the v8.10.0 passkey pairing feature) with the newsletter poll creation fix from upstream PR:
 
 - https://github.com/tulir/whatsmeow/pull/908
 
