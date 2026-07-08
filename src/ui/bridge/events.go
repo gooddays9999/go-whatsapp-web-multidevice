@@ -87,7 +87,7 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 	case *events.HistorySync:
 		s.handleHistorySyncEvent(ctx, accountID, instance, evt)
 	case *events.GroupInfo:
-		s.handleGroupInfoEvent(accountID, evt)
+		s.handleGroupInfoEvent(ctx, accountID, instance, evt)
 	case *events.JoinedGroup:
 		s.publish("group.joined", accountID, map[string]any{"groupJid": evt.JID.String()})
 	}
@@ -487,8 +487,11 @@ func normalizedHistoryJID(ctx context.Context, instance *whatsapp.DeviceInstance
 	return normalizedEventJID(ctx, instance, jid).ToNonAD().String()
 }
 
-func (s *Service) handleGroupInfoEvent(accountID string, evt *events.GroupInfo) {
-	for _, payload := range groupInfoEventPayloads(evt) {
+func (s *Service) handleGroupInfoEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.GroupInfo) {
+	normalize := func(jid types.JID) types.JID {
+		return normalizedEventJID(ctx, instance, jid).ToNonAD()
+	}
+	for _, payload := range groupInfoEventPayloads(evt, normalize) {
 		s.publish(payload.eventType, accountID, payload.data)
 	}
 }
@@ -498,7 +501,9 @@ type groupInfoEventPayload struct {
 	data      map[string]any
 }
 
-func groupInfoEventPayloads(evt *events.GroupInfo) []groupInfoEventPayload {
+type groupInfoJIDNormalizer func(types.JID) types.JID
+
+func groupInfoEventPayloads(evt *events.GroupInfo, normalize groupInfoJIDNormalizer) []groupInfoEventPayload {
 	if evt == nil {
 		return nil
 	}
@@ -513,6 +518,9 @@ func groupInfoEventPayloads(evt *events.GroupInfo) []groupInfoEventPayload {
 			"groupJid":    evt.JID.String(),
 			"participant": jid.String(),
 			"timestamp":   timestamp,
+		}
+		if phone := groupInfoParticipantPhone(jid, normalize); phone != "" {
+			data["participantPhone"] = phone
 		}
 		if operator != "" {
 			data["invitedBy"] = operator
@@ -531,6 +539,9 @@ func groupInfoEventPayloads(evt *events.GroupInfo) []groupInfoEventPayload {
 			"timestamp":   timestamp,
 			"reason":      reason,
 		}
+		if phone := groupInfoParticipantPhone(jid, normalize); phone != "" {
+			data["participantPhone"] = phone
+		}
 		if operator != "" {
 			data["operator"] = operator
 		}
@@ -543,6 +554,20 @@ func groupInfoEventPayloads(evt *events.GroupInfo) []groupInfoEventPayload {
 		payloads = append(payloads, groupInfoEventPayload{eventType: "group.admin_changed", data: groupInfoAdminPayload(evt, jid, timestamp, operator, "demote")})
 	}
 	return payloads
+}
+
+func groupInfoParticipantPhone(jid types.JID, normalize groupInfoJIDNormalizer) string {
+	resolved := jid
+	if normalize != nil {
+		resolved = normalize(jid)
+	}
+	if resolved.IsEmpty() || resolved.Server == types.HiddenUserServer {
+		return ""
+	}
+	if resolved.User == "" {
+		return ""
+	}
+	return resolved.User
 }
 
 func groupInfoAdminPayload(evt *events.GroupInfo, jid types.JID, timestamp int64, operator, action string) map[string]any {

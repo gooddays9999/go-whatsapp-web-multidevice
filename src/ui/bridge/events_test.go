@@ -160,7 +160,7 @@ func TestGroupInfoEventPayloadsIncludeTimestampOperatorAndLeaveReason(t *testing
 		Leave:     []types.JID{member},
 	}
 
-	payloads := groupInfoEventPayloads(evt)
+	payloads := groupInfoEventPayloads(evt, nil)
 
 	if len(payloads) != 1 {
 		t.Fatalf("payloads len = %d, want 1: %#v", len(payloads), payloads)
@@ -190,13 +190,40 @@ func TestGroupInfoEventPayloadsTreatMatchingSenderLIDAsSelfLeave(t *testing.T) {
 		Leave:    []types.JID{senderLID},
 	}
 
-	payloads := groupInfoEventPayloads(evt)
+	payloads := groupInfoEventPayloads(evt, nil)
 
 	if len(payloads) != 1 {
 		t.Fatalf("payloads len = %d, want 1: %#v", len(payloads), payloads)
 	}
 	if got := payloads[0].data["reason"]; got != "left" {
 		t.Fatalf("reason = %#v, want left", got)
+	}
+}
+
+func TestGroupInfoEventPayloadsIncludeResolvedParticipantPhone(t *testing.T) {
+	lid := types.NewJID("33178790154412", types.HiddenUserServer)
+	pn := types.NewJID("6281345831308", types.DefaultUserServer)
+	evt := &events.GroupInfo{
+		JID:  types.NewJID("120363000000000000", types.GroupServer),
+		Join: []types.JID{lid},
+	}
+
+	payloads := groupInfoEventPayloads(evt, func(jid types.JID) types.JID {
+		if jid == lid {
+			return pn
+		}
+		return jid
+	})
+
+	if len(payloads) != 1 {
+		t.Fatalf("payloads len = %d, want 1: %#v", len(payloads), payloads)
+	}
+	payload := payloads[0].data
+	if got := payload["participant"]; got != lid.String() {
+		t.Fatalf("participant = %#v, want original LID %s", got, lid.String())
+	}
+	if got := payload["participantPhone"]; got != pn.User {
+		t.Fatalf("participantPhone = %#v, want %s", got, pn.User)
 	}
 }
 
