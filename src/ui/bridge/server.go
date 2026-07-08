@@ -216,7 +216,9 @@ func (s *Service) publish(eventType, accountID string, data map[string]any) {
 			}
 		}
 	}
-	data["timestamp"] = time.Now().UnixMilli()
+	if _, ok := data["timestamp"]; !ok {
+		data["timestamp"] = time.Now().UnixMilli()
+	}
 	s.publisher.Publish(context.Background(), eventType, data)
 }
 

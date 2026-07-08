@@ -9,6 +9,7 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waWeb"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 )
@@ -145,6 +146,57 @@ func TestWebMessageStatusEventUsesSourceWebMsgStatus(t *testing.T) {
 	}
 	if event["timestamp"] != readAt*1000 {
 		t.Fatalf("timestamp = %v, want %d", event["timestamp"], readAt*1000)
+	}
+}
+
+func TestGroupInfoEventPayloadsIncludeTimestampOperatorAndLeaveReason(t *testing.T) {
+	operator := types.NewJID("628111", types.DefaultUserServer)
+	member := types.NewJID("628222", types.DefaultUserServer)
+	eventTime := time.Date(2026, time.July, 6, 10, 6, 9, 0, time.UTC)
+	evt := &events.GroupInfo{
+		JID:       types.NewJID("120363000000000000", types.GroupServer),
+		Sender:    &operator,
+		Timestamp: eventTime,
+		Leave:     []types.JID{member},
+	}
+
+	payloads := groupInfoEventPayloads(evt)
+
+	if len(payloads) != 1 {
+		t.Fatalf("payloads len = %d, want 1: %#v", len(payloads), payloads)
+	}
+	if payloads[0].eventType != "group.leave" {
+		t.Fatalf("eventType = %q, want group.leave", payloads[0].eventType)
+	}
+	payload := payloads[0].data
+	if payload["timestamp"] != eventTime.UnixMilli() {
+		t.Fatalf("timestamp = %#v, want %d", payload["timestamp"], eventTime.UnixMilli())
+	}
+	if payload["operator"] != operator.String() {
+		t.Fatalf("operator = %#v, want %s", payload["operator"], operator.String())
+	}
+	if payload["reason"] != "removed" {
+		t.Fatalf("reason = %#v, want removed", payload["reason"])
+	}
+}
+
+func TestGroupInfoEventPayloadsTreatMatchingSenderLIDAsSelfLeave(t *testing.T) {
+	senderLID := types.NewJID("123456789", types.HiddenUserServer)
+	senderPN := types.NewJID("628222", types.DefaultUserServer)
+	evt := &events.GroupInfo{
+		JID:      types.NewJID("120363000000000000", types.GroupServer),
+		Sender:   &senderLID,
+		SenderPN: &senderPN,
+		Leave:    []types.JID{senderLID},
+	}
+
+	payloads := groupInfoEventPayloads(evt)
+
+	if len(payloads) != 1 {
+		t.Fatalf("payloads len = %d, want 1: %#v", len(payloads), payloads)
+	}
+	if got := payloads[0].data["reason"]; got != "left" {
+		t.Fatalf("reason = %#v, want left", got)
 	}
 }
 

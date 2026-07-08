@@ -488,12 +488,105 @@ func normalizedHistoryJID(ctx context.Context, instance *whatsapp.DeviceInstance
 }
 
 func (s *Service) handleGroupInfoEvent(accountID string, evt *events.GroupInfo) {
+	for _, payload := range groupInfoEventPayloads(evt) {
+		s.publish(payload.eventType, accountID, payload.data)
+	}
+}
+
+type groupInfoEventPayload struct {
+	eventType string
+	data      map[string]any
+}
+
+func groupInfoEventPayloads(evt *events.GroupInfo) []groupInfoEventPayload {
+	if evt == nil {
+		return nil
+	}
+	operator := groupInfoOperator(evt)
+	timestamp := time.Now().UnixMilli()
+	if !evt.Timestamp.IsZero() {
+		timestamp = evt.Timestamp.UnixMilli()
+	}
+	payloads := make([]groupInfoEventPayload, 0, len(evt.Join)+len(evt.Leave)+len(evt.Promote)+len(evt.Demote))
 	for _, jid := range evt.Join {
-		s.publish("group.join", accountID, map[string]any{"groupJid": evt.JID.String(), "participant": jid.String()})
+		data := map[string]any{
+			"groupJid":    evt.JID.String(),
+			"participant": jid.String(),
+			"timestamp":   timestamp,
+		}
+		if operator != "" {
+			data["invitedBy"] = operator
+			data["operator"] = operator
+		}
+		if evt.JoinReason != "" {
+			data["reason"] = evt.JoinReason
+		}
+		payloads = append(payloads, groupInfoEventPayload{eventType: "group.join", data: data})
 	}
 	for _, jid := range evt.Leave {
-		s.publish("group.leave", accountID, map[string]any{"groupJid": evt.JID.String(), "participant": jid.String()})
+		reason := groupInfoLeaveReason(evt, jid)
+		data := map[string]any{
+			"groupJid":    evt.JID.String(),
+			"participant": jid.String(),
+			"timestamp":   timestamp,
+			"reason":      reason,
+		}
+		if operator != "" {
+			data["operator"] = operator
+		}
+		payloads = append(payloads, groupInfoEventPayload{eventType: "group.leave", data: data})
 	}
+	for _, jid := range evt.Promote {
+		payloads = append(payloads, groupInfoEventPayload{eventType: "group.admin_changed", data: groupInfoAdminPayload(evt, jid, timestamp, operator, "promote")})
+	}
+	for _, jid := range evt.Demote {
+		payloads = append(payloads, groupInfoEventPayload{eventType: "group.admin_changed", data: groupInfoAdminPayload(evt, jid, timestamp, operator, "demote")})
+	}
+	return payloads
+}
+
+func groupInfoAdminPayload(evt *events.GroupInfo, jid types.JID, timestamp int64, operator, action string) map[string]any {
+	data := map[string]any{
+		"groupJid":      evt.JID.String(),
+		"recipientIds":  []string{jid.String()},
+		"recipient_ids": []string{jid.String()},
+		"action":        action,
+		"timestamp":     timestamp,
+	}
+	if operator != "" {
+		data["operator"] = operator
+	}
+	return data
+}
+
+func groupInfoOperator(evt *events.GroupInfo) string {
+	if evt == nil {
+		return ""
+	}
+	if evt.SenderPN != nil && !evt.SenderPN.IsEmpty() {
+		return evt.SenderPN.String()
+	}
+	if evt.Sender != nil && !evt.Sender.IsEmpty() {
+		return evt.Sender.String()
+	}
+	return ""
+}
+
+func groupInfoLeaveReason(evt *events.GroupInfo, participant types.JID) string {
+	if evt == nil {
+		return "left"
+	}
+	matchesSender := false
+	if evt.Sender != nil && !evt.Sender.IsEmpty() && evt.Sender.String() == participant.String() {
+		matchesSender = true
+	}
+	if evt.SenderPN != nil && !evt.SenderPN.IsEmpty() && evt.SenderPN.String() == participant.String() {
+		matchesSender = true
+	}
+	if groupInfoOperator(evt) != "" && !matchesSender {
+		return "removed"
+	}
+	return "left"
 }
 
 func downloadableMessage(msg *waE2E.Message) whatsmeow.DownloadableMessage {
