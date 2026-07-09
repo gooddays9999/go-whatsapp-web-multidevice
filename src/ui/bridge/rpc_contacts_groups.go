@@ -536,7 +536,24 @@ func (s *Service) JoinGroupByLink(ctx context.Context, req *bridgepb.JoinGroupBy
 	if err != nil {
 		return &bridgepb.JoinGroupByLinkResponse{Success: false, InviteLink: req.GetInviteLink(), Error: err.Error()}, nil
 	}
-	return &bridgepb.JoinGroupByLinkResponse{Success: true, InviteLink: req.GetInviteLink(), GroupId: groupID}, nil
+	groupName := ""
+	if groupID != "" && s.deps.UserUsecase != nil {
+		if groups, err := s.deps.UserUsecase.MyListGroups(scoped); err == nil {
+			groupName = findJoinedGroupNameByJID(groups.Data, groupID)
+		} else {
+			logrus.WithError(err).WithField("group_jid", groupID).Debug("failed to resolve joined group name")
+		}
+	}
+	return &bridgepb.JoinGroupByLinkResponse{Success: true, InviteLink: req.GetInviteLink(), GroupId: groupID, GroupName: groupName}, nil
+}
+
+func findJoinedGroupNameByJID(groups []types.GroupInfo, groupJID string) string {
+	for _, group := range groups {
+		if group.JID.String() == groupJID {
+			return strings.TrimSpace(group.Name)
+		}
+	}
+	return ""
 }
 
 func (s *Service) changeParticipants(ctx context.Context, accountID, groupJID string, participants []string, action whatsmeow.ParticipantChange) ([]string, []string, error) {

@@ -145,6 +145,24 @@ func TestBuildAddContactPatchWithLID(t *testing.T) {
 	}
 }
 
+func TestFindJoinedGroupNameByJID(t *testing.T) {
+	groups := []types.GroupInfo{
+		{
+			JID:       types.NewJID("120363111", types.GroupServer),
+			GroupName: types.GroupName{Name: "Other Group"},
+		},
+		{
+			JID:       types.NewJID("120363222", types.GroupServer),
+			GroupName: types.GroupName{Name: "The M Team"},
+		},
+	}
+
+	got := findJoinedGroupNameByJID(groups, "120363222@g.us")
+	if got != "The M Team" {
+		t.Fatalf("findJoinedGroupNameByJID() = %q, want %q", got, "The M Team")
+	}
+}
+
 func TestPrepareProfilePictureJPEG(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 1200, 800))
 	var input bytes.Buffer
