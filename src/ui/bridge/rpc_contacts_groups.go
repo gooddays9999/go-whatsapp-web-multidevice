@@ -527,6 +527,38 @@ func (s *Service) SetGroupAddMembersAdminsOnly(ctx context.Context, req *bridgep
 	return &bridgepb.SetGroupAddMembersAdminsOnlyResponse{Success: true}, nil
 }
 
+func (s *Service) GetGroupInfoFromLink(ctx context.Context, req *bridgepb.GetGroupInfoFromLinkRequest) (*bridgepb.GetGroupInfoFromLinkResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	info, err := s.deps.GroupUsecase.GetGroupInfoFromLink(scoped, domainGroup.GetGroupInfoFromLinkRequest{Link: req.GetInviteLink()})
+	if err != nil {
+		return &bridgepb.GetGroupInfoFromLinkResponse{Success: false, InviteLink: req.GetInviteLink(), Error: err.Error()}, nil
+	}
+	return groupInfoFromLinkToProto(req.GetInviteLink(), info), nil
+}
+
+func groupInfoFromLinkToProto(inviteLink string, info domainGroup.GetGroupInfoFromLinkResponse) *bridgepb.GetGroupInfoFromLinkResponse {
+	createdAt := int64(0)
+	if !info.CreatedAt.IsZero() {
+		createdAt = info.CreatedAt.Unix()
+	}
+	return &bridgepb.GetGroupInfoFromLinkResponse{
+		Success:          true,
+		InviteLink:       inviteLink,
+		GroupId:          info.GroupID,
+		GroupName:        strings.TrimSpace(info.Name),
+		Topic:            info.Topic,
+		Description:      info.Description,
+		CreatedAt:        createdAt,
+		ParticipantCount: int32(info.ParticipantCount),
+		IsLocked:         info.IsLocked,
+		IsAnnounce:       info.IsAnnounce,
+		IsEphemeral:      info.IsEphemeral,
+	}
+}
+
 func (s *Service) JoinGroupByLink(ctx context.Context, req *bridgepb.JoinGroupByLinkRequest) (*bridgepb.JoinGroupByLinkResponse, error) {
 	scoped, err := s.accountContext(ctx, req.GetAccountId())
 	if err != nil {
