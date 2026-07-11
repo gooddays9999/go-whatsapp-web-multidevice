@@ -6939,21 +6939,22 @@ func (x *GetGroupInfoFromLinkRequest) GetInviteLink() string {
 }
 
 type GetGroupInfoFromLinkResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Success          bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	InviteLink       string                 `protobuf:"bytes,2,opt,name=invite_link,json=inviteLink,proto3" json:"invite_link,omitempty"`
-	GroupId          string                 `protobuf:"bytes,3,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	GroupName        string                 `protobuf:"bytes,4,opt,name=group_name,json=groupName,proto3" json:"group_name,omitempty"`
-	Topic            string                 `protobuf:"bytes,5,opt,name=topic,proto3" json:"topic,omitempty"`
-	Description      string                 `protobuf:"bytes,6,opt,name=description,proto3" json:"description,omitempty"`
-	CreatedAt        int64                  `protobuf:"varint,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Unix timestamp (seconds), 0 if unknown
-	ParticipantCount int32                  `protobuf:"varint,8,opt,name=participant_count,json=participantCount,proto3" json:"participant_count,omitempty"`
-	IsLocked         bool                   `protobuf:"varint,9,opt,name=is_locked,json=isLocked,proto3" json:"is_locked,omitempty"`
-	IsAnnounce       bool                   `protobuf:"varint,10,opt,name=is_announce,json=isAnnounce,proto3" json:"is_announce,omitempty"`
-	IsEphemeral      bool                   `protobuf:"varint,11,opt,name=is_ephemeral,json=isEphemeral,proto3" json:"is_ephemeral,omitempty"`
-	Error            string                 `protobuf:"bytes,12,opt,name=error,proto3" json:"error,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Success              bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	InviteLink           string                 `protobuf:"bytes,2,opt,name=invite_link,json=inviteLink,proto3" json:"invite_link,omitempty"`
+	GroupId              string                 `protobuf:"bytes,3,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	GroupName            string                 `protobuf:"bytes,4,opt,name=group_name,json=groupName,proto3" json:"group_name,omitempty"`
+	Topic                string                 `protobuf:"bytes,5,opt,name=topic,proto3" json:"topic,omitempty"`
+	Description          string                 `protobuf:"bytes,6,opt,name=description,proto3" json:"description,omitempty"`
+	CreatedAt            int64                  `protobuf:"varint,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Unix timestamp (seconds), 0 if unknown
+	ParticipantCount     int32                  `protobuf:"varint,8,opt,name=participant_count,json=participantCount,proto3" json:"participant_count,omitempty"`
+	IsLocked             bool                   `protobuf:"varint,9,opt,name=is_locked,json=isLocked,proto3" json:"is_locked,omitempty"`
+	IsAnnounce           bool                   `protobuf:"varint,10,opt,name=is_announce,json=isAnnounce,proto3" json:"is_announce,omitempty"`
+	IsEphemeral          bool                   `protobuf:"varint,11,opt,name=is_ephemeral,json=isEphemeral,proto3" json:"is_ephemeral,omitempty"`
+	Error                string                 `protobuf:"bytes,12,opt,name=error,proto3" json:"error,omitempty"`
+	JoinApprovalRequired bool                   `protobuf:"varint,13,opt,name=join_approval_required,json=joinApprovalRequired,proto3" json:"join_approval_required,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *GetGroupInfoFromLinkResponse) Reset() {
@@ -7068,6 +7069,13 @@ func (x *GetGroupInfoFromLinkResponse) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *GetGroupInfoFromLinkResponse) GetJoinApprovalRequired() bool {
+	if x != nil {
+		return x.JoinApprovalRequired
+	}
+	return false
 }
 
 type CloseAllTabsRequest struct {
@@ -8221,7 +8229,7 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1f\n" +
 	"\vinvite_link\x18\x02 \x01(\tR\n" +
-	"inviteLink\"\x8e\x03\n" +
+	"inviteLink\"\xc4\x03\n" +
 	"\x1cGetGroupInfoFromLinkResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1f\n" +
 	"\vinvite_link\x18\x02 \x01(\tR\n" +
@@ -8239,7 +8247,8 @@ const file_proto_bridge_proto_rawDesc = "" +
 	" \x01(\bR\n" +
 	"isAnnounce\x12!\n" +
 	"\fis_ephemeral\x18\v \x01(\bR\visEphemeral\x12\x14\n" +
-	"\x05error\x18\f \x01(\tR\x05error\"4\n" +
+	"\x05error\x18\f \x01(\tR\x05error\x124\n" +
+	"\x16join_approval_required\x18\r \x01(\bR\x14joinApprovalRequired\"4\n" +
 	"\x13CloseAllTabsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"F\n" +

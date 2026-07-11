@@ -11,15 +11,16 @@ import (
 func TestGroupInfoFromLinkToProtoPreservesResolvedFields(t *testing.T) {
 	createdAt := time.Date(2026, time.July, 11, 13, 24, 0, 0, time.UTC)
 	got := groupInfoFromLinkToProto("https://chat.whatsapp.com/abc", domainGroup.GetGroupInfoFromLinkResponse{
-		GroupID:          "120363407910125315@g.us",
-		Name:             "Public Leads",
-		Topic:            "Daily buyer requests",
-		CreatedAt:        createdAt,
-		ParticipantCount: 42,
-		IsLocked:         true,
-		IsAnnounce:       false,
-		IsEphemeral:      true,
-		Description:      "Daily buyer requests",
+		GroupID:              "120363407910125315@g.us",
+		Name:                 "Public Leads",
+		Topic:                "Daily buyer requests",
+		CreatedAt:            createdAt,
+		ParticipantCount:     42,
+		IsLocked:             true,
+		IsAnnounce:           false,
+		IsEphemeral:          true,
+		Description:          "Daily buyer requests",
+		JoinApprovalRequired: true,
 	})
 
 	if !got.GetSuccess() {
@@ -42,6 +43,9 @@ func TestGroupInfoFromLinkToProtoPreservesResolvedFields(t *testing.T) {
 	}
 	if !got.GetIsLocked() || got.GetIsAnnounce() || !got.GetIsEphemeral() {
 		t.Fatalf("flags = locked:%v announce:%v ephemeral:%v", got.GetIsLocked(), got.GetIsAnnounce(), got.GetIsEphemeral())
+	}
+	if !got.GetJoinApprovalRequired() {
+		t.Fatal("join_approval_required = false, want true")
 	}
 
 	_ = &bridgepb.GetGroupInfoFromLinkRequest{AccountId: "360", InviteLink: "https://chat.whatsapp.com/abc"}

@@ -545,17 +545,18 @@ func groupInfoFromLinkToProto(inviteLink string, info domainGroup.GetGroupInfoFr
 		createdAt = info.CreatedAt.Unix()
 	}
 	return &bridgepb.GetGroupInfoFromLinkResponse{
-		Success:          true,
-		InviteLink:       inviteLink,
-		GroupId:          info.GroupID,
-		GroupName:        strings.TrimSpace(info.Name),
-		Topic:            info.Topic,
-		Description:      info.Description,
-		CreatedAt:        createdAt,
-		ParticipantCount: int32(info.ParticipantCount),
-		IsLocked:         info.IsLocked,
-		IsAnnounce:       info.IsAnnounce,
-		IsEphemeral:      info.IsEphemeral,
+		Success:              true,
+		InviteLink:           inviteLink,
+		GroupId:              info.GroupID,
+		GroupName:            strings.TrimSpace(info.Name),
+		Topic:                info.Topic,
+		Description:          info.Description,
+		CreatedAt:            createdAt,
+		ParticipantCount:     int32(info.ParticipantCount),
+		IsLocked:             info.IsLocked,
+		IsAnnounce:           info.IsAnnounce,
+		IsEphemeral:          info.IsEphemeral,
+		JoinApprovalRequired: info.JoinApprovalRequired,
 	}
 }
 

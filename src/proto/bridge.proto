@@ -923,6 +923,7 @@ message GetGroupInfoFromLinkResponse {
     bool is_announce = 10;
     bool is_ephemeral = 11;
     string error = 12;
+    bool join_approval_required = 13;
 }
 
 // ========== Close All Tabs ==========

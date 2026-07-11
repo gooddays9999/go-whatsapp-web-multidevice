@@ -110,15 +110,16 @@ type GetGroupInfoFromLinkRequest struct {
 }
 
 type GetGroupInfoFromLinkResponse struct {
-	GroupID          string    `json:"group_id"`
-	Name             string    `json:"name"`
-	Topic            string    `json:"topic"`
-	CreatedAt        time.Time `json:"created_at"`
-	ParticipantCount int       `json:"participant_count"`
-	IsLocked         bool      `json:"is_locked"`
-	IsAnnounce       bool      `json:"is_announce"`
-	IsEphemeral      bool      `json:"is_ephemeral"`
-	Description      string    `json:"description"`
+	GroupID              string    `json:"group_id"`
+	Name                 string    `json:"name"`
+	Topic                string    `json:"topic"`
+	CreatedAt            time.Time `json:"created_at"`
+	ParticipantCount     int       `json:"participant_count"`
+	IsLocked             bool      `json:"is_locked"`
+	IsAnnounce           bool      `json:"is_announce"`
+	IsEphemeral          bool      `json:"is_ephemeral"`
+	Description          string    `json:"description"`
+	JoinApprovalRequired bool      `json:"join_approval_required"`
 }
 
 type GroupInfoRequest struct {
