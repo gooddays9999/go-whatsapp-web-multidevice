@@ -1306,6 +1306,10 @@ type Group struct {
 	ParticipantCount int32                  `protobuf:"varint,4,opt,name=participant_count,json=participantCount,proto3" json:"participant_count,omitempty"` // Member count
 	Owner            string                 `protobuf:"bytes,5,opt,name=owner,proto3" json:"owner,omitempty"`                                                // Owner JID
 	CreatedAt        int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`                      // Creation timestamp
+	Avatar           string                 `protobuf:"bytes,7,opt,name=avatar,proto3" json:"avatar,omitempty"`                                              // Group avatar URL (best-effort，拉不到为空)
+	InviteLink       string                 `protobuf:"bytes,8,opt,name=invite_link,json=inviteLink,proto3" json:"invite_link,omitempty"`                    // Group invite link (only when account is admin)
+	Announce         bool                   `protobuf:"varint,9,opt,name=announce,proto3" json:"announce,omitempty"`                                         // 全员禁言（announcement-only group：仅 admin 可发消息）
+	Restrict         bool                   `protobuf:"varint,10,opt,name=restrict,proto3" json:"restrict,omitempty"`                                        // 仅 admin 可改群信息（标题/描述/头像）
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1380,6 +1384,34 @@ func (x *Group) GetCreatedAt() int64 {
 		return x.CreatedAt
 	}
 	return 0
+}
+
+func (x *Group) GetAvatar() string {
+	if x != nil {
+		return x.Avatar
+	}
+	return ""
+}
+
+func (x *Group) GetInviteLink() string {
+	if x != nil {
+		return x.InviteLink
+	}
+	return ""
+}
+
+func (x *Group) GetAnnounce() bool {
+	if x != nil {
+		return x.Announce
+	}
+	return false
+}
+
+func (x *Group) GetRestrict() bool {
+	if x != nil {
+		return x.Restrict
+	}
+	return false
 }
 
 type GetGroupMembersRequest struct {
@@ -7734,7 +7766,7 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\":\n" +
 	"\x11GetGroupsResponse\x12%\n" +
-	"\x06groups\x18\x01 \x03(\v2\r.bridge.GroupR\x06groups\"\xb1\x01\n" +
+	"\x06groups\x18\x01 \x03(\v2\r.bridge.GroupR\x06groups\"\xa2\x02\n" +
 	"\x05Group\x12\x10\n" +
 	"\x03jid\x18\x01 \x01(\tR\x03jid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -7742,7 +7774,13 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"\x11participant_count\x18\x04 \x01(\x05R\x10participantCount\x12\x14\n" +
 	"\x05owner\x18\x05 \x01(\tR\x05owner\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\x03R\tcreatedAt\"T\n" +
+	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12\x16\n" +
+	"\x06avatar\x18\a \x01(\tR\x06avatar\x12\x1f\n" +
+	"\vinvite_link\x18\b \x01(\tR\n" +
+	"inviteLink\x12\x1a\n" +
+	"\bannounce\x18\t \x01(\bR\bannounce\x12\x1a\n" +
+	"\brestrict\x18\n" +
+	" \x01(\bR\brestrict\"T\n" +
 	"\x16GetGroupMembersRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1b\n" +

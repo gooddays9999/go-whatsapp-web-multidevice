@@ -90,6 +90,12 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 		s.handleGroupInfoEvent(ctx, accountID, instance, evt)
 	case *events.JoinedGroup:
 		s.publish("group.joined", accountID, map[string]any{"groupJid": evt.JID.String()})
+	case *events.Picture:
+		if payload, ok := groupPictureUpdatedPayload(ctx, evt, func(ctx context.Context, jid types.JID) string {
+			return resolveGroupAvatarURL(ctx, instance.GetClient(), jid)
+		}); ok {
+			s.publish("group.updated", accountID, payload)
+		}
 	}
 }
 
@@ -494,6 +500,25 @@ func (s *Service) handleGroupInfoEvent(ctx context.Context, accountID string, in
 	for _, payload := range groupInfoEventPayloads(evt, normalize) {
 		s.publish(payload.eventType, accountID, payload.data)
 	}
+}
+
+func groupPictureUpdatedPayload(ctx context.Context, evt *events.Picture, resolveAvatar groupAvatarResolver) (map[string]any, bool) {
+	if evt == nil || evt.JID.Server != types.GroupServer || evt.Remove || resolveAvatar == nil {
+		return nil, false
+	}
+	avatar := resolveAvatar(ctx, evt.JID)
+	if avatar == "" {
+		return nil, false
+	}
+	timestamp := time.Now().UnixMilli()
+	if !evt.Timestamp.IsZero() {
+		timestamp = evt.Timestamp.UnixMilli()
+	}
+	return map[string]any{
+		"groupJid":  evt.JID.String(),
+		"avatar":    avatar,
+		"timestamp": timestamp,
+	}, true
 }
 
 type groupInfoEventPayload struct {

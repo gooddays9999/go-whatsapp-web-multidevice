@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/png"
 	"testing"
@@ -160,6 +161,29 @@ func TestFindJoinedGroupNameByJID(t *testing.T) {
 	got := findJoinedGroupNameByJID(groups, "120363222@g.us")
 	if got != "The M Team" {
 		t.Fatalf("findJoinedGroupNameByJID() = %q, want %q", got, "The M Team")
+	}
+}
+
+func TestBridgeGroupFromInfoIncludesResolvedAvatarURL(t *testing.T) {
+	group := types.GroupInfo{
+		JID:              types.NewJID("120363222", types.GroupServer),
+		OwnerJID:         types.NewJID("628111", types.DefaultUserServer),
+		GroupName:        types.GroupName{Name: "The M Team"},
+		GroupTopic:       types.GroupTopic{Topic: "Hello"},
+		ParticipantCount: 42,
+	}
+	got := bridgeGroupFromInfo(context.Background(), group, func(_ context.Context, jid types.JID) string {
+		if jid != group.JID {
+			t.Fatalf("resolver jid = %s, want %s", jid, group.JID)
+		}
+		return "https://pps.whatsapp.net/v/t61.24694-24/group.jpg?oh=token"
+	})
+
+	if got.GetAvatar() != "https://pps.whatsapp.net/v/t61.24694-24/group.jpg?oh=token" {
+		t.Fatalf("avatar = %q, want resolved URL", got.GetAvatar())
+	}
+	if got.GetJid() != group.JID.String() || got.GetName() != "The M Team" || got.GetDescription() != "Hello" {
+		t.Fatalf("group fields not preserved: %#v", got)
 	}
 }
 

@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	domainGroup "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/group"
 	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
@@ -28,6 +30,8 @@ import (
 const (
 	profilePictureMaxDimension = 640
 	profilePictureMaxBytes     = 100 * 1024
+	groupAvatarLookupTimeout   = 3 * time.Second
+	groupAvatarLookupParallel  = 6
 )
 
 func (s *Service) GetContacts(ctx context.Context, req *bridgepb.GetContactsRequest) (*bridgepb.GetContactsResponse, error) {
@@ -347,18 +351,71 @@ func (s *Service) GetGroups(ctx context.Context, req *bridgepb.GetGroupsRequest)
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	groups := make([]*bridgepb.Group, 0, len(resp.Data))
-	for _, group := range resp.Data {
-		groups = append(groups, &bridgepb.Group{
-			Jid:              group.JID.String(),
-			Name:             group.Name,
-			Description:      group.Topic,
-			ParticipantCount: int32(group.ParticipantCount),
-			Owner:            group.OwnerJID.String(),
-			CreatedAt:        group.GroupCreated.UnixMilli(),
-		})
+	groups := make([]*bridgepb.Group, len(resp.Data))
+	for i, group := range resp.Data {
+		groups[i] = bridgeGroupFromInfo(scoped, group, nil)
 	}
+	fillGroupAvatarURLs(scoped, whatsapp.ClientFromContext(scoped), resp.Data, groups)
 	return &bridgepb.GetGroupsResponse{Groups: groups}, nil
+}
+
+type groupAvatarResolver func(context.Context, types.JID) string
+
+func bridgeGroupFromInfo(ctx context.Context, group types.GroupInfo, resolveAvatar groupAvatarResolver) *bridgepb.Group {
+	avatar := ""
+	if resolveAvatar != nil {
+		avatar = resolveAvatar(ctx, group.JID)
+	}
+	return &bridgepb.Group{
+		Jid:              group.JID.String(),
+		Name:             group.Name,
+		Description:      group.Topic,
+		ParticipantCount: int32(group.ParticipantCount),
+		Owner:            group.OwnerJID.String(),
+		CreatedAt:        group.GroupCreated.UnixMilli(),
+		Avatar:           avatar,
+		Announce:         group.IsAnnounce,
+		Restrict:         group.IsLocked,
+	}
+}
+
+func fillGroupAvatarURLs(ctx context.Context, client *whatsmeow.Client, source []types.GroupInfo, target []*bridgepb.Group) {
+	if client == nil || len(source) == 0 || len(target) == 0 {
+		return
+	}
+	limit := groupAvatarLookupParallel
+	if len(source) < limit {
+		limit = len(source)
+	}
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for i, group := range source {
+		if i >= len(target) || target[i] == nil || group.JID.IsEmpty() {
+			continue
+		}
+		i, jid := i, group.JID
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			target[i].Avatar = resolveGroupAvatarURL(ctx, client, jid)
+		}()
+	}
+	wg.Wait()
+}
+
+func resolveGroupAvatarURL(ctx context.Context, client *whatsmeow.Client, jid types.JID) string {
+	if client == nil || jid.IsEmpty() {
+		return ""
+	}
+	avatarCtx, cancel := context.WithTimeout(ctx, groupAvatarLookupTimeout)
+	defer cancel()
+	pic, err := client.GetProfilePictureInfo(avatarCtx, jid, &whatsmeow.GetProfilePictureParams{Preview: true})
+	if err != nil || pic == nil {
+		return ""
+	}
+	return strings.TrimSpace(pic.URL)
 }
 
 func (s *Service) GetGroupMembers(ctx context.Context, req *bridgepb.GetGroupMembersRequest) (*bridgepb.GetGroupMembersResponse, error) {

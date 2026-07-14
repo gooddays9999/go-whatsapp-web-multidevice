@@ -322,6 +322,10 @@ message Group {
     int32 participant_count = 4;// Member count
     string owner = 5;           // Owner JID
     int64 created_at = 6;       // Creation timestamp
+    string avatar = 7;          // Group avatar URL (best-effort，拉不到为空)
+    string invite_link = 8;     // Group invite link (only when account is admin)
+    bool announce = 9;          // 全员禁言（announcement-only group：仅 admin 可发消息）
+    bool restrict = 10;         // 仅 admin 可改群信息（标题/描述/头像）
 }
 
 message GetGroupMembersRequest {
