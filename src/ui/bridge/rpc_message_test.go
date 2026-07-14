@@ -56,6 +56,27 @@ func TestShouldRecycleStatusClient(t *testing.T) {
 	}
 }
 
+func TestRecycleAfterTimeout(t *testing.T) {
+	tests := []struct {
+		name      string
+		qualifies bool
+		connected bool
+		want      bool
+	}{
+		{name: "timeout and socket down -> recycle", qualifies: true, connected: false, want: true},
+		{name: "timeout but socket still connected -> keep session", qualifies: true, connected: true, want: false},
+		{name: "not a timeout, socket down -> no recycle", qualifies: false, connected: false, want: false},
+		{name: "not a timeout, socket connected -> no recycle", qualifies: false, connected: true, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := recycleAfterTimeout(tt.qualifies, tt.connected); got != tt.want {
+				t.Fatalf("recycleAfterTimeout(%v, %v) = %v, want %v", tt.qualifies, tt.connected, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBuildStatusMessageUsesExtendedText(t *testing.T) {
 	msg, hasMedia, err := buildStatusMessage(t.Context(), nil, &bridgepb.SendStatusRequest{
 		Content: "hello status",

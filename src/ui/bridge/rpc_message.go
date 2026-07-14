@@ -671,8 +671,9 @@ func (s *Service) acquireStatusSendSlot(ctx context.Context) (func(), error) {
 }
 
 func (s *Service) handleStatusStageFailure(accountID string, inst *whatsapp.DeviceInstance, stage string, err error) {
+	connected := inst != nil && inst.IsConnected()
 	switch {
-	case shouldRecycleStatusClient(stage, err):
+	case recycleAfterTimeout(shouldRecycleStatusClient(stage, err), connected):
 		if inst != nil {
 			state := inst.MarkDisconnected()
 			logrus.WithError(err).WithFields(logrus.Fields{
@@ -688,14 +689,20 @@ func (s *Service) handleStatusStageFailure(accountID string, inst *whatsapp.Devi
 		}
 		s.markDisconnected(accountID)
 		s.scheduleClientRecycle(accountID, "status "+stage+" timeout")
+	case shouldRecycleStatusClient(stage, err):
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"account_id": accountID,
+			"stage":      stage,
+		}).Warn("WhatsApp status stage timed out but websocket still connected; keeping session")
 	case isDisconnectedSendError(err):
 		s.handleStatusSendFailure(accountID, inst, err)
 	}
 }
 
 func (s *Service) handleAccountOperationFailure(accountID string, inst *whatsapp.DeviceInstance, operation string, err error) {
+	connected := inst != nil && inst.IsConnected()
 	switch {
-	case shouldRecycleAccountClient(err):
+	case recycleAfterTimeout(shouldRecycleAccountClient(err), connected):
 		if inst != nil {
 			state := inst.MarkDisconnected()
 			logrus.WithError(err).WithFields(logrus.Fields{
@@ -711,6 +718,11 @@ func (s *Service) handleAccountOperationFailure(accountID string, inst *whatsapp
 		}
 		s.markDisconnected(accountID)
 		s.scheduleClientRecycle(accountID, operation+" timeout")
+	case shouldRecycleAccountClient(err):
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"account_id": accountID,
+			"operation":  operation,
+		}).Warn("WhatsApp account operation timed out but websocket still connected; keeping session")
 	case isDisconnectedSendError(err):
 		s.handleStatusSendFailure(accountID, inst, err)
 	}
@@ -730,6 +742,18 @@ func shouldRecycleStatusClient(stage string, err error) bool {
 
 func shouldRecycleAccountClient(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+// recycleAfterTimeout decides whether an operation/stage failure that qualifies for a client
+// recycle (context deadline/cancel) should actually recycle the client. A recycle is only
+// warranted when the websocket is already down: a still-connected client means WhatsApp
+// stalled the individual operation — e.g. error 463 reach-out timelock throttling on a
+// restricted account — while the session stays healthy. Recycling a live socket then would
+// needlessly drop the account offline (and, if the recycle reconnect fails, leave it stuck).
+// A genuinely dead connection is still caught by whatsmeow keepalive, which emits
+// events.Disconnected and drives reconnect.
+func recycleAfterTimeout(qualifies, connected bool) bool {
+	return qualifies && !connected
 }
 
 func (s *Service) handleStatusSendFailure(accountID string, inst *whatsapp.DeviceInstance, err error) {
