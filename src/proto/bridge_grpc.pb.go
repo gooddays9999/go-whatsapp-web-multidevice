@@ -44,6 +44,7 @@ const (
 	WhatsAppBridge_SetDisplayName_FullMethodName               = "/bridge.WhatsAppBridge/SetDisplayName"
 	WhatsAppBridge_GetGroups_FullMethodName                    = "/bridge.WhatsAppBridge/GetGroups"
 	WhatsAppBridge_GetGroupMembers_FullMethodName              = "/bridge.WhatsAppBridge/GetGroupMembers"
+	WhatsAppBridge_GetGroupInfoFromLink_FullMethodName         = "/bridge.WhatsAppBridge/GetGroupInfoFromLink"
 	WhatsAppBridge_CreateGroup_FullMethodName                  = "/bridge.WhatsAppBridge/CreateGroup"
 	WhatsAppBridge_UpdateGroup_FullMethodName                  = "/bridge.WhatsAppBridge/UpdateGroup"
 	WhatsAppBridge_AddGroupMembers_FullMethodName              = "/bridge.WhatsAppBridge/AddGroupMembers"
@@ -125,6 +126,8 @@ type WhatsAppBridgeClient interface {
 	GetGroups(ctx context.Context, in *GetGroupsRequest, opts ...grpc.CallOption) (*GetGroupsResponse, error)
 	// Get group members
 	GetGroupMembers(ctx context.Context, in *GetGroupMembersRequest, opts ...grpc.CallOption) (*GetGroupMembersResponse, error)
+	// Get group information from an invite link without joining
+	GetGroupInfoFromLink(ctx context.Context, in *GetGroupInfoFromLinkRequest, opts ...grpc.CallOption) (*GetGroupInfoFromLinkResponse, error)
 	// Create group
 	CreateGroup(ctx context.Context, in *CreateGroupRequest, opts ...grpc.CallOption) (*CreateGroupResponse, error)
 	// Update group info (name/description)
@@ -444,6 +447,16 @@ func (c *whatsAppBridgeClient) GetGroupMembers(ctx context.Context, in *GetGroup
 	return out, nil
 }
 
+func (c *whatsAppBridgeClient) GetGroupInfoFromLink(ctx context.Context, in *GetGroupInfoFromLinkRequest, opts ...grpc.CallOption) (*GetGroupInfoFromLinkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGroupInfoFromLinkResponse)
+	err := c.cc.Invoke(ctx, WhatsAppBridge_GetGroupInfoFromLink_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *whatsAppBridgeClient) CreateGroup(ctx context.Context, in *CreateGroupRequest, opts ...grpc.CallOption) (*CreateGroupResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateGroupResponse)
@@ -748,6 +761,8 @@ type WhatsAppBridgeServer interface {
 	GetGroups(context.Context, *GetGroupsRequest) (*GetGroupsResponse, error)
 	// Get group members
 	GetGroupMembers(context.Context, *GetGroupMembersRequest) (*GetGroupMembersResponse, error)
+	// Get group information from an invite link without joining
+	GetGroupInfoFromLink(context.Context, *GetGroupInfoFromLinkRequest) (*GetGroupInfoFromLinkResponse, error)
 	// Create group
 	CreateGroup(context.Context, *CreateGroupRequest) (*CreateGroupResponse, error)
 	// Update group info (name/description)
@@ -882,6 +897,9 @@ func (UnimplementedWhatsAppBridgeServer) GetGroups(context.Context, *GetGroupsRe
 }
 func (UnimplementedWhatsAppBridgeServer) GetGroupMembers(context.Context, *GetGroupMembersRequest) (*GetGroupMembersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGroupMembers not implemented")
+}
+func (UnimplementedWhatsAppBridgeServer) GetGroupInfoFromLink(context.Context, *GetGroupInfoFromLinkRequest) (*GetGroupInfoFromLinkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGroupInfoFromLink not implemented")
 }
 func (UnimplementedWhatsAppBridgeServer) CreateGroup(context.Context, *CreateGroupRequest) (*CreateGroupResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateGroup not implemented")
@@ -1418,6 +1436,24 @@ func _WhatsAppBridge_GetGroupMembers_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WhatsAppBridgeServer).GetGroupMembers(ctx, req.(*GetGroupMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WhatsAppBridge_GetGroupInfoFromLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGroupInfoFromLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WhatsAppBridgeServer).GetGroupInfoFromLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WhatsAppBridge_GetGroupInfoFromLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WhatsAppBridgeServer).GetGroupInfoFromLink(ctx, req.(*GetGroupInfoFromLinkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1974,6 +2010,10 @@ var WhatsAppBridge_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGroupMembers",
 			Handler:    _WhatsAppBridge_GetGroupMembers_Handler,
+		},
+		{
+			MethodName: "GetGroupInfoFromLink",
+			Handler:    _WhatsAppBridge_GetGroupInfoFromLink_Handler,
 		},
 		{
 			MethodName: "CreateGroup",

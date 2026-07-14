@@ -92,6 +92,9 @@ service WhatsAppBridge {
     // Get group members
     rpc GetGroupMembers(GetGroupMembersRequest) returns (GetGroupMembersResponse);
 
+    // Get group information from an invite link without joining
+    rpc GetGroupInfoFromLink(GetGroupInfoFromLinkRequest) returns (GetGroupInfoFromLinkResponse);
+
     // Create group
     rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
 
@@ -319,6 +322,10 @@ message Group {
     int32 participant_count = 4;// Member count
     string owner = 5;           // Owner JID
     int64 created_at = 6;       // Creation timestamp
+    string avatar = 7;          // Group avatar URL (best-effort，拉不到为空)
+    string invite_link = 8;     // Group invite link (only when account is admin)
+    bool announce = 9;          // 全员禁言（announcement-only group：仅 admin 可发消息）
+    bool restrict = 10;         // 仅 admin 可改群信息（标题/描述/头像）
 }
 
 message GetGroupMembersRequest {
@@ -900,6 +907,27 @@ message JoinGroupByLinkResponse {
     string group_id = 4;
     string group_name = 5;
     string error = 6;
+}
+
+message GetGroupInfoFromLinkRequest {
+    string account_id = 1;
+    string invite_link = 2;         // Full URL or invite code
+}
+
+message GetGroupInfoFromLinkResponse {
+    bool success = 1;
+    string invite_link = 2;
+    string group_id = 3;
+    string group_name = 4;
+    string topic = 5;
+    string description = 6;
+    int64 created_at = 7;           // Unix timestamp (seconds), 0 if unknown
+    int32 participant_count = 8;
+    bool is_locked = 9;
+    bool is_announce = 10;
+    bool is_ephemeral = 11;
+    string error = 12;
+    bool join_approval_required = 13;
 }
 
 // ========== Close All Tabs ==========

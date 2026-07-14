@@ -45,6 +45,29 @@ func TestOutgoingSentStatusEventMatchesIMSAckShape(t *testing.T) {
 	}
 }
 
+func TestGroupPictureUpdatedPayloadIncludesAvatarURL(t *testing.T) {
+	evt := &events.Picture{
+		JID:       types.NewJID("120363222", types.GroupServer),
+		PictureID: "pic-1",
+		Timestamp: time.Unix(123, 0),
+	}
+	payload, ok := groupPictureUpdatedPayload(context.Background(), evt, func(_ context.Context, jid types.JID) string {
+		if jid != evt.JID {
+			t.Fatalf("resolver jid = %s, want %s", jid, evt.JID)
+		}
+		return "https://pps.whatsapp.net/v/t61.24694-24/group.jpg?oh=token"
+	})
+	if !ok {
+		t.Fatal("payload not produced")
+	}
+	if payload["groupJid"] != evt.JID.String() {
+		t.Fatalf("groupJid = %v, want %s", payload["groupJid"], evt.JID.String())
+	}
+	if payload["avatar"] != "https://pps.whatsapp.net/v/t61.24694-24/group.jpg?oh=token" {
+		t.Fatalf("avatar = %v, want resolved avatar URL", payload["avatar"])
+	}
+}
+
 func TestHistorySyncStatusEventsPublishesOutgoingDeliveredAndRead(t *testing.T) {
 	syncType := waHistorySync.HistorySync_RECENT
 	chatJID := "15812751827@s.whatsapp.net"

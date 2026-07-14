@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	domainGroup "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/group"
 	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
@@ -28,6 +30,8 @@ import (
 const (
 	profilePictureMaxDimension = 640
 	profilePictureMaxBytes     = 100 * 1024
+	groupAvatarLookupTimeout   = 3 * time.Second
+	groupAvatarLookupParallel  = 6
 )
 
 func (s *Service) GetContacts(ctx context.Context, req *bridgepb.GetContactsRequest) (*bridgepb.GetContactsResponse, error) {
@@ -347,18 +351,71 @@ func (s *Service) GetGroups(ctx context.Context, req *bridgepb.GetGroupsRequest)
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	groups := make([]*bridgepb.Group, 0, len(resp.Data))
-	for _, group := range resp.Data {
-		groups = append(groups, &bridgepb.Group{
-			Jid:              group.JID.String(),
-			Name:             group.Name,
-			Description:      group.Topic,
-			ParticipantCount: int32(group.ParticipantCount),
-			Owner:            group.OwnerJID.String(),
-			CreatedAt:        group.GroupCreated.UnixMilli(),
-		})
+	groups := make([]*bridgepb.Group, len(resp.Data))
+	for i, group := range resp.Data {
+		groups[i] = bridgeGroupFromInfo(scoped, group, nil)
 	}
+	fillGroupAvatarURLs(scoped, whatsapp.ClientFromContext(scoped), resp.Data, groups)
 	return &bridgepb.GetGroupsResponse{Groups: groups}, nil
+}
+
+type groupAvatarResolver func(context.Context, types.JID) string
+
+func bridgeGroupFromInfo(ctx context.Context, group types.GroupInfo, resolveAvatar groupAvatarResolver) *bridgepb.Group {
+	avatar := ""
+	if resolveAvatar != nil {
+		avatar = resolveAvatar(ctx, group.JID)
+	}
+	return &bridgepb.Group{
+		Jid:              group.JID.String(),
+		Name:             group.Name,
+		Description:      group.Topic,
+		ParticipantCount: int32(group.ParticipantCount),
+		Owner:            group.OwnerJID.String(),
+		CreatedAt:        group.GroupCreated.UnixMilli(),
+		Avatar:           avatar,
+		Announce:         group.IsAnnounce,
+		Restrict:         group.IsLocked,
+	}
+}
+
+func fillGroupAvatarURLs(ctx context.Context, client *whatsmeow.Client, source []types.GroupInfo, target []*bridgepb.Group) {
+	if client == nil || len(source) == 0 || len(target) == 0 {
+		return
+	}
+	limit := groupAvatarLookupParallel
+	if len(source) < limit {
+		limit = len(source)
+	}
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for i, group := range source {
+		if i >= len(target) || target[i] == nil || group.JID.IsEmpty() {
+			continue
+		}
+		i, jid := i, group.JID
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			target[i].Avatar = resolveGroupAvatarURL(ctx, client, jid)
+		}()
+	}
+	wg.Wait()
+}
+
+func resolveGroupAvatarURL(ctx context.Context, client *whatsmeow.Client, jid types.JID) string {
+	if client == nil || jid.IsEmpty() {
+		return ""
+	}
+	avatarCtx, cancel := context.WithTimeout(ctx, groupAvatarLookupTimeout)
+	defer cancel()
+	pic, err := client.GetProfilePictureInfo(avatarCtx, jid, &whatsmeow.GetProfilePictureParams{Preview: true})
+	if err != nil || pic == nil {
+		return ""
+	}
+	return strings.TrimSpace(pic.URL)
 }
 
 func (s *Service) GetGroupMembers(ctx context.Context, req *bridgepb.GetGroupMembersRequest) (*bridgepb.GetGroupMembersResponse, error) {
@@ -527,6 +584,39 @@ func (s *Service) SetGroupAddMembersAdminsOnly(ctx context.Context, req *bridgep
 	return &bridgepb.SetGroupAddMembersAdminsOnlyResponse{Success: true}, nil
 }
 
+func (s *Service) GetGroupInfoFromLink(ctx context.Context, req *bridgepb.GetGroupInfoFromLinkRequest) (*bridgepb.GetGroupInfoFromLinkResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	info, err := s.deps.GroupUsecase.GetGroupInfoFromLink(scoped, domainGroup.GetGroupInfoFromLinkRequest{Link: req.GetInviteLink()})
+	if err != nil {
+		return &bridgepb.GetGroupInfoFromLinkResponse{Success: false, InviteLink: req.GetInviteLink(), Error: err.Error()}, nil
+	}
+	return groupInfoFromLinkToProto(req.GetInviteLink(), info), nil
+}
+
+func groupInfoFromLinkToProto(inviteLink string, info domainGroup.GetGroupInfoFromLinkResponse) *bridgepb.GetGroupInfoFromLinkResponse {
+	createdAt := int64(0)
+	if !info.CreatedAt.IsZero() {
+		createdAt = info.CreatedAt.Unix()
+	}
+	return &bridgepb.GetGroupInfoFromLinkResponse{
+		Success:              true,
+		InviteLink:           inviteLink,
+		GroupId:              info.GroupID,
+		GroupName:            strings.TrimSpace(info.Name),
+		Topic:                info.Topic,
+		Description:          info.Description,
+		CreatedAt:            createdAt,
+		ParticipantCount:     int32(info.ParticipantCount),
+		IsLocked:             info.IsLocked,
+		IsAnnounce:           info.IsAnnounce,
+		IsEphemeral:          info.IsEphemeral,
+		JoinApprovalRequired: info.JoinApprovalRequired,
+	}
+}
+
 func (s *Service) JoinGroupByLink(ctx context.Context, req *bridgepb.JoinGroupByLinkRequest) (*bridgepb.JoinGroupByLinkResponse, error) {
 	scoped, err := s.accountContext(ctx, req.GetAccountId())
 	if err != nil {
@@ -536,7 +626,24 @@ func (s *Service) JoinGroupByLink(ctx context.Context, req *bridgepb.JoinGroupBy
 	if err != nil {
 		return &bridgepb.JoinGroupByLinkResponse{Success: false, InviteLink: req.GetInviteLink(), Error: err.Error()}, nil
 	}
-	return &bridgepb.JoinGroupByLinkResponse{Success: true, InviteLink: req.GetInviteLink(), GroupId: groupID}, nil
+	groupName := ""
+	if groupID != "" && s.deps.UserUsecase != nil {
+		if groups, err := s.deps.UserUsecase.MyListGroups(scoped); err == nil {
+			groupName = findJoinedGroupNameByJID(groups.Data, groupID)
+		} else {
+			logrus.WithError(err).WithField("group_jid", groupID).Debug("failed to resolve joined group name")
+		}
+	}
+	return &bridgepb.JoinGroupByLinkResponse{Success: true, InviteLink: req.GetInviteLink(), GroupId: groupID, GroupName: groupName}, nil
+}
+
+func findJoinedGroupNameByJID(groups []types.GroupInfo, groupJID string) string {
+	for _, group := range groups {
+		if group.JID.String() == groupJID {
+			return strings.TrimSpace(group.Name)
+		}
+	}
+	return ""
 }
 
 func (s *Service) changeParticipants(ctx context.Context, accountID, groupJID string, participants []string, action whatsmeow.ParticipantChange) ([]string, []string, error) {
