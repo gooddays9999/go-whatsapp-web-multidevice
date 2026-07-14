@@ -801,6 +801,80 @@ func (s *Service) scheduleClientRecycle(accountID, reason string) {
 	s.scheduleReconnectWithMode(accountID, reason, true)
 }
 
+// reconnectFallbackDelay is the grace window after an idle websocket close during which
+// whatsmeow's own auto-reconnect is given a chance to recover the socket before the bridge
+// forces its own reconnect. It is a package var so tests can shorten it.
+var reconnectFallbackDelay = 90 * time.Second
+
+// shouldForceReconnectFallback reports whether the delayed auto-reconnect safety-net should
+// force a bridge-side reconnect once the grace window elapses. It fires only when whatsmeow's
+// own auto-reconnect has NOT brought the socket back (still not connected), the device
+// instance is still present, and the account was not explicitly taken offline.
+func shouldForceReconnectFallback(explicitOffline, instPresent, connected bool) bool {
+	return !explicitOffline && instPresent && !connected
+}
+
+// scheduleReconnectFallback arms a one-shot safety-net for an account whose websocket was
+// dropped while whatsmeow auto-reconnect is enabled. Idle server-initiated closes are not
+// always recovered by whatsmeow's auto-reconnect (observed: the socket closes and never comes
+// back), which leaves the account silently offline until a manual re-login. After the grace
+// window, if the socket is still down, the bridge forces a full reconnect — the same path a
+// manual re-online uses, which is known to succeed. Dedup keeps at most one armed fallback per
+// account; the actual reconnect reuses scheduleReconnect's connect-slot limiter.
+func (s *Service) scheduleReconnectFallback(accountID, reason string) {
+	if s == nil || accountID == "" {
+		return
+	}
+	s.mu.Lock()
+	if _, ok := s.explicitOffline[accountID]; ok {
+		s.mu.Unlock()
+		return
+	}
+	if _, ok := s.reconnectFallback[accountID]; ok {
+		s.mu.Unlock()
+		return
+	}
+	if s.reconnectFallback == nil {
+		s.reconnectFallback = make(map[string]time.Time)
+	}
+	s.reconnectFallback[accountID] = time.Now()
+	s.mu.Unlock()
+
+	go func() {
+		defer func() {
+			s.mu.Lock()
+			delete(s.reconnectFallback, accountID)
+			s.mu.Unlock()
+		}()
+
+		timer := time.NewTimer(reconnectFallbackDelay)
+		defer timer.Stop()
+		<-timer.C
+
+		var inst *whatsapp.DeviceInstance
+		instPresent := false
+		if s.deps.DeviceManager != nil {
+			if got, ok := s.deps.DeviceManager.GetDevice(accountID); ok && got != nil {
+				inst = got
+				instPresent = true
+			}
+		}
+		connected := instPresent && inst.IsConnected()
+		if !shouldForceReconnectFallback(s.isExplicitOffline(accountID), instPresent, connected) {
+			return
+		}
+		ctx := context.Background()
+		if !s.canScheduleReconnect(ctx, accountID, inst) {
+			return
+		}
+		logrus.WithFields(logrus.Fields{
+			"account_id": accountID,
+			"reason":     reason,
+		}).Warn("auto-reconnect grace elapsed without recovery; forcing bridge-side reconnect")
+		s.scheduleReconnect(accountID, reason)
+	}()
+}
+
 func (s *Service) scheduleReconnectWithMode(accountID, reason string, recycle bool) {
 	if s == nil || accountID == "" {
 		return

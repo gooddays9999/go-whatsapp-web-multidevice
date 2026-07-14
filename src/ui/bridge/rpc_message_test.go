@@ -56,6 +56,28 @@ func TestShouldRecycleStatusClient(t *testing.T) {
 	}
 }
 
+func TestShouldForceReconnectFallback(t *testing.T) {
+	tests := []struct {
+		name            string
+		explicitOffline bool
+		instPresent     bool
+		connected       bool
+		want            bool
+	}{
+		{name: "still down after grace -> force reconnect", explicitOffline: false, instPresent: true, connected: false, want: true},
+		{name: "whatsmeow already recovered -> skip", explicitOffline: false, instPresent: true, connected: true, want: false},
+		{name: "explicitly taken offline -> skip", explicitOffline: true, instPresent: true, connected: false, want: false},
+		{name: "instance gone -> skip", explicitOffline: false, instPresent: false, connected: false, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldForceReconnectFallback(tt.explicitOffline, tt.instPresent, tt.connected); got != tt.want {
+				t.Fatalf("shouldForceReconnectFallback(%v,%v,%v) = %v, want %v", tt.explicitOffline, tt.instPresent, tt.connected, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRecycleAfterTimeout(t *testing.T) {
 	tests := []struct {
 		name      string

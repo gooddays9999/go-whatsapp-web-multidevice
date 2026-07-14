@@ -55,7 +55,8 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 			logrus.WithFields(logrus.Fields{
 				"account_id": accountID,
 				"state":      state,
-			}).Debug("WhatsApp websocket disconnected, auto reconnect enabled")
+			}).Debug("WhatsApp websocket disconnected, auto reconnect enabled; arming reconnect fallback")
+			s.scheduleReconnectFallback(accountID, "whatsapp disconnected auto-reconnect fallback")
 			return
 		}
 		if s.canScheduleReconnect(ctx, accountID, instance) {
