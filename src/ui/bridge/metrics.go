@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 func (s *Service) startHTTP(ctx context.Context) error {
@@ -18,6 +21,18 @@ func (s *Service) startHTTP(ctx context.Context) error {
 	mux.HandleFunc("/ready", s.handleReady)
 	mux.HandleFunc("/health/detail", s.handleHealthDetail)
 	mux.HandleFunc("/metrics", s.handleMetrics)
+	if s.cfg.EnablePprof {
+		// Opt-in live profiling: capture a goroutine/CPU/block profile during a
+		// send-latency incident to locate serialization, e.g.
+		//   curl :<metrics>/debug/pprof/goroutine?debug=2
+		//   curl -o cpu.prof :<metrics>/debug/pprof/profile?seconds=30
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		logrus.Warn("bridge pprof debug endpoints enabled on metrics port (/debug/pprof/) — disable when done")
+	}
 	addr := fmt.Sprintf("0.0.0.0:%d", s.cfg.MetricsPort)
 	s.httpServer = &http.Server{Addr: addr, Handler: mux}
 	go func() {

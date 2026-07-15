@@ -12,6 +12,10 @@ import (
 type Config struct {
 	GRPCPort    int
 	MetricsPort int
+	// EnablePprof exposes net/http/pprof on the metrics port when true (default off).
+	// Toggle with BRIDGE_ENABLE_PPROF=true to capture a live goroutine/CPU profile
+	// during a send-latency incident, e.g. curl :<metrics>/debug/pprof/goroutine?debug=2.
+	EnablePprof bool
 	InstanceID  string
 	// WebServerID identifies this bridge's row in the ims web_servers table
 	// (its server_id, e.g. "api01"). It is published in bridge.started so
@@ -229,6 +233,11 @@ func applyEnvOverrides(cfg *Config) {
 	if value := os.Getenv("BRIDGE_METRICS_PORT"); value != "" {
 		if port, err := strconv.Atoi(value); err == nil && port > 0 {
 			cfg.MetricsPort = port
+		}
+	}
+	if value := os.Getenv("BRIDGE_ENABLE_PPROF"); value != "" {
+		if enabled, err := strconv.ParseBool(value); err == nil {
+			cfg.EnablePprof = enabled
 		}
 	}
 	if value := os.Getenv("INSTANCE_ID"); value != "" {
