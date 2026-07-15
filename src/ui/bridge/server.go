@@ -128,6 +128,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.publish("worker.ready", "", map[string]any{"workerId": s.workerID, "pid": os.Getpid()})
 	go s.heartbeatLoop(ctx)
 	go s.restorePersistedAccounts(ctx)
+	go s.reconnectSweepLoop(ctx)
 
 	if err := s.startHTTP(ctx); err != nil {
 		return err
