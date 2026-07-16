@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -23,6 +24,22 @@ func handler(ctx context.Context, instance *DeviceInstance, rawEvt any) {
 	if instance == nil {
 		return
 	}
+
+	// Fault isolation: this runs synchronously in whatsmeow's per-client event
+	// goroutine. Without recovery, a panic while processing one account's event
+	// (e.g. a chatstorage/SQLite fault) would crash the whole shared process and
+	// drop every connected account. Contain it to this event and log the full
+	// stack so the underlying bug can still be diagnosed.
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.WithFields(logrus.Fields{
+				"panic":      fmt.Sprint(r),
+				"event_type": fmt.Sprintf("%T", rawEvt),
+				"device_id":  instance.JID(),
+				"stack":      string(debug.Stack()),
+			}).Error("recovered panic in WhatsApp event handler; isolated to this event to protect other accounts")
+		}
+	}()
 
 	// Ensure downstream handlers see the device context (used for device-scoped storage).
 	ctx = ContextWithDevice(ctx, instance)
