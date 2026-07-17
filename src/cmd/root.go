@@ -572,12 +572,22 @@ func initChatStorage() (*sql.DB, error) {
 	}
 	db.SetMaxOpenConns(maxConns)
 	db.SetMaxIdleConns(maxConns)
+	// Recycle connections so a lingering read snapshot cannot pin the WAL and
+	// block checkpoint truncation indefinitely. Without this the -wal file grew
+	// to hundreds of GB under heavy concurrent writes, filled the disk and
+	// crashed the process.
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
 
 	// Test connection
 	if err := db.Ping(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
+
+	// Periodically truncate the WAL so it stays bounded (connection recycling
+	// above lets these checkpoints actually reclaim the file).
+	sqlite.StartWALCheckpointer(db, 60*time.Second)
 
 	return db, nil
 }
