@@ -37,6 +37,11 @@ type IForwardSender interface {
 	SendForward(ctx context.Context, request ForwardRequest) (response GenericResponse, err error)
 }
 
+// IInteractiveSender handles interactive messages (native_flow buttons such as cta_url)
+type IInteractiveSender interface {
+	SendInteractive(ctx context.Context, request InteractiveRequest) (response GenericResponse, err error)
+}
+
 // ISendUsecase combines all sender interfaces for backward compatibility
 type ISendUsecase interface {
 	ITextSender
@@ -44,4 +49,5 @@ type ISendUsecase interface {
 	IInteractionSender
 	IPresenceSender
 	IForwardSender
+	IInteractiveSender
 }

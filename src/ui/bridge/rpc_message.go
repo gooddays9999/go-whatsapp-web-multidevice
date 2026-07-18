@@ -3,6 +3,7 @@ package bridge
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -96,11 +97,16 @@ func (s *Service) SendMessage(ctx context.Context, req *bridgepb.SendMessageRequ
 	timeout := statusTimeout(s.cfg.MessageSendTimeout, 25*time.Second)
 	start := logAccountOperationStart(req.GetAccountId(), "SendMessage", timeout, logrus.Fields{"to": req.GetTo()})
 	sendCtx, cancel := statusDeviceContext(ctx, inst, timeout)
-	resp, err := s.deps.SendUsecase.SendText(sendCtx, domainSend.MessageRequest{
-		BaseRequest:    domainSend.BaseRequest{Phone: req.GetTo()},
-		Message:        req.GetContent().GetText(),
-		ReplyMessageID: optionalString(req.GetQuotedMsgId()),
-	})
+	var resp domainSend.GenericResponse
+	if strings.EqualFold(req.GetType(), "interactive") {
+		resp, err = s.sendInteractiveMessage(sendCtx, req)
+	} else {
+		resp, err = s.deps.SendUsecase.SendText(sendCtx, domainSend.MessageRequest{
+			BaseRequest:    domainSend.BaseRequest{Phone: req.GetTo()},
+			Message:        req.GetContent().GetText(),
+			ReplyMessageID: optionalString(req.GetQuotedMsgId()),
+		})
+	}
 	cancel()
 	if err != nil {
 		stageErr := accountOperationError("SendMessage", timeout, err)
@@ -113,6 +119,28 @@ func (s *Service) SendMessage(ctx context.Context, req *bridgepb.SendMessageRequ
 	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": resp.MessageID, "to": req.GetTo()})
 	logAccountOperationSuccess(req.GetAccountId(), "SendMessage", start, logrus.Fields{"to": req.GetTo(), "message_id": resp.MessageID})
 	return &bridgepb.SendMessageResponse{Success: true, MessageId: resp.MessageID, Status: "sent"}, nil
+}
+
+// sendInteractiveMessage handles type="interactive" sends. The content text
+// carries either {"protoJson":{...},"imageUrl":"..."} or the raw WhatsApp
+// InteractiveMessage protobuf-JSON directly; imageUrl (optional) becomes the
+// header image.
+func (s *Service) sendInteractiveMessage(ctx context.Context, req *bridgepb.SendMessageRequest) (domainSend.GenericResponse, error) {
+	raw := req.GetContent().GetText()
+	var payload struct {
+		ProtoJSON json.RawMessage `json:"protoJson"`
+		ImageURL  string          `json:"imageUrl"`
+	}
+	protoJSON := raw
+	if err := json.Unmarshal([]byte(raw), &payload); err == nil && len(payload.ProtoJSON) > 0 {
+		protoJSON = string(payload.ProtoJSON)
+	}
+	return s.deps.SendUsecase.SendInteractive(ctx, domainSend.InteractiveRequest{
+		BaseRequest:    domainSend.BaseRequest{Phone: req.GetTo()},
+		ProtoJSON:      protoJSON,
+		ImageURL:       payload.ImageURL,
+		ReplyMessageID: optionalString(req.GetQuotedMsgId()),
+	})
 }
 
 func (s *Service) SendMedia(ctx context.Context, req *bridgepb.SendMediaRequest) (*bridgepb.SendMediaResponse, error) {
