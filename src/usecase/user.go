@@ -20,7 +20,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
+	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/types"
+	"google.golang.org/protobuf/proto"
 )
 
 type serviceUser struct {
@@ -315,6 +317,70 @@ func (service serviceUser) MyListContacts(ctx context.Context) (response domainU
 	return response, nil
 }
 
+func (service serviceUser) AddContact(ctx context.Context, request domainUser.AddContactRequest) (response domainUser.AddContactResponse, err error) {
+	if err = validations.ValidateAddContact(ctx, request); err != nil {
+		return response, err
+	}
+
+	client := whatsapp.ClientFromContext(ctx)
+	if client == nil {
+		return response, pkgError.ErrWaCLI
+	}
+
+	number := contactNumber(request.Phone)
+	if number == "" {
+		return response, pkgError.ValidationError("phone: cannot be blank.")
+	}
+
+	jid := types.NewJID(number, types.DefaultUserServer)
+	if _, err = utils.ValidateJidWithLogin(client, jid.String()); err != nil {
+		return response, err
+	}
+
+	firstName, fullName := addContactNames(number, requestFirstName(request), requestLastName(request))
+	if request.FullName != "" {
+		fullName = strings.TrimSpace(request.FullName)
+	} else if request.ContactName != "" {
+		fullName = strings.TrimSpace(request.ContactName)
+	}
+	if fullName == "" {
+		fullName = firstName
+	}
+
+	lidJID := resolveContactLID(ctx, client, jid)
+	logFields := logrus.Fields{
+		"phone":      number,
+		"jid":        jid.String(),
+		"lid_jid":    lidJID.String(),
+		"first_name": firstName,
+		"full_name":  fullName,
+	}
+	logrus.WithFields(logFields).Info("AddContact app state started")
+	if err = client.SendAppState(ctx, buildAddContactPatch(jid, lidJID, firstName, fullName, true)); err != nil {
+		logrus.WithError(err).WithFields(logFields).Warn("AddContact app state failed")
+		return response, err
+	}
+
+	if client.Store != nil && client.Store.Contacts != nil {
+		if errCache := client.Store.Contacts.PutContactName(ctx, jid, firstName, fullName); errCache != nil {
+			logrus.WithError(errCache).WithField("jid", jid.String()).Warn("failed to update local contact cache after AddContact")
+		}
+		if !lidJID.IsEmpty() {
+			if errCache := client.Store.Contacts.PutContactName(ctx, lidJID, firstName, fullName); errCache != nil {
+				logrus.WithError(errCache).WithField("jid", lidJID.String()).Warn("failed to update local LID contact cache after AddContact")
+			}
+		}
+	}
+
+	response.Success = true
+	response.JID = jid.String()
+	response.LIDJID = lidJID.String()
+	response.FirstName = firstName
+	response.FullName = fullName
+	logrus.WithFields(logFields).Info("AddContact app state completed")
+	return response, nil
+}
+
 func (service serviceUser) ChangeAvatar(ctx context.Context, request domainUser.ChangeAvatarRequest) (err error) {
 	client := whatsapp.ClientFromContext(ctx)
 	if client == nil {
@@ -411,6 +477,112 @@ func (service serviceUser) IsOnWhatsApp(ctx context.Context, request domainUser.
 	response.IsOnWhatsApp = utils.IsOnWhatsapp(client, request.Phone)
 
 	return response, nil
+}
+
+func requestFirstName(request domainUser.AddContactRequest) string {
+	return firstNonEmpty(request.FirstName, request.FirstNameCamel, request.FirstNameTypo)
+}
+
+func requestLastName(request domainUser.AddContactRequest) string {
+	return firstNonEmpty(request.LastName, request.LastNameCamel)
+}
+
+func contactNumber(phone string) string {
+	trimmed := strings.TrimSpace(phone)
+	if idx := strings.Index(trimmed, "@"); idx >= 0 {
+		return trimmed[:idx]
+	}
+	var b strings.Builder
+	for _, r := range trimmed {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func addContactNames(number, firstName, lastName string) (string, string) {
+	firstName = strings.TrimSpace(firstName)
+	lastName = strings.TrimSpace(lastName)
+	if lastName == "." {
+		lastName = ""
+	}
+	if firstName == "" {
+		if len(number) > 4 {
+			firstName = number[len(number)-4:]
+		} else {
+			firstName = number
+		}
+	}
+	fullName := firstName
+	if lastName != "" {
+		fullName = strings.TrimSpace(firstName + " " + lastName)
+	}
+	return firstName, fullName
+}
+
+func resolveContactLID(ctx context.Context, client *whatsmeow.Client, pnJID types.JID) types.JID {
+	if client == nil || client.Store == nil || client.Store.LIDs == nil || pnJID.IsEmpty() || pnJID.Server != types.DefaultUserServer {
+		return types.EmptyJID
+	}
+	lidJID, err := client.Store.LIDs.GetLIDForPN(ctx, pnJID)
+	if err == nil && !lidJID.IsEmpty() && lidJID.Server == types.HiddenUserServer {
+		return lidJID
+	}
+	info, err := client.GetUserInfo(ctx, []types.JID{pnJID})
+	if err != nil {
+		logrus.WithError(err).WithField("jid", pnJID.String()).Warn("failed to resolve contact LID for AddContact")
+		return types.EmptyJID
+	}
+	if userInfo, ok := info[pnJID]; ok && !userInfo.LID.IsEmpty() && userInfo.LID.Server == types.HiddenUserServer {
+		return userInfo.LID
+	}
+	return types.EmptyJID
+}
+
+func buildAddContactPatch(pnJID, lidJID types.JID, firstName, fullName string, saveOnPrimaryAddressbook bool) appstate.PatchInfo {
+	pnJIDString := pnJID.String()
+	contactAction := &waSyncAction.ContactAction{
+		FirstName:                proto.String(firstName),
+		FullName:                 proto.String(fullName),
+		PnJID:                    proto.String(pnJIDString),
+		SaveOnPrimaryAddressbook: proto.Bool(saveOnPrimaryAddressbook),
+	}
+	if !lidJID.IsEmpty() && lidJID.Server == types.HiddenUserServer {
+		contactAction.LidJID = proto.String(lidJID.String())
+	}
+	mutations := []appstate.MutationInfo{{
+		Index:   []string{appstate.IndexContact, pnJIDString},
+		Version: 2,
+		Value: &waSyncAction.SyncActionValue{
+			ContactAction: contactAction,
+		},
+	}}
+	if !lidJID.IsEmpty() && lidJID.Server == types.HiddenUserServer {
+		mutations = append(mutations, appstate.MutationInfo{
+			Index:   []string{appstate.IndexLIDContact, lidJID.String()},
+			Version: 2,
+			Value: &waSyncAction.SyncActionValue{
+				LidContactAction: &waSyncAction.LidContactAction{
+					FirstName: proto.String(firstName),
+					FullName:  proto.String(fullName),
+				},
+			},
+		})
+	}
+	return appstate.PatchInfo{
+		Type:      appstate.WAPatchCriticalUnblockLow,
+		Mutations: mutations,
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (service serviceUser) BusinessProfile(ctx context.Context, request domainUser.BusinessProfileRequest) (response domainUser.BusinessProfileResponse, err error) {

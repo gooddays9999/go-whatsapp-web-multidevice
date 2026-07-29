@@ -44,3 +44,15 @@ func ValidateBusinessProfile(ctx context.Context, request domainUser.BusinessPro
 
 	return nil
 }
+
+func ValidateAddContact(ctx context.Context, request domainUser.AddContactRequest) error {
+	err := validation.ValidateStructWithContext(ctx, &request,
+		validation.Field(&request.Phone, validation.Required),
+	)
+
+	if err != nil {
+		return pkgError.ValidationError(err.Error())
+	}
+
+	return nil
+}

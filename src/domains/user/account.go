@@ -77,6 +77,26 @@ type ChangePushNameRequest struct {
 	PushName string `json:"push_name" form:"push_name"`
 }
 
+type AddContactRequest struct {
+	Phone                    string `json:"phone" form:"phone"`
+	FirstName                string `json:"first_name" form:"first_name"`
+	FirstNameCamel           string `json:"firstname" form:"firstname"`
+	FirstNameTypo            string `json:"fristname" form:"fristname"`
+	LastName                 string `json:"last_name" form:"last_name"`
+	LastNameCamel            string `json:"lastname" form:"lastname"`
+	FullName                 string `json:"full_name" form:"full_name"`
+	ContactName              string `json:"contact_name" form:"contact_name"`
+	SaveOnPrimaryAddressbook bool   `json:"save_on_primary_addressbook" form:"save_on_primary_addressbook"`
+}
+
+type AddContactResponse struct {
+	Success   bool   `json:"success"`
+	JID       string `json:"jid"`
+	LIDJID    string `json:"lid_jid,omitempty"`
+	FirstName string `json:"first_name"`
+	FullName  string `json:"full_name"`
+}
+
 type CheckRequest struct {
 	Phone string `json:"phone" query:"phone"`
 }

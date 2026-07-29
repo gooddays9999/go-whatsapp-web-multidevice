@@ -23,6 +23,7 @@ type IUserListing interface {
 	MyListGroups(ctx context.Context) (response MyListGroupsResponse, err error)
 	MyListNewsletter(ctx context.Context) (response MyListNewsletterResponse, err error)
 	MyListContacts(ctx context.Context) (response MyListContactsResponse, err error)
+	AddContact(ctx context.Context, request AddContactRequest) (response AddContactResponse, err error)
 }
 
 // IUserPrivacy handles user privacy operations
