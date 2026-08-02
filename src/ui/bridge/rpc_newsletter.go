@@ -567,6 +567,18 @@ func newsletterMessagePoll(message *waE2E.Message) (string, *waE2E.PollCreationM
 	case message.GetPollCreationMessageV3() != nil:
 		return "pollCreationMessageV3", message.GetPollCreationMessageV3()
 	case message.GetPollCreationMessageV4() != nil:
+		// V4 is the odd one out: every other version is a
+		// *PollCreationMessage, V4 is a *FutureProofMessage that wraps one.
+		// Returning nil here — as this did — meant a V4 poll came back with no
+		// name, no options and no option count, so a caller saw a poll it could
+		// not act on. Channels in the wild publish V4 (image polls among them),
+		// and an order against one was cancelled for "the resolved poll has no
+		// options" while the poll plainly had two.
+		if inner := message.GetPollCreationMessageV4().GetMessage(); inner != nil {
+			if _, poll := newsletterMessagePoll(inner); poll != nil {
+				return "pollCreationMessageV4", poll
+			}
+		}
 		return "pollCreationMessageV4", nil
 	case message.GetPollCreationMessageV5() != nil:
 		return "pollCreationMessageV5", message.GetPollCreationMessageV5()

@@ -269,3 +269,62 @@ func testNewsletterPollMessage(name string) *waE2E.Message {
 		SelectableOptionsCount: proto.Uint32(1),
 	}}
 }
+
+// A V4 poll must yield its options like every other version.
+//
+// V4 is the odd one out in the protobuf: V1, V2, V3, V5 and V6 are all a
+// *PollCreationMessage, while V4 is a *FutureProofMessage wrapping one. The
+// switch recognised V4 and returned a nil payload, so a V4 poll came back with
+// no name, no options and no option count.
+//
+// Channels in the wild publish V4 — image polls among them. An order placed
+// against one was cancelled for "the resolved poll has no options" while the
+// poll plainly had two.
+func TestNewsletterMessagePollUnwrapsV4(t *testing.T) {
+	inner := &waE2E.PollCreationMessage{
+		Name: proto.String("Who wins?"),
+		Options: []*waE2E.PollCreationMessage_Option{
+			{OptionName: proto.String("A")},
+			{OptionName: proto.String("B")},
+		},
+		SelectableOptionsCount: proto.Uint32(1),
+	}
+	message := &waE2E.Message{
+		PollCreationMessageV4: &waE2E.FutureProofMessage{
+			Message: &waE2E.Message{PollCreationMessage: inner},
+		},
+	}
+
+	field, poll := newsletterMessagePoll(message)
+
+	if field != "pollCreationMessageV4" {
+		t.Fatalf("poll field = %q, want pollCreationMessageV4", field)
+	}
+	if poll == nil {
+		t.Fatal("poll payload is nil: a V4 poll reads as having no options at all")
+	}
+	if poll.GetName() != "Who wins?" {
+		t.Errorf("name = %q, want the wrapped poll's question", poll.GetName())
+	}
+	if len(poll.GetOptions()) != 2 {
+		t.Fatalf("options = %d, want 2", len(poll.GetOptions()))
+	}
+	if poll.GetOptions()[0].GetOptionName() != "A" || poll.GetOptions()[1].GetOptionName() != "B" {
+		t.Errorf("options = %q/%q, want A/B",
+			poll.GetOptions()[0].GetOptionName(), poll.GetOptions()[1].GetOptionName())
+	}
+}
+
+// An empty wrapper is not a poll with options, and must not be reported as one.
+func TestNewsletterMessagePollV4WithoutInnerMessage(t *testing.T) {
+	message := &waE2E.Message{PollCreationMessageV4: &waE2E.FutureProofMessage{}}
+
+	field, poll := newsletterMessagePoll(message)
+
+	if field != "pollCreationMessageV4" {
+		t.Fatalf("poll field = %q", field)
+	}
+	if poll != nil {
+		t.Error("an empty V4 wrapper reported a poll payload")
+	}
+}
