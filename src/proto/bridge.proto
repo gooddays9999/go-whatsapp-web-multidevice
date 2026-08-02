@@ -47,6 +47,14 @@ service WhatsAppBridge {
     // Get subscribed WhatsApp channels/newsletters
     rpc GetNewsletters(GetNewslettersRequest) returns (GetNewslettersResponse);
 
+    // Get one channel's metadata, including its subscriber count.
+    //
+    // GetNewsletters cannot answer this: it is backed by GetSubscribedNewsletters,
+    // whose response omits subscribers_count, so every channel in that list reads
+    // as zero however many followers it has. The count is only carried by the
+    // per-channel metadata query, which this exposes.
+    rpc GetNewsletterInfo(GetNewsletterInfoRequest) returns (GetNewsletterInfoResponse);
+
     // Get recent messages from a WhatsApp channel/newsletter for diagnostics
     rpc GetNewsletterMessages(GetNewsletterMessagesRequest) returns (GetNewsletterMessagesResponse);
 
@@ -449,6 +457,17 @@ message GetNewslettersRequest {
 
 message GetNewslettersResponse {
     repeated Newsletter newsletters = 1;
+}
+
+message GetNewsletterInfoRequest {
+    string account_id = 1;
+    string newsletter_id = 2;   // @newsletter JID, invite code, or channel link
+}
+
+message GetNewsletterInfoResponse {
+    bool success = 1;
+    Newsletter newsletter = 2;
+    string error = 3;
 }
 
 message GetNewsletterMessagesRequest {

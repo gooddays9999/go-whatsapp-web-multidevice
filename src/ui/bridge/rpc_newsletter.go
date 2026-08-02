@@ -78,6 +78,80 @@ func (s *Service) FollowNewsletter(ctx context.Context, req *bridgepb.FollowNews
 	return &bridgepb.FollowNewsletterResponse{Success: true, Status: "followed"}, nil
 }
 
+// GetNewsletterInfo returns one channel's metadata, including its subscriber
+// count.
+//
+// GetNewsletters cannot answer this. It is backed by GetSubscribedNewsletters,
+// and WhatsApp's response to that query carries no subscribers_count at all, so
+// every channel in the list reads as zero however many followers it really has.
+// The count only comes back from the per-channel metadata query used here — the
+// same one resolveNewsletterJID already performs to turn an invite code into a
+// JID, and then throws away.
+//
+// A caller that has only an invite link is served without a lookup of its own:
+// the link form goes through GetNewsletterInfoWithInvite, which returns the same
+// metadata in one round trip.
+func (s *Service) GetNewsletterInfo(ctx context.Context, req *bridgepb.GetNewsletterInfoRequest) (*bridgepb.GetNewsletterInfoResponse, error) {
+	if strings.TrimSpace(req.GetAccountId()) == "" || strings.TrimSpace(req.GetNewsletterId()) == "" {
+		return nil, grpcError(fmt.Errorf("account_id and newsletter_id are required"))
+	}
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	client, err := clientFromScopedContext(scoped)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+
+	meta, err := newsletterMetadata(scoped, client, req.GetNewsletterId())
+	if err != nil {
+		return &bridgepb.GetNewsletterInfoResponse{Success: false, Error: err.Error()}, nil
+	}
+	converted := newsletterMetadataToProto(meta)
+	if converted == nil {
+		return &bridgepb.GetNewsletterInfoResponse{
+			Success: false,
+			Error:   "channel metadata was empty",
+		}, nil
+	}
+	return &bridgepb.GetNewsletterInfoResponse{Success: true, Newsletter: converted}, nil
+}
+
+// newsletterMetadata fetches a channel's metadata from whichever reference the
+// caller had: an invite link or code resolves in one call, a JID in the other.
+func newsletterMetadata(
+	ctx context.Context, client *whatsmeow.Client, raw string,
+) (*waTypes.NewsletterMetadata, error) {
+	target := strings.TrimSpace(raw)
+	if target == "" {
+		return nil, fmt.Errorf("newsletter_id is required")
+	}
+	if inviteCode := newsletterInviteCode(target); inviteCode != "" {
+		meta, err := client.GetNewsletterInfoWithInvite(ctx, inviteCode)
+		if err != nil {
+			return nil, err
+		}
+		if meta == nil || meta.ID.IsEmpty() {
+			return nil, fmt.Errorf("newsletter invite did not resolve to a channel")
+		}
+		return meta, nil
+	}
+
+	jid, err := resolveNewsletterJID(ctx, client, target)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := client.GetNewsletterInfo(ctx, jid)
+	if err != nil {
+		return nil, err
+	}
+	if meta == nil {
+		return nil, fmt.Errorf("channel %s returned no metadata", jid)
+	}
+	return meta, nil
+}
+
 func (s *Service) GetNewsletters(ctx context.Context, req *bridgepb.GetNewslettersRequest) (*bridgepb.GetNewslettersResponse, error) {
 	scoped, err := s.accountContext(ctx, req.GetAccountId())
 	if err != nil {
