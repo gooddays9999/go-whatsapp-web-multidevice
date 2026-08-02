@@ -40,3 +40,7 @@ tmp/
 
 # whatsmeow store (legacy path)
 src/whatsapp/
+
+# patch / merge backups
+*.orig
+*.rej
