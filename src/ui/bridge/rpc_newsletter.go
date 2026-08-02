@@ -289,11 +289,9 @@ func (s *Service) VoteNewsletterPoll(ctx context.Context, req *bridgepb.VoteNews
 	if err != nil {
 		return &bridgepb.VoteNewsletterPollResponse{Success: false, Status: "failed", Error: err.Error()}, nil
 	}
-	items, err := client.GetNewsletterMessages(scoped, jid, &whatsmeow.GetNewsletterMessagesParams{Count: newsletterVoteLookupCount(req.GetCount())})
-	if err != nil {
-		return &bridgepb.VoteNewsletterPollResponse{Success: false, Status: "failed", Error: err.Error()}, nil
-	}
-	pollMsg, err := findNewsletterPollMessage(items, req.GetMessageId(), waTypes.MessageServerID(req.GetServerId()))
+	pollMsg, err := locateNewsletterPoll(scoped, client, jid,
+		newsletterVoteLookupCount(req.GetCount()), req.GetMessageId(),
+		waTypes.MessageServerID(req.GetServerId()))
 	if err != nil {
 		return &bridgepb.VoteNewsletterPollResponse{Success: false, Status: "failed", Error: err.Error()}, nil
 	}
@@ -364,6 +362,33 @@ func newsletterVoteLookupCount(raw int32) int {
 		return maxNewsletterMessageCount
 	}
 	return count
+}
+
+// locateNewsletterPoll fetches the poll to vote on, however far back it sits.
+//
+// When the caller names a server_id the message is fetched directly: before is
+// exclusive, so asking for the one after it and taking a single result lands on
+// exactly that message in one request. Reading the newest hundred and hoping
+// the poll is among them — as this did — fails on every call once a busy
+// channel has published past it, and busy channels do that within minutes.
+// Twenty-one orders were refused for it in a day.
+//
+// Without a server_id there is nothing to address, so the newest page is read
+// and searched as before.
+func locateNewsletterPoll(
+	ctx context.Context, client *whatsmeow.Client, jid waTypes.JID,
+	count int, messageID string, serverID waTypes.MessageServerID,
+) (*waTypes.NewsletterMessage, error) {
+	params := &whatsmeow.GetNewsletterMessagesParams{Count: count}
+	if serverID != 0 {
+		params.Count = 1
+		params.Before = serverID + 1
+	}
+	items, err := client.GetNewsletterMessages(ctx, jid, params)
+	if err != nil {
+		return nil, err
+	}
+	return findNewsletterPollMessage(items, messageID, serverID)
 }
 
 func findNewsletterPollMessage(items []*waTypes.NewsletterMessage, messageID string, serverID waTypes.MessageServerID) (*waTypes.NewsletterMessage, error) {
