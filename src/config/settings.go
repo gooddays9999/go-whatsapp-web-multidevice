@@ -68,6 +68,11 @@ var (
 	ChatStorageEnableForeignKeys = true
 	ChatStorageEnableWAL         = true
 	ChatStorageMaxOpenConns      = 5 // Max concurrent SQLite connections for chat storage (WAL allows concurrent readers + 1 writer)
+	// ChatStorageAsync moves high-volume message/chat writes onto a background
+	// worker so the send path never blocks on SQLite write-lock contention.
+	// Writes stay best-effort (dropped when the queue overflows).
+	ChatStorageAsync          = true
+	ChatStorageAsyncQueueSize = 20000
 
 	ChatwootEnabled   = false
 	ChatwootURL       = ""

@@ -119,6 +119,14 @@ func initEnvConfig() {
 			config.ChatStorageMaxOpenConns = n
 		}
 	}
+	if viper.IsSet("chat_storage_async") {
+		config.ChatStorageAsync = viper.GetBool("chat_storage_async")
+	}
+	if viper.IsSet("chat_storage_async_queue_size") {
+		if n := viper.GetInt("chat_storage_async_queue_size"); n > 0 {
+			config.ChatStorageAsyncQueueSize = n
+		}
+	}
 	if viper.IsSet("db_max_open_conns") {
 		if n := viper.GetInt("db_max_open_conns"); n > 0 {
 			config.DBMaxOpenConns = n
@@ -360,6 +368,12 @@ func initFlags() {
 		"auto-download-media", "",
 		config.WhatsappAutoDownloadMedia,
 		`auto download media from incoming messages --auto-download-media <true/false> | example: --auto-download-media=false`,
+	)
+	rootCmd.PersistentFlags().BoolVarP(
+		&config.ChatStorageAsync,
+		"chat-storage-async", "",
+		config.ChatStorageAsync,
+		`persist chat messages on a background worker so sending never blocks on storage --chat-storage-async <true/false> | example: --chat-storage-async=false`,
 	)
 	rootCmd.PersistentFlags().StringSliceVarP(
 		&config.WhatsappWebhook,
@@ -614,6 +628,12 @@ func initApp() {
 
 	chatStorageRepo = chatstorage.NewStorageRepository(chatStorageDB)
 	chatStorageRepo.InitializeSchema()
+	if config.ChatStorageAsync {
+		chatStorageRepo = chatstorage.NewAsyncRepository(chatStorageRepo, chatstorage.AsyncConfig{
+			QueueSize: config.ChatStorageAsyncQueueSize,
+		})
+		logrus.Infof("chat storage async write-behind enabled (queue=%d)", config.ChatStorageAsyncQueueSize)
+	}
 
 	whatsappDB := whatsapp.InitWaDB(ctx, config.DBURI)
 	var keysDB *sqlstore.Container
