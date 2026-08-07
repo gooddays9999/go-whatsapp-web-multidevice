@@ -127,6 +127,11 @@ func initEnvConfig() {
 			config.ChatStorageAsyncQueueSize = n
 		}
 	}
+	if viper.IsSet("chat_storage_async_max_batch") {
+		if n := viper.GetInt("chat_storage_async_max_batch"); n > 0 {
+			config.ChatStorageAsyncMaxBatch = n
+		}
+	}
 	if viper.IsSet("db_max_open_conns") {
 		if n := viper.GetInt("db_max_open_conns"); n > 0 {
 			config.DBMaxOpenConns = n
@@ -631,8 +636,9 @@ func initApp() {
 	if config.ChatStorageAsync {
 		chatStorageRepo = chatstorage.NewAsyncRepository(chatStorageRepo, chatstorage.AsyncConfig{
 			QueueSize: config.ChatStorageAsyncQueueSize,
+			MaxBatch:  config.ChatStorageAsyncMaxBatch,
 		})
-		logrus.Infof("chat storage async write-behind enabled (queue=%d)", config.ChatStorageAsyncQueueSize)
+		logrus.Infof("chat storage async write-behind enabled (queue=%d, max_batch=%d)", config.ChatStorageAsyncQueueSize, config.ChatStorageAsyncMaxBatch)
 	}
 
 	whatsappDB := whatsapp.InitWaDB(ctx, config.DBURI)

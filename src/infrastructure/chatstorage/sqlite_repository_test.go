@@ -21,7 +21,7 @@ func newTestSQLiteRepository(t *testing.T) *SQLiteRepository {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	repo := &SQLiteRepository{db: db}
+	repo := &SQLiteRepository{db: db, exec: db}
 	if err := repo.InitializeSchema(); err != nil {
 		t.Fatalf("initialize schema: %v", err)
 	}

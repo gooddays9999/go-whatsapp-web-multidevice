@@ -17,14 +17,75 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
+// dbtx is the subset of *sql.DB / *sql.Tx used to execute statements. It lets
+// the repository run either directly against the connection pool or inside a
+// single shared transaction — the mechanism behind the async write-behind
+// layer's group commit. Both *sql.DB and *sql.Tx satisfy it.
+type dbtx interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
+
 // SQLiteRepository implements Repository using SQLite
 type SQLiteRepository struct {
-	db *sql.DB
+	db   *sql.DB // owns transaction lifecycle (Begin) and the connection pool
+	exec dbtx    // statement executor: the pool by default, a *sql.Tx inside RunInTx
+	inTx bool    // true when exec is an ongoing transaction (suppresses nested BEGIN)
 }
 
 // NewSQLiteRepository creates a new SQLite repository
 func NewStorageRepository(db *sql.DB) domainChatStorage.IChatStorageRepository {
-	return &SQLiteRepository{db: db}
+	return &SQLiteRepository{db: db, exec: db}
+}
+
+// withTx returns a shallow copy bound to tx: every Exec/Query/QueryRow runs
+// inside the transaction, and inTx suppresses nested BEGIN in tx-aware helpers.
+// The receiver is never mutated, so the shared pool-bound repository stays
+// usable by concurrent readers.
+func (r *SQLiteRepository) withTx(tx *sql.Tx) *SQLiteRepository {
+	clone := *r
+	clone.exec = tx
+	clone.inTx = true
+	return &clone
+}
+
+// RunInTx runs fn against a repository bound to a single transaction and commits
+// once at the end (group commit). It lets the async write-behind worker fold
+// many queued writes into one fsync-cheap commit instead of one implicit
+// transaction per statement. RunInTx must not be nested.
+func (r *SQLiteRepository) RunInTx(fn func(repo domainChatStorage.IChatStorageRepository) error) error {
+	if r.inTx {
+		return fmt.Errorf("chatstorage: RunInTx cannot nest")
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin batch transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // no-op after a successful Commit; unwinds on panic
+	if err := fn(r.withTx(tx)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// withTxn runs fn inside a transaction, reusing the ongoing one when this
+// repository is already tx-bound (a batch group commit) instead of opening a
+// nested BEGIN — which SQLite's single writer would deadlock on. Callers that
+// perform multiple related writes atomically use this instead of r.db.Begin.
+func (r *SQLiteRepository) withTxn(fn func(exec dbtx) error) error {
+	if r.inTx {
+		return fn(r.exec)
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // StoreChat creates or updates a chat
@@ -33,7 +94,7 @@ func (r *SQLiteRepository) StoreChat(chat *domainChatStorage.Chat) error {
 	chat.UpdatedAt = now
 
 	// Try update first, then insert if no rows affected (cross-db compatible)
-	result, err := r.db.Exec(`
+	result, err := r.exec.Exec(`
 		UPDATE chats SET name = ?, last_message_time = ?, ephemeral_expiration = ?, updated_at = ?, archived = ?
 		WHERE jid = ? AND device_id = ?
 	`, chat.Name, chat.LastMessageTime, chat.EphemeralExpiration, chat.UpdatedAt, chat.Archived, chat.JID, chat.DeviceID)
@@ -43,7 +104,7 @@ func (r *SQLiteRepository) StoreChat(chat *domainChatStorage.Chat) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		_, err = r.db.Exec(`
+		_, err = r.exec.Exec(`
 			INSERT INTO chats (jid, device_id, name, last_message_time, ephemeral_expiration, created_at, updated_at, archived)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		`, chat.JID, chat.DeviceID, chat.Name, chat.LastMessageTime, chat.EphemeralExpiration, now, chat.UpdatedAt, chat.Archived)
@@ -59,7 +120,7 @@ func (r *SQLiteRepository) GetChat(jid string) (*domainChatStorage.Chat, error) 
 		WHERE jid = ?
 	`
 
-	chat, err := r.scanChat(r.db.QueryRow(query, jid))
+	chat, err := r.scanChat(r.exec.QueryRow(query, jid))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -75,7 +136,7 @@ func (r *SQLiteRepository) GetChatByDevice(deviceID, jid string) (*domainChatSto
 		WHERE jid = ? AND device_id = ?
 	`
 
-	chat, err := r.scanChat(r.db.QueryRow(query, jid, deviceID))
+	chat, err := r.scanChat(r.exec.QueryRow(query, jid, deviceID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -95,7 +156,7 @@ func (r *SQLiteRepository) GetMessageByID(id string) (*domainChatStorage.Message
 		LIMIT 1
 	`
 
-	message, err := r.scanMessage(r.db.QueryRow(query, id))
+	message, err := r.scanMessage(r.exec.QueryRow(query, id))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -115,7 +176,7 @@ func (r *SQLiteRepository) GetMessageByIDAndDevice(deviceID, id string) (*domain
 		LIMIT 1
 	`
 
-	message, err := r.scanMessage(r.db.QueryRow(query, id, deviceID))
+	message, err := r.scanMessage(r.exec.QueryRow(query, id, deviceID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -138,7 +199,7 @@ func (r *SQLiteRepository) GetMessageEdits(originalMessageID, deviceID string) (
 	}
 	query += " ORDER BY edited_at ASC, created_at ASC"
 
-	rows, err := r.db.Query(query, args...)
+	rows, err := r.exec.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +279,7 @@ func (r *SQLiteRepository) GetChats(filter *domainChatStorage.ChatFilter) ([]*do
 		}
 	}
 
-	rows, err := r.db.Query(query, args...)
+	rows, err := r.exec.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +375,7 @@ func (r *SQLiteRepository) StoreMessage(message *domainChatStorage.Message) erro
 	}
 
 	// Try update first, then insert if no rows affected (cross-db compatible)
-	result, err := r.db.Exec(`
+	result, err := r.exec.Exec(`
 		UPDATE messages SET sender = ?, content = ?, timestamp = ?, is_from_me = ?,
 			media_type = ?, call_metadata = ?, filename = ?, url = ?, direct_path = ?, media_key = ?, file_sha256 = ?,
 			file_enc_sha256 = ?, file_length = ?, referral_metadata = ?, updated_at = ?
@@ -329,7 +390,7 @@ func (r *SQLiteRepository) StoreMessage(message *domainChatStorage.Message) erro
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		_, err = r.db.Exec(`
+		_, err = r.exec.Exec(`
 			INSERT INTO messages (
 				id, chat_jid, device_id, sender, content, timestamp, is_from_me,
 				media_type, call_metadata, filename, url, direct_path, media_key, file_sha256,
@@ -433,7 +494,7 @@ func (r *SQLiteRepository) StoreReaction(reaction *domainChatStorage.Reaction) e
 	}
 	reaction.UpdatedAt = now
 
-	result, err := r.db.Exec(`
+	result, err := r.exec.Exec(`
 		UPDATE message_reactions
 		SET chat_jid = ?, emoji = ?, is_from_me = ?, reaction_timestamp = ?, updated_at = ?
 		WHERE message_id = ? AND reactor_jid = ? AND device_id = ?
@@ -445,7 +506,7 @@ func (r *SQLiteRepository) StoreReaction(reaction *domainChatStorage.Reaction) e
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		_, err = r.db.Exec(`
+		_, err = r.exec.Exec(`
 			INSERT INTO message_reactions (
 				message_id, chat_jid, device_id, reactor_jid, emoji, is_from_me,
 				reaction_timestamp, created_at, updated_at
@@ -462,7 +523,7 @@ func (r *SQLiteRepository) DeleteReaction(messageID, reactorJID, deviceID string
 		return nil
 	}
 
-	_, err := r.db.Exec(`
+	_, err := r.exec.Exec(`
 		DELETE FROM message_reactions
 		WHERE message_id = ? AND reactor_jid = ? AND device_id = ?
 	`, messageID, reactorJID, deviceID)
@@ -528,7 +589,7 @@ func (r *SQLiteRepository) GetMessages(filter *domainChatStorage.MessageFilter) 
 		}
 	}
 
-	rows, err := r.db.Query(query, args...)
+	rows, err := r.exec.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -596,7 +657,7 @@ func (r *SQLiteRepository) SearchMessages(deviceID, chatJID, searchText string, 
 		args = append(args, limit)
 	}
 
-	rows, err := r.db.Query(query, args...)
+	rows, err := r.exec.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search messages: %w", err)
 	}
@@ -661,7 +722,7 @@ func (r *SQLiteRepository) loadMessageReactions(deviceID, chatJID string, messag
 			ORDER BY reaction_timestamp ASC, created_at ASC
 		`
 
-		rows, err := r.db.Query(query, args...)
+		rows, err := r.exec.Query(query, args...)
 		if err != nil {
 			return err
 		}
@@ -696,25 +757,25 @@ func (r *SQLiteRepository) loadMessageReactions(deviceID, chatJID string, messag
 
 // DeleteMessage deletes a specific message
 func (r *SQLiteRepository) DeleteMessage(id, chatJID string) error {
-	if _, err := r.db.Exec("DELETE FROM message_reactions WHERE message_id = ? AND chat_jid = ?", id, chatJID); err != nil {
+	if _, err := r.exec.Exec("DELETE FROM message_reactions WHERE message_id = ? AND chat_jid = ?", id, chatJID); err != nil {
 		return err
 	}
-	if _, err := r.db.Exec("DELETE FROM chatwoot_message_links WHERE wa_message_id = ? AND wa_chat_jid = ?", id, chatJID); err != nil {
+	if _, err := r.exec.Exec("DELETE FROM chatwoot_message_links WHERE wa_message_id = ? AND wa_chat_jid = ?", id, chatJID); err != nil {
 		return err
 	}
-	_, err := r.db.Exec("DELETE FROM messages WHERE id = ? AND chat_jid = ?", id, chatJID)
+	_, err := r.exec.Exec("DELETE FROM messages WHERE id = ? AND chat_jid = ?", id, chatJID)
 	return err
 }
 
 // DeleteMessageByDevice deletes a specific message for a specific device
 func (r *SQLiteRepository) DeleteMessageByDevice(deviceID, id, chatJID string) error {
-	if _, err := r.db.Exec("DELETE FROM message_reactions WHERE message_id = ? AND chat_jid = ? AND device_id = ?", id, chatJID, deviceID); err != nil {
+	if _, err := r.exec.Exec("DELETE FROM message_reactions WHERE message_id = ? AND chat_jid = ? AND device_id = ?", id, chatJID, deviceID); err != nil {
 		return err
 	}
-	if _, err := r.db.Exec("DELETE FROM chatwoot_message_links WHERE wa_message_id = ? AND wa_chat_jid = ? AND device_id = ?", id, chatJID, deviceID); err != nil {
+	if _, err := r.exec.Exec("DELETE FROM chatwoot_message_links WHERE wa_message_id = ? AND wa_chat_jid = ? AND device_id = ?", id, chatJID, deviceID); err != nil {
 		return err
 	}
-	_, err := r.db.Exec("DELETE FROM messages WHERE id = ? AND chat_jid = ? AND device_id = ?", id, chatJID, deviceID)
+	_, err := r.exec.Exec("DELETE FROM messages WHERE id = ? AND chat_jid = ? AND device_id = ?", id, chatJID, deviceID)
 	return err
 }
 
@@ -737,7 +798,7 @@ func (r *SQLiteRepository) UpsertChatwootMessageLink(link *domainChatStorage.Cha
 	}
 	link.UpdatedAt = now
 
-	result, err := r.db.Exec(`
+	result, err := r.exec.Exec(`
 		UPDATE chatwoot_message_links
 		SET wa_chat_jid = ?, chatwoot_message_id = ?, chatwoot_conversation_id = ?,
 		    chatwoot_inbox_id = ?, chatwoot_contact_inbox_source_id = ?, source_id = ?,
@@ -752,7 +813,7 @@ func (r *SQLiteRepository) UpsertChatwootMessageLink(link *domainChatStorage.Cha
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		_, err = r.db.Exec(`
+		_, err = r.exec.Exec(`
 			INSERT INTO chatwoot_message_links (
 				device_id, wa_message_id, wa_chat_jid, chatwoot_message_id,
 				chatwoot_conversation_id, chatwoot_inbox_id,
@@ -779,7 +840,7 @@ func (r *SQLiteRepository) GetChatwootMessageLinkByWhatsAppID(deviceID, waMessag
 		LIMIT 1
 	`
 
-	link, err := r.scanChatwootMessageLink(r.db.QueryRow(query, deviceID, waMessageID))
+	link, err := r.scanChatwootMessageLink(r.exec.QueryRow(query, deviceID, waMessageID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -797,7 +858,7 @@ func (r *SQLiteRepository) GetChatwootMessageLinkByChatwootID(deviceID string, c
 		LIMIT 1
 	`
 
-	link, err := r.scanChatwootMessageLink(r.db.QueryRow(query, deviceID, chatwootMessageID))
+	link, err := r.scanChatwootMessageLink(r.exec.QueryRow(query, deviceID, chatwootMessageID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -816,7 +877,7 @@ func (r *SQLiteRepository) GetLatestChatwootMessageLinkByConversation(conversati
 		LIMIT 1
 	`
 
-	link, err := r.scanChatwootMessageLink(r.db.QueryRow(query, conversationID))
+	link, err := r.scanChatwootMessageLink(r.exec.QueryRow(query, conversationID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -835,7 +896,7 @@ func (r *SQLiteRepository) GetLatestUnreadChatwootMessageLinkByChat(deviceID, wa
 		LIMIT 1
 	`
 
-	link, err := r.scanChatwootMessageLink(r.db.QueryRow(query, deviceID, waChatJID))
+	link, err := r.scanChatwootMessageLink(r.exec.QueryRow(query, deviceID, waChatJID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -856,7 +917,7 @@ func (r *SQLiteRepository) EnqueueChatwootForwardEvent(event *domainChatStorage.
 	}
 	event.UpdatedAt = now
 
-	_, err := r.db.Exec(`
+	_, err := r.exec.Exec(`
 		INSERT INTO chatwoot_forward_queue (
 			device_id, event_name, wa_message_id, payload_json,
 			attempts, last_error, next_attempt_at, created_at, updated_at
@@ -877,7 +938,7 @@ func (r *SQLiteRepository) ListDueChatwootForwardEvents(now time.Time, limit int
 		limit = 20
 	}
 
-	rows, err := r.db.Query(`
+	rows, err := r.exec.Query(`
 		SELECT id, device_id, event_name, wa_message_id, payload_json,
 			attempts, last_error, next_attempt_at, created_at, updated_at
 		FROM chatwoot_forward_queue
@@ -909,7 +970,7 @@ func (r *SQLiteRepository) MarkChatwootForwardEventFailed(id int64, lastError st
 	if id == 0 {
 		return fmt.Errorf("chatwoot forward event id is required")
 	}
-	_, err := r.db.Exec(`
+	_, err := r.exec.Exec(`
 		UPDATE chatwoot_forward_queue
 		SET attempts = attempts + 1,
 			last_error = ?,
@@ -924,14 +985,14 @@ func (r *SQLiteRepository) MarkChatwootForwardEventDone(id int64) error {
 	if id == 0 {
 		return fmt.Errorf("chatwoot forward event id is required")
 	}
-	_, err := r.db.Exec(`DELETE FROM chatwoot_forward_queue WHERE id = ?`, id)
+	_, err := r.exec.Exec(`DELETE FROM chatwoot_forward_queue WHERE id = ?`, id)
 	return err
 }
 
 // getCount is a private helper for count queries
 func (r *SQLiteRepository) getCount(query string, args ...any) (int64, error) {
 	var count int64
-	err := r.db.QueryRow(query, args...).Scan(&count)
+	err := r.exec.QueryRow(query, args...).Scan(&count)
 	return count, err
 }
 
@@ -1099,7 +1160,7 @@ func (r *SQLiteRepository) SaveDeviceRecord(record *domainChatStorage.DeviceReco
 	record.UpdatedAt = now
 
 	// Try update first, then insert if no rows affected (cross-db compatible)
-	result, err := r.db.Exec(`
+	result, err := r.exec.Exec(`
 		UPDATE devices SET display_name = ?, jid = ?, updated_at = ?
 		WHERE device_id = ?
 	`, record.DisplayName, record.JID, record.UpdatedAt, record.DeviceID)
@@ -1109,7 +1170,7 @@ func (r *SQLiteRepository) SaveDeviceRecord(record *domainChatStorage.DeviceReco
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		_, err = r.db.Exec(`
+		_, err = r.exec.Exec(`
 			INSERT INTO devices (device_id, display_name, jid, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?)
 		`, record.DeviceID, record.DisplayName, record.JID, record.CreatedAt, record.UpdatedAt)
@@ -1119,7 +1180,7 @@ func (r *SQLiteRepository) SaveDeviceRecord(record *domainChatStorage.DeviceReco
 
 // ListDeviceRecords returns all registered devices.
 func (r *SQLiteRepository) ListDeviceRecords() ([]*domainChatStorage.DeviceRecord, error) {
-	rows, err := r.db.Query(`
+	rows, err := r.exec.Query(`
 		SELECT device_id, display_name, jid, created_at, updated_at
 		FROM devices
 		ORDER BY created_at ASC
@@ -1148,7 +1209,7 @@ func (r *SQLiteRepository) GetDeviceRecord(deviceID string) (*domainChatStorage.
 	}
 
 	rec := &domainChatStorage.DeviceRecord{}
-	err := r.db.QueryRow(`
+	err := r.exec.QueryRow(`
 		SELECT device_id, display_name, jid, created_at, updated_at
 		FROM devices
 		WHERE device_id = ?
@@ -1170,7 +1231,7 @@ func (r *SQLiteRepository) GetDeviceRecordByJID(jid string) (*domainChatStorage.
 	}
 
 	rec := &domainChatStorage.DeviceRecord{}
-	err := r.db.QueryRow(`
+	err := r.exec.QueryRow(`
 		SELECT device_id, display_name, jid, webhook_url, COALESCE(webhook_secret, ''), COALESCE(webhook_events, ''), COALESCE(webhook_insecure_skip_verify, FALSE), created_at, updated_at
 		FROM devices
 		WHERE jid = ?
@@ -1200,7 +1261,7 @@ func (r *SQLiteRepository) DeleteDeviceRecord(deviceID string) error {
 	if strings.TrimSpace(deviceID) == "" {
 		return fmt.Errorf("device id is required")
 	}
-	_, err := r.db.Exec("DELETE FROM devices WHERE device_id = ?", deviceID)
+	_, err := r.exec.Exec("DELETE FROM devices WHERE device_id = ?", deviceID)
 	return err
 }
 
@@ -1211,7 +1272,7 @@ func (r *SQLiteRepository) SetDeviceWebhookURL(deviceID string, webhookURL *stri
 	if strings.TrimSpace(deviceID) == "" {
 		return fmt.Errorf("device id is required")
 	}
-	result, err := r.db.Exec(`
+	result, err := r.exec.Exec(`
 		UPDATE devices SET webhook_url = ?, updated_at = ?
 		WHERE device_id = ?
 	`, webhookURL, time.Now(), deviceID)
@@ -1236,7 +1297,7 @@ func (r *SQLiteRepository) GetDeviceWebhookURL(deviceID string) (*string, error)
 		return nil, fmt.Errorf("device id is required")
 	}
 	var webhookURL string
-	err := r.db.QueryRow(`
+	err := r.exec.QueryRow(`
 		SELECT COALESCE(webhook_url, '') FROM devices WHERE device_id = ? LIMIT 1
 	`, deviceID).Scan(&webhookURL)
 	if err == sql.ErrNoRows {
@@ -1266,7 +1327,7 @@ func (r *SQLiteRepository) SetDeviceWebhookConfig(deviceID string, config *domai
 		webhookURL = config.WebhookURL
 	}
 
-	result, err := r.db.Exec(`
+	result, err := r.exec.Exec(`
 		UPDATE devices
 		SET webhook_url = ?, webhook_secret = ?, webhook_events = ?, webhook_insecure_skip_verify = ?, updated_at = ?
 		WHERE device_id = ?
@@ -1292,7 +1353,7 @@ func (r *SQLiteRepository) GetDeviceWebhookConfig(deviceID string) (*domainChatS
 	}
 	var config domainChatStorage.DeviceWebhookConfig
 	var webhookURL *string
-	err := r.db.QueryRow(`
+	err := r.exec.QueryRow(`
 		SELECT webhook_url, COALESCE(webhook_secret, ''), COALESCE(webhook_events, ''), COALESCE(webhook_insecure_skip_verify, FALSE)
 		FROM devices WHERE device_id = ? LIMIT 1
 	`, deviceID).Scan(&webhookURL, &config.WebhookSecret, &config.WebhookEvents, &config.WebhookInsecureSkipVerify)
@@ -1585,39 +1646,37 @@ func (r *SQLiteRepository) storeEditedMessage(ctx context.Context, evt *events.M
 		CreatedAt:         now,
 	}
 
-	tx, err := r.db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin edit transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	if messageExists {
-		if _, err := tx.Exec(`
-			UPDATE messages SET content = ?, updated_at = ?
-			WHERE id = ? AND chat_jid = ? AND device_id = ?
-		`, newContent, now, originalMessageID, chatJID, deviceID); err != nil {
-			return fmt.Errorf("failed to update original message %s: %w", originalMessageID, err)
+	// Reuse the ongoing batch transaction when tx-bound (async group commit);
+	// otherwise withTxn opens and commits its own. This keeps the original
+	// message row and its edit-history row atomic without a nested BEGIN.
+	return r.withTxn(func(exec dbtx) error {
+		if messageExists {
+			if _, err := exec.Exec(`
+				UPDATE messages SET content = ?, updated_at = ?
+				WHERE id = ? AND chat_jid = ? AND device_id = ?
+			`, newContent, now, originalMessageID, chatJID, deviceID); err != nil {
+				return fmt.Errorf("failed to update original message %s: %w", originalMessageID, err)
+			}
+		} else {
+			if _, err := exec.Exec(`
+				INSERT INTO messages (
+					id, chat_jid, device_id, sender, content, timestamp, is_from_me,
+					media_type, call_metadata, filename, url, direct_path, media_key, file_sha256,
+					file_enc_sha256, file_length, referral_metadata, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, currentMessage.ID, currentMessage.ChatJID, currentMessage.DeviceID, currentMessage.Sender, currentMessage.Content,
+				currentMessage.Timestamp, currentMessage.IsFromMe, currentMessage.MediaType, currentMessage.CallMetadata, currentMessage.Filename,
+				currentMessage.URL, currentMessage.DirectPath, currentMessage.MediaKey, currentMessage.FileSHA256, currentMessage.FileEncSHA256,
+				currentMessage.FileLength, currentMessage.ReferralMetadata, now, now); err != nil {
+				return fmt.Errorf("failed to insert edited message %s: %w", originalMessageID, err)
+			}
 		}
-	} else {
-		if _, err := tx.Exec(`
-			INSERT INTO messages (
-				id, chat_jid, device_id, sender, content, timestamp, is_from_me,
-				media_type, call_metadata, filename, url, direct_path, media_key, file_sha256,
-				file_enc_sha256, file_length, referral_metadata, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, currentMessage.ID, currentMessage.ChatJID, currentMessage.DeviceID, currentMessage.Sender, currentMessage.Content,
-			currentMessage.Timestamp, currentMessage.IsFromMe, currentMessage.MediaType, currentMessage.CallMetadata, currentMessage.Filename,
-			currentMessage.URL, currentMessage.DirectPath, currentMessage.MediaKey, currentMessage.FileSHA256, currentMessage.FileEncSHA256,
-			currentMessage.FileLength, currentMessage.ReferralMetadata, now, now); err != nil {
-			return fmt.Errorf("failed to insert edited message %s: %w", originalMessageID, err)
+
+		if err := r.storeMessageEditExec(exec, edit); err != nil {
+			return fmt.Errorf("failed to store edit history for %s: %w", originalMessageID, err)
 		}
-	}
-
-	if err := r.storeMessageEditExec(tx, edit); err != nil {
-		return fmt.Errorf("failed to store edit history for %s: %w", originalMessageID, err)
-	}
-
-	return tx.Commit()
+		return nil
+	})
 }
 
 func (r *SQLiteRepository) getMessageByDeviceAndChatIDAndMessageID(deviceID, chatJID, messageID string) (*domainChatStorage.Message, error) {
@@ -1629,7 +1688,7 @@ func (r *SQLiteRepository) getMessageByDeviceAndChatIDAndMessageID(deviceID, cha
 		WHERE id = ? AND chat_jid = ? AND device_id = ?
 		LIMIT 1
 	`
-	message, err := r.scanMessage(r.db.QueryRow(query, messageID, chatJID, deviceID))
+	message, err := r.scanMessage(r.exec.QueryRow(query, messageID, chatJID, deviceID))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1637,7 +1696,7 @@ func (r *SQLiteRepository) getMessageByDeviceAndChatIDAndMessageID(deviceID, cha
 }
 
 func (r *SQLiteRepository) StoreMessageEdit(edit *domainChatStorage.MessageEdit) error {
-	return r.storeMessageEditExec(r.db, edit)
+	return r.storeMessageEditExec(r.exec, edit)
 }
 
 func (r *SQLiteRepository) storeMessageEditExec(execer interface {
@@ -2004,6 +2063,12 @@ func (r *SQLiteRepository) StoreSentMessageWithContext(ctx context.Context, mess
 
 // initializeSchema creates or migrates the database schema
 func (r *SQLiteRepository) InitializeSchema() error {
+	// Default the statement executor to the pool for repositories built without
+	// the constructor (e.g. a bare &SQLiteRepository{db: db}); InitializeSchema
+	// is the universal entry point, so this keeps such uses from nil-panicking.
+	if r.exec == nil {
+		r.exec = r.db
+	}
 	// Get current schema version
 	version, err := r.getSchemaVersion()
 	if err != nil {
@@ -2024,7 +2089,7 @@ func (r *SQLiteRepository) InitializeSchema() error {
 // getSchemaVersion returns the current schema version
 func (r *SQLiteRepository) getSchemaVersion() (int, error) {
 	// Create schema_info table if it doesn't exist
-	_, err := r.db.Exec(`
+	_, err := r.exec.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_info (
 			version INTEGER PRIMARY KEY,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -2036,7 +2101,7 @@ func (r *SQLiteRepository) getSchemaVersion() (int, error) {
 
 	// Get current version
 	var version int
-	err = r.db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_info").Scan(&version)
+	err = r.exec.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_info").Scan(&version)
 	if err != nil {
 		return 0, err
 	}

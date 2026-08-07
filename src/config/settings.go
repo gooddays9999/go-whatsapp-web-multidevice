@@ -73,6 +73,11 @@ var (
 	// Writes stay best-effort (dropped when the queue overflows).
 	ChatStorageAsync          = true
 	ChatStorageAsyncQueueSize = 20000
+	// ChatStorageAsyncMaxBatch caps how many queued writes the background worker
+	// folds into a single SQLite transaction (group commit). It only groups
+	// tasks already waiting in the queue, so this bounds a burst's transaction
+	// size, never latency.
+	ChatStorageAsyncMaxBatch = 256
 
 	ChatwootEnabled   = false
 	ChatwootURL       = ""
