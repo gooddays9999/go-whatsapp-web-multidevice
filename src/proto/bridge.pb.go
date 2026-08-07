@@ -2837,8 +2837,16 @@ type NewsletterMessage struct {
 	ViewsCount             int32                  `protobuf:"varint,11,opt,name=views_count,json=viewsCount,proto3" json:"views_count,omitempty"`
 	ReactionCounts         map[string]int32       `protobuf:"bytes,12,rep,name=reaction_counts,json=reactionCounts,proto3" json:"reaction_counts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	PollOptions            []string               `protobuf:"bytes,13,rep,name=poll_options,json=pollOptions,proto3" json:"poll_options,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// metadata_incomplete is true when WhatsApp returned the message row
+	// (server_id, views) but omitted its content body. WhatsApp strips the
+	// inline body of older channel messages and reclassifies them type="text",
+	// so a poll deep in history comes back with no options — indistinguishable
+	// from a real text post by type alone. When this is true, treat type/text/
+	// has_poll as unreliable for that message and re-fetch closer to the head or
+	// fail the action rather than acting on the degraded view.
+	MetadataIncomplete bool `protobuf:"varint,14,opt,name=metadata_incomplete,json=metadataIncomplete,proto3" json:"metadata_incomplete,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *NewsletterMessage) Reset() {
@@ -2960,6 +2968,13 @@ func (x *NewsletterMessage) GetPollOptions() []string {
 		return x.PollOptions
 	}
 	return nil
+}
+
+func (x *NewsletterMessage) GetMetadataIncomplete() bool {
+	if x != nil {
+		return x.MetadataIncomplete
+	}
+	return false
 }
 
 type GetNewsletterMessagesResponse struct {
@@ -8012,7 +8027,7 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12#\n" +
 	"\rnewsletter_id\x18\x02 \x01(\tR\fnewsletterId\x12\x14\n" +
 	"\x05count\x18\x03 \x01(\x05R\x05count\x12\x16\n" +
-	"\x06before\x18\x04 \x01(\x04R\x06before\"\xa8\x04\n" +
+	"\x06before\x18\x04 \x01(\x04R\x06before\"\xd9\x04\n" +
 	"\x11NewsletterMessage\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1d\n" +
 	"\n" +
@@ -8030,7 +8045,8 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"\vviews_count\x18\v \x01(\x05R\n" +
 	"viewsCount\x12V\n" +
 	"\x0freaction_counts\x18\f \x03(\v2-.bridge.NewsletterMessage.ReactionCountsEntryR\x0ereactionCounts\x12!\n" +
-	"\fpoll_options\x18\r \x03(\tR\vpollOptions\x1aA\n" +
+	"\fpoll_options\x18\r \x03(\tR\vpollOptions\x12/\n" +
+	"\x13metadata_incomplete\x18\x0e \x01(\bR\x12metadataIncomplete\x1aA\n" +
 	"\x13ReactionCountsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"V\n" +

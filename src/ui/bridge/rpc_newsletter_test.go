@@ -214,6 +214,114 @@ func TestFindNewsletterPollMessageRejectsNonPoll(t *testing.T) {
 	}
 }
 
+// A requested server_id that is not present must never resolve to a different
+// poll. This is the "vote landed on the wrong poll" incident: the caller asks to
+// vote on server_id 31958, that message is not in what came back, and the only
+// poll around is a different one (31970). Returning it would silently vote on the
+// wrong poll and report success. The lookup must fail instead — a visible failure
+// is recoverable, a wrong vote billed as success is not.
+func TestFindNewsletterPollMessageServerIDMismatchNeverReturnsAnotherPoll(t *testing.T) {
+	items := []*types.NewsletterMessage{
+		{MessageServerID: 31970, MessageID: "3EB0POLLA", Message: testNewsletterPollMessage("Pick one")},
+		{MessageServerID: 31973, MessageID: "3EB0POLLB", Message: testNewsletterPollMessage("Pick two")},
+	}
+
+	got, err := findNewsletterPollMessage(items, "", 31958)
+	if err == nil {
+		t.Fatalf("expected error for absent server_id 31958, got poll at server_id %d", got.MessageServerID)
+	}
+}
+
+// The exact 31958 case: the requested server_id IS present but is a plain text
+// post, while a real poll sits a few messages later. The lookup must reject the
+// text post — it must not skip past it to the nearby poll.
+func TestFindNewsletterPollMessageRequestedServerIDIsTextWithNearbyPoll(t *testing.T) {
+	items := []*types.NewsletterMessage{
+		{MessageServerID: 31958, MessageID: "3EB0TEXT", Message: &waE2E.Message{Conversation: proto.String("plain post")}},
+		{MessageServerID: 31970, MessageID: "3EB0POLL", Message: testNewsletterPollMessage("Pick one")},
+	}
+
+	got, err := findNewsletterPollMessage(items, "", 31958)
+	if err == nil {
+		t.Fatalf("expected error: server_id 31958 is text, but got poll at server_id %d", got.MessageServerID)
+	}
+}
+
+// Poll update and empty (option-less) poll messages are not votable poll
+// creations and must be refused rather than treated as a poll.
+func TestFindNewsletterPollMessageRejectsPollUpdateAndEmptyV4(t *testing.T) {
+	items := []*types.NewsletterMessage{
+		{MessageServerID: 200, MessageID: "3EB0UPD", Message: &waE2E.Message{PollUpdateMessage: &waE2E.PollUpdateMessage{}}},
+	}
+	if _, err := findNewsletterPollMessage(items, "", 200); err == nil {
+		t.Fatalf("expected poll update message to be refused")
+	}
+
+	empty := []*types.NewsletterMessage{
+		{MessageServerID: 201, MessageID: "3EB0V4", Message: &waE2E.Message{PollCreationMessageV4: &waE2E.FutureProofMessage{}}},
+	}
+	if _, err := findNewsletterPollMessage(empty, "", 201); err == nil {
+		t.Fatalf("expected option-less V4 poll to be refused")
+	}
+}
+
+// A message whose content WhatsApp stripped in deep history (Message==nil, or an
+// empty body) must be flagged metadata_incomplete, while a real text/poll/media
+// post must not be — otherwise a stripped poll is indistinguishable from a
+// genuine text post.
+func TestNewsletterMessageToProtoFlagsStrippedContent(t *testing.T) {
+	stripped := newsletterMessageToProto(&types.NewsletterMessage{
+		MessageServerID: 31958, MessageID: "3EB0GONE", Type: "text", ViewsCount: 9, Message: nil,
+	})
+	if !stripped.GetMetadataIncomplete() {
+		t.Fatalf("stripped message (Message==nil) not flagged metadata_incomplete")
+	}
+	if stripped.GetHasPoll() || stripped.GetText() != "" {
+		t.Fatalf("stripped message should carry no poll/text: %#v", stripped)
+	}
+
+	empty := newsletterMessageToProto(&types.NewsletterMessage{
+		MessageServerID: 31959, MessageID: "3EB0EMPTY", Type: "text", Message: &waE2E.Message{},
+	})
+	if !empty.GetMetadataIncomplete() {
+		t.Fatalf("empty-body message not flagged metadata_incomplete")
+	}
+
+	text := newsletterMessageToProto(&types.NewsletterMessage{
+		MessageServerID: 101, MessageID: "3EB0TEXT", Type: "text",
+		Message: &waE2E.Message{Conversation: proto.String("real post")},
+	})
+	if text.GetMetadataIncomplete() {
+		t.Fatalf("genuine text post wrongly flagged metadata_incomplete")
+	}
+
+	poll := newsletterMessageToProto(&types.NewsletterMessage{
+		MessageServerID: 102, MessageID: "3EB0POLL", Type: "pollCreation",
+		Message: testNewsletterPollMessage("Pick one"),
+	})
+	if poll.GetMetadataIncomplete() {
+		t.Fatalf("poll with content wrongly flagged metadata_incomplete")
+	}
+}
+
+func TestNewsletterMessageContentAvailable(t *testing.T) {
+	if newsletterMessageContentAvailable(nil) {
+		t.Fatalf("nil message reported as content available")
+	}
+	if newsletterMessageContentAvailable(&waE2E.Message{}) {
+		t.Fatalf("empty message reported as content available")
+	}
+	if !newsletterMessageContentAvailable(&waE2E.Message{Conversation: proto.String("hi")}) {
+		t.Fatalf("text message reported as content unavailable")
+	}
+	if !newsletterMessageContentAvailable(testNewsletterPollMessage("q")) {
+		t.Fatalf("poll message reported as content unavailable")
+	}
+	if !newsletterMessageContentAvailable(&waE2E.Message{ImageMessage: &waE2E.ImageMessage{}}) {
+		t.Fatalf("image message reported as content unavailable")
+	}
+}
+
 func TestNewsletterVoteLookupCount(t *testing.T) {
 	if got := newsletterVoteLookupCount(0); got != defaultNewsletterVoteScan {
 		t.Fatalf("default count = %d", got)

@@ -491,6 +491,14 @@ message NewsletterMessage {
     int32 views_count = 11;
     map<string, int32> reaction_counts = 12;
     repeated string poll_options = 13;
+    // metadata_incomplete is true when WhatsApp returned the message row
+    // (server_id, views) but omitted its content body. WhatsApp strips the
+    // inline body of older channel messages and reclassifies them type="text",
+    // so a poll deep in history comes back with no options — indistinguishable
+    // from a real text post by type alone. When this is true, treat type/text/
+    // has_poll as unreliable for that message and re-fetch closer to the head or
+    // fail the action rather than acting on the degraded view.
+    bool metadata_incomplete = 14;
 }
 
 message GetNewsletterMessagesResponse {

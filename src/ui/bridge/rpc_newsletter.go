@@ -567,7 +567,40 @@ func newsletterMessageToProto(msg *waTypes.NewsletterMessage) *bridgepb.Newslett
 			}
 		}
 	}
+	// WhatsApp strips the inline body of older channel messages and reclassifies
+	// them type="text", so type/text/has_poll above are only trustworthy when the
+	// server actually delivered content. Flag the degraded rows so a caller does
+	// not mistake a stripped poll for a genuine text post.
+	item.MetadataIncomplete = !newsletterMessageContentAvailable(msg.Message)
 	return item
+}
+
+// newsletterMessageContentAvailable reports whether a fetched channel message
+// carries a usable content body. Older channel messages come back as just a row
+// — server_id and views present — with the inline body dropped (Message==nil, or
+// an empty message), which is indistinguishable from a real text post by type
+// alone. Content counts as available when the message has text, a poll (any
+// version, including update/V4 wrappers), or a recognized media body.
+func newsletterMessageContentAvailable(message *waE2E.Message) bool {
+	if message == nil {
+		return false
+	}
+	if newsletterMessageText(message) != "" {
+		return true
+	}
+	if field, _ := newsletterMessagePoll(message); field != "" {
+		return true
+	}
+	return message.GetImageMessage() != nil ||
+		message.GetVideoMessage() != nil ||
+		message.GetAudioMessage() != nil ||
+		message.GetDocumentMessage() != nil ||
+		message.GetStickerMessage() != nil ||
+		message.GetContactMessage() != nil ||
+		message.GetContactsArrayMessage() != nil ||
+		message.GetLocationMessage() != nil ||
+		message.GetExtendedTextMessage() != nil ||
+		message.GetEventMessage() != nil
 }
 
 func newsletterMessageText(message *waE2E.Message) string {
