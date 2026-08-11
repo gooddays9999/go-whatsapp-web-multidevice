@@ -32,9 +32,15 @@ var (
 	// exhausting Postgres max_connections. 0 keeps the driver default.
 	DBMaxOpenConns = 80
 
-	WhatsappAutoReplyMessage          string
-	WhatsappAutoMarkRead              = false // Auto-mark incoming messages as read
-	WhatsappAutoDownloadMedia         = true  // Auto-download media from incoming messages
+	WhatsappAutoReplyMessage  string
+	WhatsappAutoMarkRead      = false // Auto-mark incoming messages as read
+	WhatsappAutoDownloadMedia = true  // Auto-download media from incoming messages
+	// WhatsappAutoFetchVersion fetches the current WhatsApp Web client version
+	// from web.whatsapp.com at startup so the bridge is not pinned to the version
+	// frozen into the vendored whatsmeow (WhatsApp deprecates old web versions
+	// over time). Best-effort: a failed fetch keeps the compiled-in version.
+	WhatsappAutoFetchVersion          = true
+	WhatsappVersionFetchTimeout       = 15 * time.Second
 	WhatsappWebhook                   []string
 	WhatsappWebhookSecret             = "secret"
 	WhatsappWebhookInsecureSkipVerify = false          // Skip TLS certificate verification for webhooks (insecure)

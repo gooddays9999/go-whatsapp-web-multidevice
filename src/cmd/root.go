@@ -122,6 +122,9 @@ func initEnvConfig() {
 	if viper.IsSet("chat_storage_async") {
 		config.ChatStorageAsync = viper.GetBool("chat_storage_async")
 	}
+	if viper.IsSet("whatsapp_auto_fetch_version") {
+		config.WhatsappAutoFetchVersion = viper.GetBool("whatsapp_auto_fetch_version")
+	}
 	if viper.IsSet("chat_storage_async_queue_size") {
 		if n := viper.GetInt("chat_storage_async_queue_size"); n > 0 {
 			config.ChatStorageAsyncQueueSize = n
@@ -639,6 +642,13 @@ func initApp() {
 			MaxBatch:  config.ChatStorageAsyncMaxBatch,
 		})
 		logrus.Infof("chat storage async write-behind enabled (queue=%d, max_batch=%d)", config.ChatStorageAsyncQueueSize, config.ChatStorageAsyncMaxBatch)
+	}
+
+	// Refresh the announced WhatsApp Web version before any client connects, so
+	// the bridge is not pinned to the version frozen into the vendored whatsmeow.
+	// Best-effort: a failed fetch keeps the compiled-in version.
+	if config.WhatsappAutoFetchVersion {
+		whatsapp.FetchAndApplyLatestWAVersion(ctx, config.WhatsappVersionFetchTimeout)
 	}
 
 	whatsappDB := whatsapp.InitWaDB(ctx, config.DBURI)
