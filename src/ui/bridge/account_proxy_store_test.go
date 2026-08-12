@@ -305,29 +305,46 @@ func TestIsPlatformAccount(t *testing.T) {
 	}
 }
 
-func TestSkipPlatformMedia(t *testing.T) {
+func TestSkipMediaDownload(t *testing.T) {
 	set := map[string]struct{}{"16467775883": {}}
 	store := &AccountProxyStore{}
 	store.platformPhones.Store(&set)
 
+	const (
+		privateChat    = "19999999999@s.whatsapp.net"
+		newsletterChat = "120363000000000000@newsletter"
+	)
+
 	cases := []struct {
-		name    string
-		enabled bool
-		store   *AccountProxyStore
-		phone   string
-		want    bool
+		name           string
+		skipPlatform   bool
+		skipNewsletter bool
+		store          *AccountProxyStore
+		chatID         string
+		phone          string
+		want           bool
 	}{
-		{"disabled never skips", false, store, "16467775883", false},
-		{"enabled + platform sender skips", true, store, "16467775883", true},
-		{"enabled + external sender downloads", true, store, "19999999999", false},
-		{"enabled + nil store downloads", true, nil, "16467775883", false},
+		{"all disabled never skips", false, false, store, newsletterChat, "16467775883", false},
+		{"platform: platform sender skips", true, false, store, privateChat, "16467775883", true},
+		{"platform: external sender downloads", true, false, store, privateChat, "19999999999", false},
+		{"platform: nil store downloads", true, false, nil, privateChat, "16467775883", false},
+		{"newsletter: newsletter chat skips", false, true, nil, newsletterChat, "19999999999", true},
+		{"newsletter: private chat downloads", false, true, nil, privateChat, "19999999999", false},
+		{"newsletter skip needs no store", false, true, nil, newsletterChat, "16467775883", true},
+		{"both rules: newsletter still skips external", true, true, store, newsletterChat, "19999999999", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s := &Service{cfg: Config{SkipMediaFromPlatformAccounts: tc.enabled}, accountProxyStore: tc.store}
-			got := s.skipPlatformMedia(map[string]any{"senderPhone": tc.phone})
+			s := &Service{
+				cfg: Config{
+					SkipMediaFromPlatformAccounts: tc.skipPlatform,
+					SkipMediaFromNewsletters:      tc.skipNewsletter,
+				},
+				accountProxyStore: tc.store,
+			}
+			got := s.skipMediaDownload(map[string]any{"chatId": tc.chatID, "senderPhone": tc.phone})
 			if got != tc.want {
-				t.Fatalf("skipPlatformMedia=%v, want %v", got, tc.want)
+				t.Fatalf("skipMediaDownload=%v, want %v", got, tc.want)
 			}
 		})
 	}

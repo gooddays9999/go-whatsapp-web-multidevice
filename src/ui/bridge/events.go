@@ -124,22 +124,31 @@ func (s *Service) handleMessageEvent(ctx context.Context, accountID string, inst
 			s.publish("message.status", accountID, payload)
 		}
 	}
-	// Skip the (redundant) download when the sender is another platform account —
-	// internal account-to-account traffic that dominates media volume. The message
-	// itself was already published above; only the media fetch is skipped.
-	if downloadable := downloadableMessage(msg); downloadable != nil && !s.skipPlatformMedia(message) {
+	// Skip the (redundant) download for internal account-to-account traffic and
+	// newsletter/channel broadcasts — both dominate media volume without being
+	// consumed. The message itself was already published above; only the media
+	// fetch is skipped.
+	if downloadable := downloadableMessage(msg); downloadable != nil && !s.skipMediaDownload(message) {
 		go s.downloadAndPublishMedia(ctx, accountID, instance, evt, downloadable, message)
 	}
 }
 
-// skipPlatformMedia reports whether incoming media should not be auto-downloaded
-// because its sender is another platform account.
-func (s *Service) skipPlatformMedia(message map[string]any) bool {
-	if !s.cfg.SkipMediaFromPlatformAccounts || s.accountProxyStore == nil {
-		return false
+// skipMediaDownload reports whether incoming media should not be auto-downloaded.
+// Two independent, separately-configurable rules apply: the chat is a
+// newsletter/channel, or the sender is another platform account.
+func (s *Service) skipMediaDownload(message map[string]any) bool {
+	if s.cfg.SkipMediaFromNewsletters {
+		if chatID, _ := message["chatId"].(string); strings.HasSuffix(chatID, "@"+types.NewsletterServer) {
+			return true
+		}
 	}
-	phone, _ := message["senderPhone"].(string)
-	return s.accountProxyStore.IsPlatformAccount(phone)
+	if s.cfg.SkipMediaFromPlatformAccounts && s.accountProxyStore != nil {
+		phone, _ := message["senderPhone"].(string)
+		if s.accountProxyStore.IsPlatformAccount(phone) {
+			return true
+		}
+	}
+	return false
 }
 
 func outgoingSentStatusEvent(message map[string]any, evt *events.Message) map[string]any {

@@ -54,7 +54,11 @@ type Config struct {
 	// which is redundant and dominates media volume at fleet scale). Needs
 	// AccountDBDSN so the platform account set can be loaded. Default off.
 	SkipMediaFromPlatformAccounts bool
-	DefaultProxy                  ProxySpec
+	// SkipMediaFromNewsletters skips auto-downloading incoming media from
+	// newsletter/channel chats (broadcast content the platform does not consume).
+	// Independent of AccountDBDSN. Default off.
+	SkipMediaFromNewsletters bool
+	DefaultProxy             ProxySpec
 }
 
 type configFile struct {
@@ -370,6 +374,11 @@ func applyEnvOverrides(cfg *Config) {
 	if value := os.Getenv("BRIDGE_SKIP_MEDIA_FROM_PLATFORM_ACCOUNTS"); value != "" {
 		if enabled, err := strconv.ParseBool(value); err == nil {
 			cfg.SkipMediaFromPlatformAccounts = enabled
+		}
+	}
+	if value := os.Getenv("BRIDGE_SKIP_MEDIA_FROM_NEWSLETTERS"); value != "" {
+		if enabled, err := strconv.ParseBool(value); err == nil {
+			cfg.SkipMediaFromNewsletters = enabled
 		}
 	}
 }

@@ -134,6 +134,9 @@ func (s *Service) Start(ctx context.Context) error {
 		s.accountProxyStore.StartPlatformPhoneRefresh(ctx, 5*time.Minute)
 		logrus.Info("bridge platform-account media skip enabled (incoming media from platform accounts will not be downloaded)")
 	}
+	if s.cfg.SkipMediaFromNewsletters {
+		logrus.Info("bridge newsletter media skip enabled (incoming media from newsletter/channel chats will not be downloaded)")
+	}
 
 	if err := s.startHTTP(ctx); err != nil {
 		return err
