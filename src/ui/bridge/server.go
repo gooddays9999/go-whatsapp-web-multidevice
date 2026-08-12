@@ -130,6 +130,11 @@ func (s *Service) Start(ctx context.Context) error {
 	go s.restorePersistedAccounts(ctx)
 	go s.reconnectSweepLoop(ctx)
 
+	if s.cfg.SkipMediaFromPlatformAccounts && s.accountProxyStore != nil {
+		s.accountProxyStore.StartPlatformPhoneRefresh(ctx, 5*time.Minute)
+		logrus.Info("bridge platform-account media skip enabled (incoming media from platform accounts will not be downloaded)")
+	}
+
 	if err := s.startHTTP(ctx); err != nil {
 		return err
 	}

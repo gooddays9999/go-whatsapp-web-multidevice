@@ -703,7 +703,13 @@ func (m *DeviceManager) EnsureClientWithEnvironment(ctx context.Context, deviceI
 	}
 
 	client.AddEventHandler(func(rawEvt any) {
-		handler(ctx, inst, rawEvt)
+		// Events fire asynchronously for the client's whole lifetime, so the
+		// handler must NOT be bound to the request ctx that created the client:
+		// that ctx is cancelled as soon as the creating Connect/reconnect returns,
+		// which then aborts any in-flight work — notably incoming media downloads —
+		// with "context canceled"/"context deadline exceeded". Use a fresh context,
+		// matching the OnLoggedOut callback below and the default InitWaCLI client.
+		handler(context.Background(), inst, rawEvt)
 	})
 
 	inst.SetOnLoggedOut(func(deviceID string) {

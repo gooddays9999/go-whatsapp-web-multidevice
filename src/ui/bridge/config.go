@@ -49,7 +49,12 @@ type Config struct {
 	UploadMediaURL                  string
 	UploadAPIKey                    string
 	AccountDBDSN                    string
-	DefaultProxy                    ProxySpec
+	// SkipMediaFromPlatformAccounts skips auto-downloading incoming media whose
+	// sender is another platform account (internal account-to-account traffic,
+	// which is redundant and dominates media volume at fleet scale). Needs
+	// AccountDBDSN so the platform account set can be loaded. Default off.
+	SkipMediaFromPlatformAccounts bool
+	DefaultProxy                  ProxySpec
 }
 
 type configFile struct {
@@ -361,6 +366,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := os.Getenv("ACCOUNT_DB_DSN"); value != "" {
 		cfg.AccountDBDSN = value
+	}
+	if value := os.Getenv("BRIDGE_SKIP_MEDIA_FROM_PLATFORM_ACCOUNTS"); value != "" {
+		if enabled, err := strconv.ParseBool(value); err == nil {
+			cfg.SkipMediaFromPlatformAccounts = enabled
+		}
 	}
 }
 

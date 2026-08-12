@@ -279,3 +279,56 @@ func newTestUAPool() *UAPool {
 		OSName:        "Windows",
 	}}}
 }
+
+func TestIsPlatformAccount(t *testing.T) {
+	s := &AccountProxyStore{}
+	// Not loaded yet → fail-open (do not report as platform, so media still downloads).
+	if s.IsPlatformAccount("16467775883") {
+		t.Fatal("unloaded set must report false (fail-open)")
+	}
+
+	set := map[string]struct{}{"16467775883": {}, "447593840005": {}}
+	s.platformPhones.Store(&set)
+
+	if !s.IsPlatformAccount("16467775883") {
+		t.Fatal("known platform phone should return true")
+	}
+	if s.IsPlatformAccount("19999999999") {
+		t.Fatal("unknown phone should return false")
+	}
+	if s.IsPlatformAccount("") {
+		t.Fatal("empty phone should return false")
+	}
+	var nilStore *AccountProxyStore
+	if nilStore.IsPlatformAccount("16467775883") {
+		t.Fatal("nil store should return false")
+	}
+}
+
+func TestSkipPlatformMedia(t *testing.T) {
+	set := map[string]struct{}{"16467775883": {}}
+	store := &AccountProxyStore{}
+	store.platformPhones.Store(&set)
+
+	cases := []struct {
+		name    string
+		enabled bool
+		store   *AccountProxyStore
+		phone   string
+		want    bool
+	}{
+		{"disabled never skips", false, store, "16467775883", false},
+		{"enabled + platform sender skips", true, store, "16467775883", true},
+		{"enabled + external sender downloads", true, store, "19999999999", false},
+		{"enabled + nil store downloads", true, nil, "16467775883", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &Service{cfg: Config{SkipMediaFromPlatformAccounts: tc.enabled}, accountProxyStore: tc.store}
+			got := s.skipPlatformMedia(map[string]any{"senderPhone": tc.phone})
+			if got != tc.want {
+				t.Fatalf("skipPlatformMedia=%v, want %v", got, tc.want)
+			}
+		})
+	}
+}

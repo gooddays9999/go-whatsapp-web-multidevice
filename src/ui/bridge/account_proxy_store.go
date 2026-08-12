@@ -5,13 +5,22 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"sync/atomic"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 type AccountProxyStore struct {
 	db *sql.DB
+	// platformPhones is an atomically-swapped set of every non-deleted account's
+	// phone number, refreshed in the background. It lets the bridge skip
+	// auto-downloading media whose sender is another platform account (internal
+	// account-to-account traffic), which is redundant and, at fleet scale,
+	// dominates incoming-media volume.
+	platformPhones atomic.Pointer[map[string]struct{}]
 }
 
 func NewAccountProxyStore(dsn string) (*AccountProxyStore, error) {
@@ -173,4 +182,94 @@ func (s *AccountProxyStore) RestorableAccountIDs(ctx context.Context) ([]string,
 		return nil, err
 	}
 	return accountIDs, nil
+}
+
+// loadPlatformPhones reads every non-deleted account's phone number.
+func (s *AccountProxyStore) loadPlatformPhones(ctx context.Context) (map[string]struct{}, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT a.phone
+		FROM accounts a
+		WHERE a.deleted_at IS NULL AND a.phone <> ''
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	set := make(map[string]struct{})
+	for rows.Next() {
+		var phone string
+		if err := rows.Scan(&phone); err != nil {
+			return nil, err
+		}
+		set[phone] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return set, nil
+}
+
+// RefreshPlatformPhones reloads the cached platform-phone set once.
+func (s *AccountProxyStore) RefreshPlatformPhones(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	set, err := s.loadPlatformPhones(ctx)
+	if err != nil {
+		return err
+	}
+	s.platformPhones.Store(&set)
+	return nil
+}
+
+// StartPlatformPhoneRefresh loads the platform-phone set immediately, then keeps
+// it fresh on the given interval until ctx is done. It runs in its own goroutine
+// and never blocks the caller; a failed refresh keeps the previous set.
+func (s *AccountProxyStore) StartPlatformPhoneRefresh(ctx context.Context, interval time.Duration) {
+	if s == nil || s.db == nil {
+		return
+	}
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+	go func() {
+		refresh := func() {
+			rctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			if err := s.RefreshPlatformPhones(rctx); err != nil {
+				logrus.WithError(err).Warn("[ACCOUNT_STORE] failed to refresh platform phone set")
+				return
+			}
+			if set := s.platformPhones.Load(); set != nil {
+				logrus.Infof("[ACCOUNT_STORE] platform phone set refreshed (%d accounts)", len(*set))
+			}
+		}
+		refresh()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				refresh()
+			}
+		}
+	}()
+}
+
+// IsPlatformAccount reports whether phone belongs to a known platform account.
+// It returns false when the set has not loaded yet (fail-open: better to download
+// than to wrongly skip before the set is ready).
+func (s *AccountProxyStore) IsPlatformAccount(phone string) bool {
+	if s == nil || phone == "" {
+		return false
+	}
+	set := s.platformPhones.Load()
+	if set == nil {
+		return false
+	}
+	_, ok := (*set)[phone]
+	return ok
 }

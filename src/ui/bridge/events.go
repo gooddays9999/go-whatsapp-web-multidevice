@@ -124,9 +124,22 @@ func (s *Service) handleMessageEvent(ctx context.Context, accountID string, inst
 			s.publish("message.status", accountID, payload)
 		}
 	}
-	if downloadable := downloadableMessage(msg); downloadable != nil {
+	// Skip the (redundant) download when the sender is another platform account —
+	// internal account-to-account traffic that dominates media volume. The message
+	// itself was already published above; only the media fetch is skipped.
+	if downloadable := downloadableMessage(msg); downloadable != nil && !s.skipPlatformMedia(message) {
 		go s.downloadAndPublishMedia(ctx, accountID, instance, evt, downloadable, message)
 	}
+}
+
+// skipPlatformMedia reports whether incoming media should not be auto-downloaded
+// because its sender is another platform account.
+func (s *Service) skipPlatformMedia(message map[string]any) bool {
+	if !s.cfg.SkipMediaFromPlatformAccounts || s.accountProxyStore == nil {
+		return false
+	}
+	phone, _ := message["senderPhone"].(string)
+	return s.accountProxyStore.IsPlatformAccount(phone)
 }
 
 func outgoingSentStatusEvent(message map[string]any, evt *events.Message) map[string]any {
