@@ -354,3 +354,30 @@ func TestRemoteLogoutCallback_KeepsSlot(t *testing.T) {
 	assertStoreLacksJID(t, ctx, primaryStore, nonAD)
 	assertStoreLacksJID(t, ctx, keysStore, nonAD)
 }
+
+// A second registry record on the same bare-number JID (a re-pair leftover, or a
+// same-number sibling) must be skipped at load — never deleted. The old behavior
+// deleted whichever record was seen second; ListDeviceRecords order is
+// non-deterministic, so it could drop the LIVE slot and keep a dead one, leaving
+// a working account stranded at qr_pending. Deletion belongs to explicit
+// remove/purge only.
+func TestLoadFromRegistryNeverDeletesDuplicateJIDRecords(t *testing.T) {
+	stub := &keepSlotStubStorage{}
+	m := NewDeviceManager(newTestSQLStore(t), nil, stub)
+
+	const jid = "628999999999@s.whatsapp.net"
+	m.loadFromRegistry([]*domainChatStorage.DeviceRecord{
+		{DeviceID: "100", JID: jid},
+		{DeviceID: "200", JID: jid}, // duplicate bare-number JID
+	})
+
+	if len(stub.deletedRecords) != 0 {
+		t.Fatalf("boot must never delete registry records; deleted=%v", stub.deletedRecords)
+	}
+	if _, ok := m.GetDevice("100"); !ok {
+		t.Fatalf("first slot (100) should be loaded")
+	}
+	if _, ok := m.GetDevice("200"); ok {
+		t.Fatalf("duplicate slot (200) should be skipped from memory, not loaded")
+	}
+}

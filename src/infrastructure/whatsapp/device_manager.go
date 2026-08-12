@@ -524,11 +524,16 @@ func (m *DeviceManager) loadFromRegistry(records []*domainChatStorage.DeviceReco
 			continue
 		}
 
-		// Skip duplicate JIDs
+		// A second registry record on the same JID is a sibling companion on the
+		// same number, or a re-pair leftover. Skip loading the duplicate into
+		// memory, but do NOT delete the record: boot reconciliation must never
+		// destroy a registry entry. The previous delete removed whichever record
+		// happened to be seen second — iteration order is non-deterministic, so it
+		// could drop the LIVE slot and keep a dead one, leaving a working account
+		// stuck qr_pending. Deletion belongs to explicit remove/purge only.
 		if rec.JID != "" {
 			if seenJIDs[rec.JID] {
-				logrus.Warnf("[DEVICE_MANAGER] removing duplicate JID device %s", rec.DeviceID)
-				_ = m.storage.DeleteDeviceRecord(rec.DeviceID)
+				logrus.Warnf("[DEVICE_MANAGER] skipping duplicate-JID slot %s (record kept; remove explicitly if stale)", rec.DeviceID)
 				continue
 			}
 			seenJIDs[rec.JID] = true
