@@ -367,15 +367,18 @@ func bridgeGroupFromInfo(ctx context.Context, group types.GroupInfo, resolveAvat
 		avatar = resolveAvatar(ctx, group.JID)
 	}
 	return &bridgepb.Group{
-		Jid:              group.JID.String(),
-		Name:             group.Name,
-		Description:      group.Topic,
-		ParticipantCount: int32(group.ParticipantCount),
-		Owner:            group.OwnerJID.String(),
-		CreatedAt:        group.GroupCreated.UnixMilli(),
-		Avatar:           avatar,
-		Announce:         group.IsAnnounce,
-		Restrict:         group.IsLocked,
+		Jid:               group.JID.String(),
+		Name:              group.Name,
+		Description:       group.Topic,
+		ParticipantCount:  int32(group.ParticipantCount),
+		Owner:             group.OwnerJID.String(),
+		CreatedAt:         group.GroupCreated.UnixMilli(),
+		Avatar:            avatar,
+		Announce:          group.IsAnnounce,
+		Restrict:          group.IsLocked,
+		IsParent:          group.IsParent,
+		LinkedParentJid:   group.LinkedParentJID.String(),
+		IsDefaultSubGroup: group.IsDefaultSubGroup,
 	}
 }
 
@@ -450,6 +453,145 @@ func (s *Service) CreateGroup(ctx context.Context, req *bridgepb.CreateGroupRequ
 		return &bridgepb.CreateGroupResponse{Success: false, Error: err.Error()}, nil
 	}
 	return &bridgepb.CreateGroupResponse{Success: true, GroupJid: groupID}, nil
+}
+
+func (s *Service) CreateCommunity(ctx context.Context, req *bridgepb.CreateCommunityRequest) (*bridgepb.CreateCommunityResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	client := whatsapp.ClientFromContext(scoped)
+	if client == nil {
+		return &bridgepb.CreateCommunityResponse{Success: false, Error: "account not connected"}, nil
+	}
+	participants, err := communityParticipantJIDs(client, req.GetParticipants())
+	if err != nil {
+		return &bridgepb.CreateCommunityResponse{Success: false, Error: err.Error()}, nil
+	}
+	info, err := client.CreateGroup(scoped, communityCreateGroupRequest(req.GetName(), participants, req.GetDefaultMembershipApprovalMode()))
+	if err != nil {
+		return &bridgepb.CreateCommunityResponse{Success: false, Error: err.Error()}, nil
+	}
+	community := bridgeGroupFromInfo(scoped, *info, nil)
+	community.IsParent = true
+	return &bridgepb.CreateCommunityResponse{Success: true, Community: community}, nil
+}
+
+func (s *Service) CreateCommunitySubGroup(ctx context.Context, req *bridgepb.CreateCommunitySubGroupRequest) (*bridgepb.CreateCommunitySubGroupResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	client := whatsapp.ClientFromContext(scoped)
+	if client == nil {
+		return &bridgepb.CreateCommunitySubGroupResponse{Success: false, Error: "account not connected"}, nil
+	}
+	parentJID, err := communityParentJID(client, req.GetCommunityJid())
+	if err != nil {
+		return &bridgepb.CreateCommunitySubGroupResponse{Success: false, Error: err.Error()}, nil
+	}
+	participants, err := communityParticipantJIDs(client, req.GetParticipants())
+	if err != nil {
+		return &bridgepb.CreateCommunitySubGroupResponse{Success: false, Error: err.Error()}, nil
+	}
+	info, err := client.CreateGroup(scoped, communitySubGroupCreateGroupRequest(req.GetName(), parentJID, participants))
+	if err != nil {
+		return &bridgepb.CreateCommunitySubGroupResponse{Success: false, Error: err.Error()}, nil
+	}
+	group := bridgeGroupFromInfo(scoped, *info, nil)
+	group.LinkedParentJid = parentJID.String()
+	return &bridgepb.CreateCommunitySubGroupResponse{Success: true, Group: group}, nil
+}
+
+func (s *Service) GetCommunitySubGroups(ctx context.Context, req *bridgepb.GetCommunitySubGroupsRequest) (*bridgepb.GetCommunitySubGroupsResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	client := whatsapp.ClientFromContext(scoped)
+	if client == nil {
+		return &bridgepb.GetCommunitySubGroupsResponse{Success: false, Error: "account not connected"}, nil
+	}
+	parentJID, err := communityParentJID(client, req.GetCommunityJid())
+	if err != nil {
+		return &bridgepb.GetCommunitySubGroupsResponse{Success: false, Error: err.Error()}, nil
+	}
+	subGroups, err := client.GetSubGroups(scoped, parentJID)
+	if err != nil {
+		return &bridgepb.GetCommunitySubGroupsResponse{Success: false, Error: err.Error()}, nil
+	}
+	groups := make([]*bridgepb.Group, 0, len(subGroups))
+	for _, group := range subGroups {
+		groups = append(groups, bridgeGroupFromLinkTarget(group, parentJID))
+	}
+	return &bridgepb.GetCommunitySubGroupsResponse{Success: true, Groups: groups}, nil
+}
+
+func communityCreateGroupRequest(name string, participants []types.JID, approvalMode string) whatsmeow.ReqCreateGroup {
+	approvalMode = strings.TrimSpace(approvalMode)
+	if approvalMode == "" {
+		approvalMode = "request_required"
+	}
+	return whatsmeow.ReqCreateGroup{
+		Name:         strings.TrimSpace(name),
+		Participants: participants,
+		GroupParent: types.GroupParent{
+			IsParent:                      true,
+			DefaultMembershipApprovalMode: approvalMode,
+		},
+	}
+}
+
+func communitySubGroupCreateGroupRequest(name string, parentJID types.JID, participants []types.JID) whatsmeow.ReqCreateGroup {
+	return whatsmeow.ReqCreateGroup{
+		Name:              strings.TrimSpace(name),
+		Participants:      participants,
+		GroupLinkedParent: types.GroupLinkedParent{LinkedParentJID: parentJID},
+	}
+}
+
+func communityParticipantJIDs(client *whatsmeow.Client, participants []string) ([]types.JID, error) {
+	jids := make([]types.JID, 0, len(participants))
+	for _, participant := range participants {
+		participant = strings.TrimSpace(participant)
+		if participant == "" {
+			continue
+		}
+		jid, err := utils.ValidateJidWithLogin(client, participant)
+		if err != nil {
+			return nil, fmt.Errorf("invalid participant %q: %w", participant, err)
+		}
+		jids = append(jids, jid.ToNonAD())
+	}
+	return jids, nil
+}
+
+func communityParentJID(client *whatsmeow.Client, raw string) (types.JID, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return types.EmptyJID, fmt.Errorf("community_jid is required")
+	}
+	jid, err := utils.ValidateJidWithLogin(client, raw)
+	if err != nil {
+		return types.EmptyJID, err
+	}
+	jid = jid.ToNonAD()
+	if jid.Server != types.GroupServer {
+		return types.EmptyJID, fmt.Errorf("community_jid must be a group JID")
+	}
+	return jid, nil
+}
+
+func bridgeGroupFromLinkTarget(group *types.GroupLinkTarget, parentJID types.JID) *bridgepb.Group {
+	if group == nil {
+		return &bridgepb.Group{LinkedParentJid: parentJID.String()}
+	}
+	return &bridgepb.Group{
+		Jid:               group.JID.String(),
+		Name:              strings.TrimSpace(group.Name),
+		LinkedParentJid:   parentJID.String(),
+		IsDefaultSubGroup: group.IsDefaultSubGroup,
+	}
 }
 
 func (s *Service) UpdateGroup(ctx context.Context, req *bridgepb.UpdateGroupRequest) (*bridgepb.UpdateGroupResponse, error) {

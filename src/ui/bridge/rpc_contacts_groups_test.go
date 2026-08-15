@@ -187,6 +187,76 @@ func TestBridgeGroupFromInfoIncludesResolvedAvatarURL(t *testing.T) {
 	}
 }
 
+func TestBridgeGroupFromInfoIncludesCommunityFields(t *testing.T) {
+	parentJID := types.NewJID("120363111", types.GroupServer)
+	group := types.GroupInfo{
+		JID:               types.NewJID("120363222", types.GroupServer),
+		GroupName:         types.GroupName{Name: "Community Sub Group"},
+		GroupParent:       types.GroupParent{IsParent: true},
+		GroupLinkedParent: types.GroupLinkedParent{LinkedParentJID: parentJID},
+		GroupIsDefaultSub: types.GroupIsDefaultSub{IsDefaultSubGroup: true},
+		GroupAnnounce:     types.GroupAnnounce{IsAnnounce: true},
+		GroupLocked:       types.GroupLocked{IsLocked: true},
+	}
+
+	got := bridgeGroupFromInfo(context.Background(), group, nil)
+
+	if !got.GetIsParent() {
+		t.Fatal("is_parent = false, want true")
+	}
+	if got.GetLinkedParentJid() != parentJID.String() {
+		t.Fatalf("linked_parent_jid = %q, want %q", got.GetLinkedParentJid(), parentJID.String())
+	}
+	if !got.GetIsDefaultSubGroup() {
+		t.Fatal("is_default_sub_group = false, want true")
+	}
+	if !got.GetAnnounce() || !got.GetRestrict() {
+		t.Fatalf("announce/restrict not preserved: %#v", got)
+	}
+}
+
+func TestCommunityCreateGroupRequest(t *testing.T) {
+	participant := types.NewJID("15812751827", types.DefaultUserServer)
+
+	got := communityCreateGroupRequest("IMS Community", []types.JID{participant}, "")
+
+	if got.Name != "IMS Community" {
+		t.Fatalf("name = %q, want IMS Community", got.Name)
+	}
+	if len(got.Participants) != 1 || got.Participants[0] != participant {
+		t.Fatalf("participants = %#v, want [%s]", got.Participants, participant)
+	}
+	if !got.IsParent {
+		t.Fatal("IsParent = false, want true")
+	}
+	if got.DefaultMembershipApprovalMode != "request_required" {
+		t.Fatalf("DefaultMembershipApprovalMode = %q, want request_required", got.DefaultMembershipApprovalMode)
+	}
+	if !got.LinkedParentJID.IsEmpty() {
+		t.Fatalf("LinkedParentJID = %s, want empty", got.LinkedParentJID)
+	}
+}
+
+func TestCommunitySubGroupCreateGroupRequest(t *testing.T) {
+	parentJID := types.NewJID("120363111", types.GroupServer)
+	participant := types.NewJID("15812751827", types.DefaultUserServer)
+
+	got := communitySubGroupCreateGroupRequest("IMS Sub Group", parentJID, []types.JID{participant})
+
+	if got.Name != "IMS Sub Group" {
+		t.Fatalf("name = %q, want IMS Sub Group", got.Name)
+	}
+	if len(got.Participants) != 1 || got.Participants[0] != participant {
+		t.Fatalf("participants = %#v, want [%s]", got.Participants, participant)
+	}
+	if got.IsParent {
+		t.Fatal("IsParent = true, want false")
+	}
+	if got.LinkedParentJID != parentJID {
+		t.Fatalf("LinkedParentJID = %s, want %s", got.LinkedParentJID, parentJID)
+	}
+}
+
 func TestPrepareProfilePictureJPEG(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 1200, 800))
 	var input bytes.Buffer

@@ -106,6 +106,15 @@ service WhatsAppBridge {
     // Create group
     rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
 
+    // Create a WhatsApp community parent group
+    rpc CreateCommunity(CreateCommunityRequest) returns (CreateCommunityResponse);
+
+    // Create a subgroup linked to a WhatsApp community
+    rpc CreateCommunitySubGroup(CreateCommunitySubGroupRequest) returns (CreateCommunitySubGroupResponse);
+
+    // Get subgroups linked to a WhatsApp community
+    rpc GetCommunitySubGroups(GetCommunitySubGroupsRequest) returns (GetCommunitySubGroupsResponse);
+
     // Update group info (name/description)
     rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
 
@@ -334,6 +343,9 @@ message Group {
     string invite_link = 8;     // Group invite link (only when account is admin)
     bool announce = 9;          // 全员禁言（announcement-only group：仅 admin 可发消息）
     bool restrict = 10;         // 仅 admin 可改群信息（标题/描述/头像）
+    bool is_parent = 11;        // Whether this group is a WhatsApp community parent
+    string linked_parent_jid = 12; // Parent community JID when this is a community subgroup
+    bool is_default_sub_group = 13; // Whether this is the community's default announcement subgroup
 }
 
 message GetGroupMembersRequest {
@@ -563,6 +575,43 @@ message CreateGroupRequest {
 message CreateGroupResponse {
     bool success = 1;
     string group_jid = 2;
+    string error = 3;
+}
+
+message CreateCommunityRequest {
+    string account_id = 1;
+    string name = 2;
+    repeated string participants = 3;  // Initial member phone numbers/JIDs
+    string default_membership_approval_mode = 4; // Optional, defaults to request_required
+}
+
+message CreateCommunityResponse {
+    bool success = 1;
+    Group community = 2;
+    string error = 3;
+}
+
+message CreateCommunitySubGroupRequest {
+    string account_id = 1;
+    string community_jid = 2;
+    string name = 3;
+    repeated string participants = 4;  // Initial member phone numbers/JIDs
+}
+
+message CreateCommunitySubGroupResponse {
+    bool success = 1;
+    Group group = 2;
+    string error = 3;
+}
+
+message GetCommunitySubGroupsRequest {
+    string account_id = 1;
+    string community_jid = 2;
+}
+
+message GetCommunitySubGroupsResponse {
+    bool success = 1;
+    repeated Group groups = 2;
     string error = 3;
 }
 
