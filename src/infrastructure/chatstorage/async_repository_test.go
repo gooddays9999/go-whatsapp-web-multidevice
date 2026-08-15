@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
+	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
@@ -20,6 +21,7 @@ type fakeChatStore struct {
 	mu         sync.Mutex
 	sentIDs    []string
 	sentCtxErr []error
+	sentDevice []string
 	storeCount int
 
 	gate          chan struct{} // when non-nil, writes block until a value is received
@@ -35,6 +37,11 @@ func (f *fakeChatStore) StoreSentMessageWithContext(ctx context.Context, message
 	defer f.mu.Unlock()
 	f.sentIDs = append(f.sentIDs, messageID)
 	f.sentCtxErr = append(f.sentCtxErr, ctx.Err())
+	if device, ok := whatsapp.DeviceFromContext(ctx); ok && device != nil {
+		f.sentDevice = append(f.sentDevice, device.ID())
+	} else {
+		f.sentDevice = append(f.sentDevice, "")
+	}
 	return nil
 }
 
@@ -58,6 +65,12 @@ func (f *fakeChatStore) sentSnapshot() ([]string, []error) {
 	ids := append([]string(nil), f.sentIDs...)
 	errs := append([]error(nil), f.sentCtxErr...)
 	return ids, errs
+}
+
+func (f *fakeChatStore) sentDevicesSnapshot() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.sentDevice...)
 }
 
 // waitFor polls cond until true or the deadline elapses.
@@ -117,6 +130,33 @@ func TestAsyncDetachesFromCallerContext(t *testing.T) {
 	_, errs := fake.sentSnapshot()
 	if errs[0] != nil {
 		t.Fatalf("background write saw ctx err %v, want a live (detached) context", errs[0])
+	}
+}
+
+func TestAsyncPreservesDeviceContextWhenDetachingCallerContext(t *testing.T) {
+	fake := &fakeChatStore{}
+	a := NewAsyncRepository(fake, AsyncConfig{QueueSize: 10})
+	defer a.Close(context.Background())
+
+	canceled, cancel := context.WithCancel(context.Background())
+	ctx := whatsapp.ContextWithDevice(canceled, whatsapp.NewDeviceInstance("12283670341@s.whatsapp.net", nil, nil))
+	cancel()
+
+	if err := a.StoreSentMessageWithContext(ctx, "m1", "s", "r", "hi", time.Now(), nil); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	waitFor(t, time.Second, func() bool {
+		ids, _ := fake.sentSnapshot()
+		return len(ids) == 1
+	})
+	devices := fake.sentDevicesSnapshot()
+	if devices[0] != "12283670341@s.whatsapp.net" {
+		t.Fatalf("background write device = %q, want original caller device", devices[0])
+	}
+	_, errs := fake.sentSnapshot()
+	if errs[0] != nil {
+		t.Fatalf("background write saw ctx err %v, want detached live context", errs[0])
 	}
 }
 

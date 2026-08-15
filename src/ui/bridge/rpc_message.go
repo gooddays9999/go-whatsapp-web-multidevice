@@ -1463,7 +1463,7 @@ func findStatusMessageByID(repo domainChatStorage.IChatStorageRepository, device
 		if err != nil {
 			return nil, fmt.Errorf("failed to find status message: %w", err)
 		}
-		if isStatusMessageForDevice(msg, deviceID) {
+		if isStatusMessage(msg) {
 			return msg, nil
 		}
 	}
@@ -1488,10 +1488,14 @@ func findLatestStatusMessageByUser(repo domainChatStorage.IChatStorageRepository
 }
 
 func isStatusMessageForDevice(msg *domainChatStorage.Message, deviceID string) bool {
-	if msg == nil || msg.ChatJID != types.StatusBroadcastJID.String() {
+	if !isStatusMessage(msg) {
 		return false
 	}
 	return msg.DeviceID == "" || msg.DeviceID == deviceID
+}
+
+func isStatusMessage(msg *domainChatStorage.Message) bool {
+	return msg != nil && msg.ChatJID == types.StatusBroadcastJID.String()
 }
 
 func statusSenderMatches(sender string, target types.JID) bool {

@@ -200,6 +200,28 @@ func TestStatusReplyTargetFromMessageMatchesIMSFields(t *testing.T) {
 	}
 }
 
+func TestFindStatusMessageByIDAllowsExplicitCrossDeviceStatus(t *testing.T) {
+	repo := &reactionTargetTestStore{messages: []*domainChatStorage.Message{
+		{
+			ID:        "3EB0C79E53082D625D7F43",
+			DeviceID:  "15513588083@s.whatsapp.net",
+			ChatJID:   types.StatusBroadcastJID.String(),
+			Sender:    "12283670341@s.whatsapp.net",
+			Content:   "boss status test",
+			Timestamp: time.Date(2026, 8, 15, 7, 29, 44, 0, time.UTC),
+			IsFromMe:  false,
+		},
+	}}
+
+	msg, err := findStatusMessageByID(repo, "16364592997@s.whatsapp.net", "3EB0C79E53082D625D7F43")
+	if err != nil {
+		t.Fatalf("findStatusMessageByID() error = %v", err)
+	}
+	if msg.ID != "3EB0C79E53082D625D7F43" {
+		t.Fatalf("message id = %q, want explicit status id", msg.ID)
+	}
+}
+
 func TestLooksLikeLegacyReactionRecipient(t *testing.T) {
 	tests := []struct {
 		name string
@@ -303,6 +325,8 @@ func TestNormalizeStatusMediaMIMEFallsBackToURLWithoutDot(t *testing.T) {
 }
 
 type reactionTargetTestStore struct {
+	domainChatStorage.IChatStorageRepository
+
 	messages []*domainChatStorage.Message
 }
 

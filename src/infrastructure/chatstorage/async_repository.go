@@ -7,6 +7,7 @@ import (
 	"time"
 
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
+	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	"github.com/sirupsen/logrus"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
@@ -308,11 +309,19 @@ func (a *AsyncRepository) logFail(op string, err error) {
 	}
 }
 
+func asyncContextWithDevice(workerCtx, callerCtx context.Context) context.Context {
+	device, ok := whatsapp.DeviceFromContext(callerCtx)
+	if !ok || device == nil {
+		return workerCtx
+	}
+	return whatsapp.ContextWithDevice(workerCtx, device)
+}
+
 // --- overridden hot-path writes (enqueue + return immediately) ---
 
-func (a *AsyncRepository) StoreSentMessageWithContext(_ context.Context, messageID, senderJID, recipientJID, content string, timestamp time.Time, msg *waE2E.Message) error {
+func (a *AsyncRepository) StoreSentMessageWithContext(callerCtx context.Context, messageID, senderJID, recipientJID, content string, timestamp time.Time, msg *waE2E.Message) error {
 	a.enqueue(asyncTask{name: "StoreSentMessage", apply: func(ctx context.Context, repo domainChatStorage.IChatStorageRepository) error {
-		return repo.StoreSentMessageWithContext(ctx, messageID, senderJID, recipientJID, content, timestamp, msg)
+		return repo.StoreSentMessageWithContext(asyncContextWithDevice(ctx, callerCtx), messageID, senderJID, recipientJID, content, timestamp, msg)
 	}})
 	return nil
 }
