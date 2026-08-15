@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +24,17 @@ func (s *Service) uploadMedia(filePath, msgID, msgType, accountID string, instan
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	fileHeader := make(textproto.MIMEHeader)
+	fileHeader.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{
+		"name":     "file",
+		"filename": filepath.Base(filePath),
+	}))
+	fileMIME := strings.TrimSpace(mimeType)
+	if fileMIME == "" {
+		fileMIME = "application/octet-stream"
+	}
+	fileHeader.Set("Content-Type", fileMIME)
+	part, err := writer.CreatePart(fileHeader)
 	if err != nil {
 		return err
 	}
