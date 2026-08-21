@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -325,10 +327,114 @@ func TestChatSenderDisplayNameJSONContract(t *testing.T) {
 	}
 }
 
+func TestClearChatsSendsDeleteChatAppStateAndDeletesLocalChatsByDevice(t *testing.T) {
+	accountJID := types.NewJID("628999999999", types.DefaultUserServer)
+	deviceID := accountJID.String()
+	chats := []*domainChatStorage.Chat{
+		{DeviceID: deviceID, JID: "628111111111@s.whatsapp.net"},
+		{DeviceID: deviceID, JID: "120363999000111@g.us"},
+	}
+	repo := &chatUsecaseRepoStub{chats: chats}
+	service := NewChatService(repo)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &accountJID}}
+	ctx := whatsapp.ContextWithDevice(context.Background(), whatsapp.NewDeviceInstance(deviceID, client, nil))
+
+	originalSend := sendChatAppState
+	sendChatAppState = func(_ context.Context, _ *whatsmeow.Client, patch appstate.PatchInfo) error {
+		repo.sentPatches = append(repo.sentPatches, patch)
+		return nil
+	}
+	defer func() { sendChatAppState = originalSend }()
+
+	originalValidate := validateChatJIDForAppState
+	validateChatJIDForAppState = func(_ *whatsmeow.Client, jid string) (types.JID, error) {
+		return types.ParseJID(jid)
+	}
+	defer func() { validateChatJIDForAppState = originalValidate }()
+
+	response, err := service.ClearChats(ctx, domainChat.ClearChatsRequest{})
+	if err != nil {
+		t.Fatalf("ClearChats: %v", err)
+	}
+
+	if response.Total != 2 || response.Success != 2 || response.Failed != 0 {
+		t.Fatalf("response counts = total:%d success:%d failed:%d, want 2/2/0", response.Total, response.Success, response.Failed)
+	}
+	if len(repo.sentPatches) != 2 {
+		t.Fatalf("sent patches = %d, want 2", len(repo.sentPatches))
+	}
+	for i, patch := range repo.sentPatches {
+		if patch.Type != appstate.WAPatchRegularHigh {
+			t.Fatalf("patch[%d].Type = %q, want %q", i, patch.Type, appstate.WAPatchRegularHigh)
+		}
+		if len(patch.Mutations) != 1 {
+			t.Fatalf("patch[%d] mutations = %d, want 1", i, len(patch.Mutations))
+		}
+		mutation := patch.Mutations[0]
+		wantChatJID := chats[i].JID
+		if len(mutation.Index) != 3 || mutation.Index[0] != appstate.IndexDeleteChat || mutation.Index[1] != wantChatJID || mutation.Index[2] != "1" {
+			t.Fatalf("patch[%d] index = %#v, want deleteChat for %s with delete media", i, mutation.Index, wantChatJID)
+		}
+		if mutation.Value.GetDeleteChatAction() == nil {
+			t.Fatalf("patch[%d] missing DeleteChatAction", i)
+		}
+	}
+	if len(repo.deletedChats) != 2 || repo.deletedChats[0] != deviceID+"|"+chats[0].JID || repo.deletedChats[1] != deviceID+"|"+chats[1].JID {
+		t.Fatalf("deleted chats = %#v, want device-scoped deletes for both chats", repo.deletedChats)
+	}
+}
+
+func TestClearChatsKeepsProcessingAfterOneChatFails(t *testing.T) {
+	accountJID := types.NewJID("628999999999", types.DefaultUserServer)
+	deviceID := accountJID.String()
+	chats := []*domainChatStorage.Chat{
+		{DeviceID: deviceID, JID: "628111111111@s.whatsapp.net"},
+		{DeviceID: deviceID, JID: "628222222222@s.whatsapp.net"},
+	}
+	repo := &chatUsecaseRepoStub{chats: chats}
+	service := NewChatService(repo)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &accountJID}}
+	ctx := whatsapp.ContextWithDevice(context.Background(), whatsapp.NewDeviceInstance(deviceID, client, nil))
+
+	originalSend := sendChatAppState
+	sendChatAppState = func(_ context.Context, _ *whatsmeow.Client, patch appstate.PatchInfo) error {
+		repo.sentPatches = append(repo.sentPatches, patch)
+		if patch.Mutations[0].Index[1] == chats[0].JID {
+			return errors.New("whatsapp rejected delete")
+		}
+		return nil
+	}
+	defer func() { sendChatAppState = originalSend }()
+
+	originalValidate := validateChatJIDForAppState
+	validateChatJIDForAppState = func(_ *whatsmeow.Client, jid string) (types.JID, error) {
+		return types.ParseJID(jid)
+	}
+	defer func() { validateChatJIDForAppState = originalValidate }()
+
+	response, err := service.ClearChats(ctx, domainChat.ClearChatsRequest{})
+	if err != nil {
+		t.Fatalf("ClearChats: %v", err)
+	}
+
+	if response.Total != 2 || response.Success != 1 || response.Failed != 1 {
+		t.Fatalf("response counts = total:%d success:%d failed:%d, want 2/1/1", response.Total, response.Success, response.Failed)
+	}
+	if len(repo.deletedChats) != 1 || repo.deletedChats[0] != deviceID+"|"+chats[1].JID {
+		t.Fatalf("deleted chats = %#v, want only successful chat deleted locally", repo.deletedChats)
+	}
+	if len(response.Results) != 2 || response.Results[0].Status != "failed" || response.Results[1].Status != "success" {
+		t.Fatalf("results = %#v, want first failed and second success", response.Results)
+	}
+}
+
 type chatUsecaseRepoStub struct {
 	domainChatStorage.IChatStorageRepository
-	chat     *domainChatStorage.Chat
-	messages []*domainChatStorage.Message
+	chat         *domainChatStorage.Chat
+	chats        []*domainChatStorage.Chat
+	messages     []*domainChatStorage.Message
+	sentPatches  []appstate.PatchInfo
+	deletedChats []string
 }
 
 func (r *chatUsecaseRepoStub) GetChatByDevice(_, _ string) (*domainChatStorage.Chat, error) {
@@ -337,6 +443,15 @@ func (r *chatUsecaseRepoStub) GetChatByDevice(_, _ string) (*domainChatStorage.C
 
 func (r *chatUsecaseRepoStub) GetMessages(*domainChatStorage.MessageFilter) ([]*domainChatStorage.Message, error) {
 	return r.messages, nil
+}
+
+func (r *chatUsecaseRepoStub) GetChats(*domainChatStorage.ChatFilter) ([]*domainChatStorage.Chat, error) {
+	return r.chats, nil
+}
+
+func (r *chatUsecaseRepoStub) DeleteChatByDevice(deviceID, jid string) error {
+	r.deletedChats = append(r.deletedChats, deviceID+"|"+jid)
+	return nil
 }
 
 func (r *chatUsecaseRepoStub) GetChatMessageCount(string) (int64, error) {

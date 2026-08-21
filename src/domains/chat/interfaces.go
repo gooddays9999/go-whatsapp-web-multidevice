@@ -11,4 +11,5 @@ type IChatUsecase interface {
 	PinChat(ctx context.Context, request PinChatRequest) (response PinChatResponse, err error)
 	SetDisappearingTimer(ctx context.Context, request SetDisappearingTimerRequest) (response SetDisappearingTimerResponse, err error)
 	ArchiveChat(ctx context.Context, request ArchiveChatRequest) (response ArchiveChatResponse, err error)
+	ClearChats(ctx context.Context, request ClearChatsRequest) (response ClearChatsResponse, err error)
 }

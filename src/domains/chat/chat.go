@@ -105,3 +105,23 @@ type ArchiveChatResponse struct {
 	ChatJID  string `json:"chat_jid"`
 	Archived bool   `json:"archived"`
 }
+
+// Clear all chats for the current device/account.
+type ClearChatsRequest struct {
+	DeleteMedia *bool `json:"delete_media"`
+}
+
+type ClearChatResult struct {
+	ChatJID string `json:"chat_jid"`
+	Status  string `json:"status"`
+	Error   string `json:"error,omitempty"`
+}
+
+type ClearChatsResponse struct {
+	Status  string            `json:"status"`
+	Message string            `json:"message"`
+	Total   int               `json:"total"`
+	Success int               `json:"success"`
+	Failed  int               `json:"failed"`
+	Results []ClearChatResult `json:"results"`
+}

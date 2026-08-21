@@ -102,3 +102,12 @@ func ValidateArchiveChat(ctx context.Context, request *domainChat.ArchiveChatReq
 
 	return nil
 }
+
+func ValidateClearChats(ctx context.Context, request *domainChat.ClearChatsRequest) error {
+	err := validation.ValidateStructWithContext(ctx, request)
+	if err != nil {
+		return pkgError.ValidationError(err.Error())
+	}
+
+	return nil
+}

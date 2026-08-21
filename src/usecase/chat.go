@@ -13,12 +13,19 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/validations"
 	"github.com/sirupsen/logrus"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 )
 
 type serviceChat struct {
 	chatStorageRepo domainChatStorage.IChatStorageRepository
 }
+
+var sendChatAppState = func(ctx context.Context, client *whatsmeow.Client, patch appstate.PatchInfo) error {
+	return client.SendAppState(ctx, patch)
+}
+
+var validateChatJIDForAppState = utils.ValidateJidWithLogin
 
 func NewChatService(chatStorageRepo domainChatStorage.IChatStorageRepository) domainChat.IChatUsecase {
 	return &serviceChat{
@@ -437,6 +444,100 @@ func (service serviceChat) ArchiveChat(ctx context.Context, request domainChat.A
 		"chat_jid": request.ChatJID,
 		"archived": request.Archived,
 	}).Info("Chat archive operation completed successfully")
+
+	return response, nil
+}
+
+func (service serviceChat) ClearChats(ctx context.Context, request domainChat.ClearChatsRequest) (response domainChat.ClearChatsResponse, err error) {
+	if err = validations.ValidateClearChats(ctx, &request); err != nil {
+		return response, err
+	}
+
+	client := whatsapp.ClientFromContext(ctx)
+	if client == nil {
+		return response, pkgError.ErrWaCLI
+	}
+
+	deviceID := deviceIDFromContext(ctx)
+	if deviceID == "" {
+		return response, fmt.Errorf("device identification required")
+	}
+
+	deleteMedia := true
+	if request.DeleteMedia != nil {
+		deleteMedia = *request.DeleteMedia
+	}
+
+	chats, err := service.chatStorageRepo.GetChats(&domainChatStorage.ChatFilter{
+		DeviceID: deviceID,
+	})
+	if err != nil {
+		logrus.WithError(err).WithField("device_id", deviceID).Error("Failed to get chats for clear operation")
+		return response, err
+	}
+
+	response.Total = len(chats)
+	response.Results = make([]domainChat.ClearChatResult, 0, len(chats))
+	for _, chat := range chats {
+		result := domainChat.ClearChatResult{
+			ChatJID: chat.JID,
+			Status:  "success",
+		}
+
+		targetJID, validateErr := validateChatJIDForAppState(client, chat.JID)
+		if validateErr != nil {
+			result.Status = "failed"
+			result.Error = validateErr.Error()
+			response.Failed++
+			response.Results = append(response.Results, result)
+			continue
+		}
+
+		patchInfo := appstate.BuildDeleteChat(targetJID, time.Now(), nil, deleteMedia)
+		if sendErr := sendChatAppState(ctx, client, patchInfo); sendErr != nil {
+			logrus.WithError(sendErr).WithFields(logrus.Fields{
+				"device_id": deviceID,
+				"chat_jid":  chat.JID,
+			}).Error("Failed to send delete chat app state")
+			result.Status = "failed"
+			result.Error = sendErr.Error()
+			response.Failed++
+			response.Results = append(response.Results, result)
+			continue
+		}
+
+		if deleteErr := service.chatStorageRepo.DeleteChatByDevice(deviceID, chat.JID); deleteErr != nil {
+			logrus.WithError(deleteErr).WithFields(logrus.Fields{
+				"device_id": deviceID,
+				"chat_jid":  chat.JID,
+			}).Error("Failed to delete local chat after app state clear")
+			result.Status = "failed"
+			result.Error = deleteErr.Error()
+			response.Failed++
+			response.Results = append(response.Results, result)
+			continue
+		}
+
+		response.Success++
+		response.Results = append(response.Results, result)
+	}
+
+	if response.Failed > 0 {
+		response.Status = "partial_failed"
+		if response.Success == 0 && response.Total > 0 {
+			response.Status = "failed"
+		}
+	} else {
+		response.Status = "success"
+	}
+	response.Message = fmt.Sprintf("Cleared %d/%d chats", response.Success, response.Total)
+
+	logrus.WithFields(logrus.Fields{
+		"device_id": deviceID,
+		"total":     response.Total,
+		"success":   response.Success,
+		"failed":    response.Failed,
+	}).Info("Clear chats operation completed")
 
 	return response, nil
 }

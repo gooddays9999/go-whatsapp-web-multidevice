@@ -20,6 +20,7 @@ func InitRestChat(app fiber.Router, service domainChat.IChatUsecase) Chat {
 	app.Post("/chat/:chat_jid/pin", rest.PinChat)
 	app.Post("/chat/:chat_jid/disappearing", rest.SetDisappearingTimer)
 	app.Post("/chat/:chat_jid/archive", rest.ArchiveChat)
+	app.Post("/chats/clear", rest.ClearChats)
 
 	return rest
 }
@@ -81,6 +82,30 @@ func (controller *Chat) GetChatMessages(c *fiber.Ctx) error {
 		Status:  200,
 		Code:    "SUCCESS",
 		Message: "Success get chat messages",
+		Results: response,
+	})
+}
+
+func (controller *Chat) ClearChats(c *fiber.Ctx) error {
+	var request domainChat.ClearChatsRequest
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&request); err != nil {
+			return c.Status(400).JSON(utils.ResponseData{
+				Status:  400,
+				Code:    "BAD_REQUEST",
+				Message: "Invalid request body",
+				Results: nil,
+			})
+		}
+	}
+
+	response, err := controller.Service.ClearChats(whatsapp.ContextWithDevice(c.UserContext(), getDeviceFromCtx(c)), request)
+	utils.PanicIfNeeded(err)
+
+	return c.JSON(utils.ResponseData{
+		Status:  200,
+		Code:    "SUCCESS",
+		Message: response.Message,
 		Results: response,
 	})
 }
