@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	domainChat "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chat"
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
 	domainMessage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/message"
 	domainSend "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/send"
@@ -39,6 +40,9 @@ const (
 )
 
 func (s *Service) accountContext(ctx context.Context, accountID string) (context.Context, error) {
+	if s != nil && s.accountContextForTest != nil {
+		return s.accountContextForTest(ctx, accountID)
+	}
 	if accountID == "" {
 		return nil, fmt.Errorf("account_id is required")
 	}
@@ -1584,6 +1588,51 @@ func (s *Service) DeleteMessage(ctx context.Context, req *bridgepb.DeleteMessage
 		return &bridgepb.DeleteMessageResponse{Success: false, Error: err.Error()}, nil
 	}
 	return &bridgepb.DeleteMessageResponse{Success: true}, nil
+}
+
+func (s *Service) ClearChats(ctx context.Context, req *bridgepb.ClearChatsRequest) (*bridgepb.ClearChatsResponse, error) {
+	if req.GetAccountId() == "" {
+		return nil, grpcError(fmt.Errorf("account_id is required"))
+	}
+	if s.deps.ChatUsecase == nil {
+		return nil, grpcError(fmt.Errorf("chat usecase is not configured"))
+	}
+
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+
+	request := domainChat.ClearChatsRequest{}
+	if req.DeleteMedia != nil {
+		request.DeleteMedia = req.DeleteMedia
+	}
+	response, err := s.deps.ChatUsecase.ClearChats(scoped, request)
+	if err != nil {
+		return &bridgepb.ClearChatsResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	results := make([]*bridgepb.ClearChatResult, 0, len(response.Results))
+	for _, result := range response.Results {
+		results = append(results, &bridgepb.ClearChatResult{
+			ChatId:  result.ChatJID,
+			Success: result.Status == "success",
+			Error:   result.Error,
+		})
+	}
+
+	return &bridgepb.ClearChatsResponse{
+		Success:      response.Failed == 0,
+		Status:       response.Status,
+		Message:      response.Message,
+		Total:        int32(response.Total),
+		SuccessCount: int32(response.Success),
+		FailedCount:  int32(response.Failed),
+		Results:      results,
+	}, nil
 }
 
 func optionalString(value string) *string {

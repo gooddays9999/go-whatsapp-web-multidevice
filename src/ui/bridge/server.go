@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	domainChat "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chat"
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
 	domainGroup "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/group"
 	domainMessage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/message"
@@ -26,6 +27,7 @@ type Dependencies struct {
 	DB              *sql.DB
 	DeviceManager   *whatsapp.DeviceManager
 	ChatStorageRepo domainChatStorage.IChatStorageRepository
+	ChatUsecase     domainChat.IChatUsecase
 	SendUsecase     domainSend.ISendUsecase
 	UserUsecase     domainUser.IUserUsecase
 	MessageUsecase  domainMessage.IMessageUsecase
@@ -60,6 +62,7 @@ type Service struct {
 	statusSendMu         sync.Mutex
 	lastStatusSend       time.Time
 
+	accountContextForTest      func(context.Context, string) (context.Context, error)
 	accountContextForReconnect func(context.Context, string) (context.Context, error)
 }
 

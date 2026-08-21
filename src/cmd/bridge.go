@@ -58,6 +58,7 @@ func bridgeServer(_ *cobra.Command, _ []string) {
 		DB:              chatStorageDB,
 		DeviceManager:   whatsapp.GetDeviceManager(),
 		ChatStorageRepo: chatStorageRepo,
+		ChatUsecase:     chatUsecase,
 		SendUsecase:     sendUsecase,
 		UserUsecase:     userUsecase,
 		MessageUsecase:  messageUsecase,

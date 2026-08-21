@@ -177,6 +177,9 @@ service WhatsAppBridge {
     // Close all browser tabs (cleanup)
     rpc CloseAllTabs(CloseAllTabsRequest) returns (CloseAllTabsResponse);
 
+    // Clear all chats/messages for the account using WhatsApp app-state.
+    rpc ClearChats(ClearChatsRequest) returns (ClearChatsResponse);
+
     // ========== Status Queries ==========
 
     // Get account status
@@ -1015,6 +1018,30 @@ message CloseAllTabsRequest {
 message CloseAllTabsResponse {
     bool success = 1;
     string error = 2;
+}
+
+// ========== Chat Cleanup ==========
+
+message ClearChatsRequest {
+    string account_id = 1;
+    optional bool delete_media = 2;
+}
+
+message ClearChatResult {
+    string chat_id = 1;
+    bool success = 2;
+    string error = 3;
+}
+
+message ClearChatsResponse {
+    bool success = 1;
+    string status = 2;
+    string message = 3;
+    int32 total = 4;
+    int32 success_count = 5;
+    int32 failed_count = 6;
+    repeated ClearChatResult results = 7;
+    string error = 8;
 }
 
 // ========== Moderation ==========
