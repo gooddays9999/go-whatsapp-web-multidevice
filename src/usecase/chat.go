@@ -506,6 +506,26 @@ func (service serviceChat) ClearChats(ctx context.Context, request domainChat.Cl
 
 		targetJID, validateErr := validateChatJIDForAppState(client, chat.JID)
 		if validateErr != nil {
+			if isChatNotOnWhatsAppValidationError(validateErr) {
+				logrus.WithError(validateErr).WithFields(logrus.Fields{
+					"device_id": deviceID,
+					"chat_jid":  chat.JID,
+				}).Warn("Skipping remote app state delete for stale non-WhatsApp chat and deleting local chat")
+				if deleteErr := service.chatStorageRepo.DeleteChatByDevice(deviceID, chat.JID); deleteErr != nil {
+					logrus.WithError(deleteErr).WithFields(logrus.Fields{
+						"device_id": deviceID,
+						"chat_jid":  chat.JID,
+					}).Error("Failed to delete stale non-WhatsApp local chat")
+					result.Status = "failed"
+					result.Error = deleteErr.Error()
+					response.Failed++
+					response.Results = append(response.Results, result)
+					continue
+				}
+				response.Success++
+				response.Results = append(response.Results, result)
+				continue
+			}
 			result.Status = "failed"
 			result.Error = validateErr.Error()
 			response.Failed++
@@ -560,6 +580,10 @@ func (service serviceChat) ClearChats(ctx context.Context, request domainChat.Cl
 	}).Info("Clear chats operation completed")
 
 	return response, nil
+}
+
+func isChatNotOnWhatsAppValidationError(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "not on whatsapp")
 }
 
 func syncRegularHighAppStateBeforeClear(ctx context.Context, client *whatsmeow.Client) error {

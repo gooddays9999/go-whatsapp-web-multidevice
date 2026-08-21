@@ -448,6 +448,55 @@ func TestClearChatsKeepsProcessingAfterOneChatFails(t *testing.T) {
 	}
 }
 
+func TestClearChatsDeletesStaleNonWhatsAppChatLocally(t *testing.T) {
+	accountJID := types.NewJID("628999999999", types.DefaultUserServer)
+	deviceID := accountJID.String()
+	staleJID := "628333333333@s.whatsapp.net"
+	repo := &chatUsecaseRepoStub{
+		chats: []*domainChatStorage.Chat{{DeviceID: deviceID, JID: staleJID}},
+	}
+	service := NewChatService(repo)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &accountJID}}
+	ctx := whatsapp.ContextWithDevice(context.Background(), whatsapp.NewDeviceInstance(deviceID, client, nil))
+
+	originalFetch := fetchChatAppState
+	fetchChatAppState = func(context.Context, *whatsmeow.Client, appstate.WAPatchName, bool, bool) error {
+		return nil
+	}
+	defer func() { fetchChatAppState = originalFetch }()
+
+	originalSend := sendChatAppState
+	sendChatAppState = func(context.Context, *whatsmeow.Client, appstate.PatchInfo) error {
+		t.Fatal("send app state should not be called for stale non-WhatsApp chat")
+		return nil
+	}
+	defer func() { sendChatAppState = originalSend }()
+
+	originalValidate := validateChatJIDForAppState
+	validateChatJIDForAppState = func(_ *whatsmeow.Client, jid string) (types.JID, error) {
+		if jid == staleJID {
+			return types.JID{}, errors.New("Phone 628333333333@s.whatsapp.net is not on whatsapp")
+		}
+		return types.ParseJID(jid)
+	}
+	defer func() { validateChatJIDForAppState = originalValidate }()
+
+	response, err := service.ClearChats(ctx, domainChat.ClearChatsRequest{})
+	if err != nil {
+		t.Fatalf("ClearChats: %v", err)
+	}
+
+	if response.Total != 1 || response.Success != 1 || response.Failed != 0 {
+		t.Fatalf("response counts = total:%d success:%d failed:%d, want 1/1/0", response.Total, response.Success, response.Failed)
+	}
+	if len(repo.deletedChats) != 1 || repo.deletedChats[0] != deviceID+"|"+staleJID {
+		t.Fatalf("deleted chats = %#v, want stale chat deleted locally", repo.deletedChats)
+	}
+	if len(response.Results) != 1 || response.Results[0].Status != "success" || response.Results[0].Error != "" {
+		t.Fatalf("results = %#v, want stale chat treated as success", response.Results)
+	}
+}
+
 func TestClearChatsStopsBeforeDeletingWhenRegularHighAppStateSyncFails(t *testing.T) {
 	accountJID := types.NewJID("628999999999", types.DefaultUserServer)
 	deviceID := accountJID.String()
