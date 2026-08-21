@@ -346,6 +346,17 @@ func TestClearChatsSendsDeleteChatAppStateAndDeletesLocalChatsByDevice(t *testin
 	}
 	defer func() { sendChatAppState = originalSend }()
 
+	originalFetch := fetchChatAppState
+	fetchCalls := 0
+	fetchChatAppState = func(_ context.Context, _ *whatsmeow.Client, name appstate.WAPatchName, fullSync, onlyIfNotSynced bool) error {
+		fetchCalls++
+		if name != appstate.WAPatchRegularHigh || !fullSync || onlyIfNotSynced {
+			t.Fatalf("fetch app state args = name:%s full:%v only:%v, want regular_high full sync", name, fullSync, onlyIfNotSynced)
+		}
+		return nil
+	}
+	defer func() { fetchChatAppState = originalFetch }()
+
 	originalValidate := validateChatJIDForAppState
 	validateChatJIDForAppState = func(_ *whatsmeow.Client, jid string) (types.JID, error) {
 		return types.ParseJID(jid)
@@ -359,6 +370,9 @@ func TestClearChatsSendsDeleteChatAppStateAndDeletesLocalChatsByDevice(t *testin
 
 	if response.Total != 2 || response.Success != 2 || response.Failed != 0 {
 		t.Fatalf("response counts = total:%d success:%d failed:%d, want 2/2/0", response.Total, response.Success, response.Failed)
+	}
+	if fetchCalls != 1 {
+		t.Fatalf("fetch app state calls = %d, want 1 before deleting chats", fetchCalls)
 	}
 	if len(repo.sentPatches) != 2 {
 		t.Fatalf("sent patches = %d, want 2", len(repo.sentPatches))
@@ -406,6 +420,12 @@ func TestClearChatsKeepsProcessingAfterOneChatFails(t *testing.T) {
 	}
 	defer func() { sendChatAppState = originalSend }()
 
+	originalFetch := fetchChatAppState
+	fetchChatAppState = func(context.Context, *whatsmeow.Client, appstate.WAPatchName, bool, bool) error {
+		return nil
+	}
+	defer func() { fetchChatAppState = originalFetch }()
+
 	originalValidate := validateChatJIDForAppState
 	validateChatJIDForAppState = func(_ *whatsmeow.Client, jid string) (types.JID, error) {
 		return types.ParseJID(jid)
@@ -425,6 +445,42 @@ func TestClearChatsKeepsProcessingAfterOneChatFails(t *testing.T) {
 	}
 	if len(response.Results) != 2 || response.Results[0].Status != "failed" || response.Results[1].Status != "success" {
 		t.Fatalf("results = %#v, want first failed and second success", response.Results)
+	}
+}
+
+func TestClearChatsStopsBeforeDeletingWhenRegularHighAppStateSyncFails(t *testing.T) {
+	accountJID := types.NewJID("628999999999", types.DefaultUserServer)
+	deviceID := accountJID.String()
+	repo := &chatUsecaseRepoStub{
+		chats: []*domainChatStorage.Chat{{DeviceID: deviceID, JID: "628111111111@s.whatsapp.net"}},
+	}
+	service := NewChatService(repo)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &accountJID}}
+	ctx := whatsapp.ContextWithDevice(context.Background(), whatsapp.NewDeviceInstance(deviceID, client, nil))
+
+	originalDelay := clearChatAppStateRetryDelay
+	clearChatAppStateRetryDelay = 0
+	defer func() { clearChatAppStateRetryDelay = originalDelay }()
+
+	originalFetch := fetchChatAppState
+	fetchChatAppState = func(context.Context, *whatsmeow.Client, appstate.WAPatchName, bool, bool) error {
+		return errors.New("missing app state key")
+	}
+	defer func() { fetchChatAppState = originalFetch }()
+
+	originalSend := sendChatAppState
+	sendChatAppState = func(context.Context, *whatsmeow.Client, appstate.PatchInfo) error {
+		t.Fatal("send app state should not be called when pre-sync fails")
+		return nil
+	}
+	defer func() { sendChatAppState = originalSend }()
+
+	_, err := service.ClearChats(ctx, domainChat.ClearChatsRequest{})
+	if err == nil {
+		t.Fatal("ClearChats error = nil, want pre-sync failure")
+	}
+	if len(repo.deletedChats) != 0 {
+		t.Fatalf("deleted chats = %#v, want none", repo.deletedChats)
 	}
 }
 

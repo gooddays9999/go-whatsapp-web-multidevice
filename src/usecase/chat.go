@@ -25,7 +25,13 @@ var sendChatAppState = func(ctx context.Context, client *whatsmeow.Client, patch
 	return client.SendAppState(ctx, patch)
 }
 
+var fetchChatAppState = func(ctx context.Context, client *whatsmeow.Client, name appstate.WAPatchName, fullSync, onlyIfNotSynced bool) error {
+	return client.FetchAppState(ctx, name, fullSync, onlyIfNotSynced)
+}
+
 var validateChatJIDForAppState = utils.ValidateJidWithLogin
+
+var clearChatAppStateRetryDelay = 2 * time.Second
 
 func NewChatService(chatStorageRepo domainChatStorage.IChatStorageRepository) domainChat.IChatUsecase {
 	return &serviceChat{
@@ -478,6 +484,20 @@ func (service serviceChat) ClearChats(ctx context.Context, request domainChat.Cl
 
 	response.Total = len(chats)
 	response.Results = make([]domainChat.ClearChatResult, 0, len(chats))
+	if response.Total == 0 {
+		response.Status = "success"
+		response.Message = "Cleared 0/0 chats"
+		return response, nil
+	}
+
+	if err := syncRegularHighAppStateBeforeClear(ctx, client); err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"device_id": deviceID,
+			"total":     response.Total,
+		}).Error("Failed to sync regular_high app state before clearing chats")
+		return response, err
+	}
+
 	for _, chat := range chats {
 		result := domainChat.ClearChatResult{
 			ChatJID: chat.JID,
@@ -540,4 +560,25 @@ func (service serviceChat) ClearChats(ctx context.Context, request domainChat.Cl
 	}).Info("Clear chats operation completed")
 
 	return response, nil
+}
+
+func syncRegularHighAppStateBeforeClear(ctx context.Context, client *whatsmeow.Client) error {
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if err := fetchChatAppState(ctx, client, appstate.WAPatchRegularHigh, true, false); err != nil {
+			lastErr = err
+		} else {
+			return nil
+		}
+
+		if attempt == 3 || clearChatAppStateRetryDelay <= 0 {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(clearChatAppStateRetryDelay):
+		}
+	}
+	return fmt.Errorf("failed to sync regular_high app state before clearing chats: %w", lastErr)
 }
