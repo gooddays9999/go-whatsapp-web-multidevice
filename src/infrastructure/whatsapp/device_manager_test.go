@@ -133,6 +133,58 @@ func TestResolveDeviceFindsManualDeviceByJID(t *testing.T) {
 	}
 }
 
+// TestGetDeviceByJIDCacheSelfHeals verifies the validated JID->instance cache:
+// warm lookups are served from the cache, and every failure mode (JID change,
+// removal, re-registration under the same ID) self-heals via re-validation
+// rather than returning a stale or wrong device.
+func TestGetDeviceByJIDCacheSelfHeals(t *testing.T) {
+	m := &DeviceManager{devices: make(map[string]*DeviceInstance)}
+	a := &DeviceInstance{id: "dev-a", jid: "111@s.whatsapp.net", createdAt: time.Now()}
+	b := &DeviceInstance{id: "dev-b", jid: "222@s.whatsapp.net", createdAt: time.Now()}
+	m.devices[a.id] = a
+	m.devices[b.id] = b
+
+	// Cold lookup scans and caches; the warm lookup is served from the cache.
+	for i := 0; i < 2; i++ {
+		if got, ok := m.getDeviceByJID("111@s.whatsapp.net"); !ok || got != a {
+			t.Fatalf("lookup %d: got %v ok=%v, want dev-a", i, got, ok)
+		}
+	}
+	if got, ok := m.getDeviceByJID("222@s.whatsapp.net"); !ok || got != b {
+		t.Fatalf("want dev-b, got %v ok=%v", got, ok)
+	}
+	if _, ok := m.getDeviceByJID(""); ok {
+		t.Fatal("empty jid must not match")
+	}
+	if _, ok := m.getDeviceByJID("nope@s.whatsapp.net"); ok {
+		t.Fatal("unknown jid must not match")
+	}
+
+	// JID change: the cached 111->a entry is now stale. The old JID must miss and
+	// the new JID must resolve to a.
+	a.jid = "333@s.whatsapp.net"
+	if _, ok := m.getDeviceByJID("111@s.whatsapp.net"); ok {
+		t.Fatal("stale JID must not resolve after change")
+	}
+	if got, ok := m.getDeviceByJID("333@s.whatsapp.net"); !ok || got != a {
+		t.Fatalf("new JID must resolve to dev-a, got %v ok=%v", got, ok)
+	}
+
+	// Removal: a cached instance no longer registered must not resolve.
+	delete(m.devices, a.id)
+	if _, ok := m.getDeviceByJID("333@s.whatsapp.net"); ok {
+		t.Fatal("removed device must not resolve even when cached")
+	}
+
+	// Re-registration under the same ID with a new object: the stale cache entry
+	// (222->b) must be rejected by the live==cached check and b2 returned.
+	b2 := &DeviceInstance{id: "dev-b", jid: "222@s.whatsapp.net", createdAt: time.Now()}
+	m.devices["dev-b"] = b2
+	if got, ok := m.getDeviceByJID("222@s.whatsapp.net"); !ok || got != b2 {
+		t.Fatalf("re-registered instance must resolve to the new object, got %v ok=%v", got, ok)
+	}
+}
+
 func TestListDevices_SameCreatedAt(t *testing.T) {
 	manager := &DeviceManager{
 		devices: make(map[string]*DeviceInstance),

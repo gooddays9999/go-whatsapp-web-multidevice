@@ -32,13 +32,20 @@ type ClientEnvironment struct {
 
 // DeviceManager keeps a registry of active device instances.
 type DeviceManager struct {
-	mu       sync.RWMutex
-	devices  map[string]*DeviceInstance
-	store    *sqlstore.Container
-	keys     *sqlstore.Container
-	storage  domainChatStorage.IChatStorageRepository
-	initted  bool
-	initOnce sync.Once
+	mu      sync.RWMutex
+	devices map[string]*DeviceInstance
+	// deviceByJID is a best-effort JID -> instance cache so getDeviceByJID no
+	// longer scans (and re-derives the JID of) every registered device on every
+	// call — an O(n) hot path that, at fleet scale, burned whole CPU cores. It is
+	// validated on read (instance still registered, same object, current JID), so
+	// JID changes (login/logout) and removals self-heal without per-mutation
+	// bookkeeping. Guarded by mu, alongside devices.
+	deviceByJID map[string]*DeviceInstance
+	store       *sqlstore.Container
+	keys        *sqlstore.Container
+	storage     domainChatStorage.IChatStorageRepository
+	initted     bool
+	initOnce    sync.Once
 
 	// jidIndex caches a non-AD JID -> AD JID mapping so per-connect device
 	// lookups no longer scan (and re-derive the keys of) every stored device.
@@ -50,10 +57,11 @@ type DeviceManager struct {
 
 func NewDeviceManager(store *sqlstore.Container, keys *sqlstore.Container, chatStorageRepo domainChatStorage.IChatStorageRepository) *DeviceManager {
 	return &DeviceManager{
-		devices: make(map[string]*DeviceInstance),
-		store:   store,
-		keys:    keys,
-		storage: chatStorageRepo,
+		devices:     make(map[string]*DeviceInstance),
+		deviceByJID: make(map[string]*DeviceInstance),
+		store:       store,
+		keys:        keys,
+		storage:     chatStorageRepo,
 	}
 }
 
@@ -86,13 +94,43 @@ func (m *DeviceManager) GetDevice(id string) (*DeviceInstance, bool) {
 }
 
 func (m *DeviceManager) getDeviceByJID(jid string) (*DeviceInstance, bool) {
+	if jid == "" {
+		return nil, false
+	}
+
+	// Fast path: a validated cache hit avoids scanning every device. The cached
+	// instance is only trusted when it is still the registered object for its ID
+	// and still owns this JID, so stale entries (JID change, removal, re-add)
+	// simply fall through to the slow path instead of returning a wrong device.
 	m.mu.RLock()
-	defer m.mu.RUnlock()
+	if cached := m.deviceByJID[jid]; cached != nil {
+		if live, ok := m.devices[cached.ID()]; ok && live == cached && cached.JID() == jid {
+			m.mu.RUnlock()
+			return cached, true
+		}
+	}
+	m.mu.RUnlock()
+
+	// Slow path: linear scan under the write lock, then repair the cache so the
+	// next lookup for this JID is O(1).
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if cached := m.deviceByJID[jid]; cached != nil {
+		if live, ok := m.devices[cached.ID()]; ok && live == cached && cached.JID() == jid {
+			return cached, true
+		}
+	}
 	for _, inst := range m.devices {
 		if inst != nil && inst.JID() == jid {
+			if m.deviceByJID == nil {
+				m.deviceByJID = make(map[string]*DeviceInstance)
+			}
+			m.deviceByJID[jid] = inst
 			return inst, true
 		}
 	}
+	// No live device owns this JID; drop any stale cache entry.
+	delete(m.deviceByJID, jid)
 	return nil, false
 }
 
