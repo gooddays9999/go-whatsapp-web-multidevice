@@ -348,6 +348,17 @@ func (s *Service) handleReceiptEvent(ctx context.Context, accountID string, inst
 }
 
 func (s *Service) receiptAppliesToOutgoing(ctx context.Context, instance *whatsapp.DeviceInstance, id types.MessageID, evt *events.Receipt) bool {
+	// Delivered/Read/Played receipts are, in practice, always about our own
+	// outgoing messages, so trust the receipt type and skip the per-receipt
+	// chatstorage lookup. Under high inbound volume that lookup (a point read on
+	// a multi-GB messages table, once per receipt) dominates CPU: database/sql
+	// connection locking + pread syscalls. The stored-message fallback below is
+	// kept only for receipt types whose direction is genuinely ambiguous.
+	switch evt.Type {
+	case types.ReceiptTypeDelivered, types.ReceiptTypeRead, types.ReceiptTypePlayed:
+		return true
+	}
+
 	if instance != nil {
 		if repo := instance.GetChatStorage(); repo != nil {
 			if msg, err := repo.GetMessageByID(id); err == nil && msg != nil {
@@ -360,13 +371,7 @@ func (s *Service) receiptAppliesToOutgoing(ctx context.Context, instance *whatsa
 			return msg.IsFromMe
 		}
 	}
-
-	switch evt.Type {
-	case types.ReceiptTypeDelivered, types.ReceiptTypeRead, types.ReceiptTypePlayed:
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 func (s *Service) handleHistorySyncEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.HistorySync) {

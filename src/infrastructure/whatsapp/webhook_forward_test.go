@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/config"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
@@ -635,5 +636,68 @@ func TestForwardPayloadInjectsSessionID(t *testing.T) {
 	}
 	if captured["session_id"] != "org_2" {
 		t.Fatalf("expected forwarded payload session_id=org_2, got %v", captured["session_id"])
+	}
+}
+
+func TestInvalidateWebhookConfigCacheClearsEntries(t *testing.T) {
+	invalidateWebhookConfigCache()
+	webhookConfigCache.Store("a@s.whatsapp.net", webhookConfigCacheEntry{expiresAt: time.Now().Add(time.Minute)})
+	webhookConfigCache.Store("b@s.whatsapp.net", webhookConfigCacheEntry{expiresAt: time.Now().Add(time.Minute)})
+
+	invalidateWebhookConfigCache()
+
+	remaining := 0
+	webhookConfigCache.Range(func(_, _ any) bool { remaining++; return true })
+	if remaining != 0 {
+		t.Fatalf("expected cache empty after invalidate, got %d entries", remaining)
+	}
+}
+
+func TestGetWebhookConfigForDeviceServesFreshCacheEntry(t *testing.T) {
+	// Force the cache path on (no injected test storage hook).
+	origHook := webhookStorageForTest
+	webhookStorageForTest = nil
+	defer func() { webhookStorageForTest = origHook }()
+
+	invalidateWebhookConfigCache()
+	defer invalidateWebhookConfigCache()
+
+	const jid = "cache-hit@s.whatsapp.net"
+	url := "https://example.test/device-hook"
+	webhookConfigCache.Store(jid, webhookConfigCacheEntry{
+		config:    &chatstorage.DeviceWebhookConfig{WebhookURL: &url},
+		expiresAt: time.Now().Add(time.Minute),
+	})
+
+	got, err := getWebhookConfigForDevice(jid)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil || got.WebhookURL == nil || *got.WebhookURL != url {
+		t.Fatalf("expected fresh cache hit to return %q, got %+v", url, got)
+	}
+}
+
+func TestGetWebhookConfigForDeviceIgnoresExpiredCacheEntry(t *testing.T) {
+	origHook := webhookStorageForTest
+	webhookStorageForTest = nil
+	defer func() { webhookStorageForTest = origHook }()
+
+	invalidateWebhookConfigCache()
+	defer invalidateWebhookConfigCache()
+
+	const jid = "cache-expired@s.whatsapp.net"
+	stale := "https://expired.invalid/should-not-be-served"
+	webhookConfigCache.Store(jid, webhookConfigCacheEntry{
+		config:    &chatstorage.DeviceWebhookConfig{WebhookURL: &stale},
+		expiresAt: time.Now().Add(-time.Minute),
+	})
+
+	got, err := getWebhookConfigForDevice(jid)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil && got.WebhookURL != nil && *got.WebhookURL == stale {
+		t.Fatalf("expired cache entry must not be served, got %q", stale)
 	}
 }

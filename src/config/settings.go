@@ -73,7 +73,7 @@ var (
 	ChatStorageURI               = "file:storages/chatstorage.db"
 	ChatStorageEnableForeignKeys = true
 	ChatStorageEnableWAL         = true
-	ChatStorageMaxOpenConns      = 5 // Max concurrent SQLite connections for chat storage (WAL allows concurrent readers + 1 writer)
+	ChatStorageMaxOpenConns      = 16 // Max concurrent SQLite connections for chat storage (WAL allows concurrent readers + 1 writer). Raised from 5 so per-event reads don't queue behind a high-write collector account; kept at 16 (not higher) because too many concurrent readers burn CPU in database/sql locking + pread syscalls on a multi-GB DB.
 	// ChatStorageAsync moves high-volume message/chat writes onto a background
 	// worker so the send path never blocks on SQLite write-lock contention.
 	// Writes stay best-effort (dropped when the queue overflows).

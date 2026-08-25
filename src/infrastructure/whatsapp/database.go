@@ -10,6 +10,7 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/config"
 	pkgError "github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/error"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/sqlite"
+	"github.com/lib/pq"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
@@ -47,6 +48,14 @@ func initDatabase(ctx context.Context, dbLog waLog.Logger, DBURI string) (*sqlst
 // it to whatsmeow, so a large account fleet cannot exhaust Postgres
 // max_connections (whatsmeow's own sqlstore.New leaves the pool unbounded).
 func initPostgresStore(ctx context.Context, dbLog waLog.Logger, DBURI string) (*sqlstore.Container, error) {
+	// Use a real Postgres array parameter for batch session/app-state lookups
+	// (their_id = ANY($2)) instead of the fallback IN ($2,$3,...) with one
+	// placeholder per element. A status broadcast prefetches sessions for
+	// thousands of recipients at once; the placeholder form builds a giant query
+	// that Postgres must reparse/replan every call, which starves the status-send
+	// path under load. lib/pq is already the registered "postgres" driver.
+	sqlstore.PostgresArrayWrapper = pq.Array
+
 	db, err := sql.Open("postgres", DBURI)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres store: %w", err)
