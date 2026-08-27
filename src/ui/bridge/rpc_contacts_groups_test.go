@@ -3,10 +3,13 @@ package bridge
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/png"
 	"testing"
 
+	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
+	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
 )
@@ -143,6 +146,39 @@ func TestBuildAddContactPatchWithLID(t *testing.T) {
 	}
 	if lidAction.GetFirstName() != "Garrett" || lidAction.GetFullName() != "Garrett Allen" {
 		t.Fatalf("lid contact action names = %q/%q", lidAction.GetFirstName(), lidAction.GetFullName())
+	}
+}
+
+type checkNumberUserUsecaseStub struct {
+	domainUser.IUserUsecase
+	isOnWhatsApp func(context.Context, domainUser.CheckRequest) (domainUser.CheckResponse, error)
+}
+
+func (s *checkNumberUserUsecaseStub) IsOnWhatsApp(ctx context.Context, request domainUser.CheckRequest) (domainUser.CheckResponse, error) {
+	return s.isOnWhatsApp(ctx, request)
+}
+
+func TestCheckNumberReturnsErrorWhenSingleNumberCheckFails(t *testing.T) {
+	svc := &Service{
+		deps: Dependencies{
+			UserUsecase: &checkNumberUserUsecaseStub{
+				isOnWhatsApp: func(context.Context, domainUser.CheckRequest) (domainUser.CheckResponse, error) {
+					return domainUser.CheckResponse{}, errors.New("rate-overlimit")
+				},
+			},
+		},
+		accountContextForTest: func(ctx context.Context, accountID string) (context.Context, error) {
+			return ctx, nil
+		},
+	}
+
+	_, err := svc.CheckNumber(context.Background(), &bridgepb.CheckNumberRequest{
+		AccountId:    "101",
+		PhoneNumbers: []string{"16618608584"},
+	})
+
+	if err == nil {
+		t.Fatal("CheckNumber error = nil, want rate-overlimit")
 	}
 }
 

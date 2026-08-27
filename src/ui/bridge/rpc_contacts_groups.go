@@ -64,7 +64,10 @@ func (s *Service) CheckNumber(ctx context.Context, req *bridgepb.CheckNumberRequ
 	results := make(map[string]bool, len(req.GetPhoneNumbers()))
 	for _, phone := range req.GetPhoneNumbers() {
 		resp, err := s.deps.UserUsecase.IsOnWhatsApp(scoped, domainUser.CheckRequest{Phone: phone})
-		results[phone] = err == nil && resp.IsOnWhatsApp
+		if err != nil {
+			return nil, grpcError(fmt.Errorf("check number %s: %w", phone, err))
+		}
+		results[phone] = resp.IsOnWhatsApp
 	}
 	return &bridgepb.CheckNumberResponse{Results: results}, nil
 }

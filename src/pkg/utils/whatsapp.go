@@ -482,12 +482,12 @@ func BuildForwardMessageFromStorage(message *domainChatStorage.Message, opts For
 	}
 
 	var (
-		mediaURL       string
-		directPath     string
-		mediaKey       []byte
-		fileSHA256     []byte
-		fileEncSHA256  []byte
-		fileLength     uint64
+		mediaURL      string
+		directPath    string
+		mediaKey      []byte
+		fileSHA256    []byte
+		fileEncSHA256 []byte
+		fileLength    uint64
 	)
 
 	if opts.Upload != nil {
@@ -900,12 +900,22 @@ func SanitizePhone(phone *string) {
 
 // IsOnWhatsapp checks if a number is registered on WhatsApp
 func IsOnWhatsapp(client *whatsmeow.Client, jid string) bool {
+	ok, err := IsOnWhatsappWithError(client, jid)
+	if err != nil {
+		logrus.Error("Failed to check if user is on whatsapp: ", err)
+		return false
+	}
+	return ok
+}
+
+// IsOnWhatsappWithError checks if a number is registered on WhatsApp and returns query errors.
+func IsOnWhatsappWithError(client *whatsmeow.Client, jid string) (bool, error) {
 	// only check if the jid is a user with @s.whatsapp.net
 	if strings.Contains(jid, "@s.whatsapp.net") {
 		// Extract phone number from JID and add + prefix for international format
 		phone := strings.TrimSuffix(jid, "@s.whatsapp.net")
 		if phone == "" {
-			return false
+			return false, nil
 		}
 
 		// whatsmeow expects international format with + prefix
@@ -919,27 +929,26 @@ func IsOnWhatsapp(client *whatsmeow.Client, jid string) bool {
 
 		data, err := client.IsOnWhatsApp(ctx, []string{phone})
 		if err != nil {
-			logrus.Error("Failed to check if user is on whatsapp: ", err)
-			return false
+			return false, err
 		}
 
 		// Empty response means number not found/invalid
 		if len(data) == 0 {
-			return false
+			return false, nil
 		}
 
 		// Check if any result indicates the number is NOT on WhatsApp
 		for _, v := range data {
 			if !v.IsIn {
-				return false
+				return false, nil
 			}
 		}
 
-		return true
+		return true, nil
 	}
 
 	// For non-user JIDs (groups, newsletters), skip validation
-	return true
+	return true, nil
 }
 
 // ValidateJidWithLogin validates JID with login check
