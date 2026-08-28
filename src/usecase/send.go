@@ -1831,13 +1831,26 @@ func (service serviceSend) getDefaultEphemeralExpiration(jid string) (expiration
 		return expiration
 	}
 
+	// Serve from the memory-bounded cache to avoid a chatstorage (SQLite) query
+	// on every send; the disappearing-message expiration changes rarely.
+	if ephemeralExpirationCacheTTL > 0 && defaultEphemeralExpirationCache != nil {
+		if cached, ok := defaultEphemeralExpirationCache.get(jid); ok {
+			return cached
+		}
+	}
+
 	chat, err := service.chatStorageRepo.GetChat(jid)
 	if err != nil {
+		// Do not cache lookup failures; the next send retries.
 		return expiration
 	}
 
 	if chat != nil && chat.EphemeralExpiration != 0 {
 		expiration = chat.EphemeralExpiration
+	}
+
+	if ephemeralExpirationCacheTTL > 0 && defaultEphemeralExpirationCache != nil {
+		defaultEphemeralExpirationCache.put(jid, expiration)
 	}
 
 	return expiration

@@ -135,6 +135,92 @@ func TestEnvironmentStoreUsesLatestConnectProxyAndKeepsUA(t *testing.T) {
 	}
 }
 
+func TestEnvironmentStoreGetCachedServesFromMemoryAndInvalidates(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	store := NewEnvironmentStore(db, newTestUAPool(), Config{})
+	if err := store.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.GetOrCreate(ctx, "acc-1", "t1", &bridgepb.ProxyConfig{
+		Type: "socks5", Host: "127.0.0.1", Port: 1080,
+	}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Prime the cache.
+	env, err := store.GetCached(ctx, "acc-1")
+	if err != nil || env == nil || env.TenantID != "t1" {
+		t.Fatalf("GetCached miss: env=%+v err=%v", env, err)
+	}
+
+	// Mutate the row directly (bypassing the store, so the cache is NOT
+	// invalidated). GetCached must still serve the stale-but-cached value,
+	// proving it does not hit the DB on every call.
+	if _, err := db.ExecContext(ctx, `UPDATE bridge_environments SET tenant_id = 'OUTOFBAND' WHERE account_id = 'acc-1'`); err != nil {
+		t.Fatal(err)
+	}
+	if env, err := store.GetCached(ctx, "acc-1"); err != nil || env == nil || env.TenantID != "t1" {
+		t.Fatalf("expected cached t1, got env=%+v err=%v", env, err)
+	}
+
+	// A write through the store (tenant change) must invalidate the cache.
+	if _, _, err := store.GetOrCreate(ctx, "acc-1", "t2", nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if env, err := store.GetCached(ctx, "acc-1"); err != nil || env == nil || env.TenantID != "t2" {
+		t.Fatalf("expected invalidated t2 after write, got env=%+v err=%v", env, err)
+	}
+
+	// Delete must invalidate too: subsequent GetCached returns nil.
+	if err := store.Delete(ctx, "acc-1"); err != nil {
+		t.Fatal(err)
+	}
+	if env, err := store.GetCached(ctx, "acc-1"); err != nil || env != nil {
+		t.Fatalf("expected nil after delete, got env=%+v err=%v", env, err)
+	}
+}
+
+func TestEnvironmentStoreGetCachedTTLZeroDisablesCache(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	store := NewEnvironmentStore(db, newTestUAPool(), Config{})
+	if err := store.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.GetOrCreate(ctx, "acc-1", "t1", &bridgepb.ProxyConfig{
+		Type: "socks5", Host: "127.0.0.1", Port: 1080,
+	}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := environmentCacheTTL
+	environmentCacheTTL = 0
+	defer func() { environmentCacheTTL = orig }()
+
+	if _, err := store.GetCached(ctx, "acc-1"); err != nil {
+		t.Fatal(err)
+	}
+	// With caching disabled, an out-of-band change is observed immediately.
+	if _, err := db.ExecContext(ctx, `UPDATE bridge_environments SET tenant_id = 'fresh' WHERE account_id = 'acc-1'`); err != nil {
+		t.Fatal(err)
+	}
+	env, err := store.GetCached(ctx, "acc-1")
+	if err != nil || env == nil || env.TenantID != "fresh" {
+		t.Fatalf("expected fresh read with cache disabled, got env=%+v err=%v", env, err)
+	}
+}
+
 func TestProxySpecURLValidation(t *testing.T) {
 	if _, err := (ProxySpec{Type: "socks4", Host: "127.0.0.1", Port: 1080}).URL(); err == nil {
 		t.Fatalf("expected unsupported proxy type to fail")

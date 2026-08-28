@@ -240,7 +240,7 @@ func (s *Service) eventTenantID(accountID string) string {
 	if s == nil || s.envStore == nil || accountID == "" {
 		return ""
 	}
-	env, err := s.envStore.Get(context.Background(), accountID)
+	env, err := s.envStore.GetCached(context.Background(), accountID)
 	if err != nil || env == nil {
 		if err != nil {
 			logrus.WithError(err).WithField("account_id", accountID).Debug("failed to load bridge environment tenant")

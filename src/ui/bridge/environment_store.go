@@ -7,10 +7,26 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 )
+
+// environmentCacheTTL bounds how long a cached bridge_environments row (used by
+// the hot per-event tenant lookup) may be stale after an out-of-band change.
+// Writes that go through this store (GetOrCreate/Delete) invalidate the affected
+// account_id immediately, so this TTL only guards against edits made outside the
+// store (e.g. an admin restoring the registry). Set to 0 to disable caching.
+var environmentCacheTTL = 5 * time.Minute
+
+// environmentCacheEntry caches a resolved bridge environment. A nil env is cached
+// too, so negative lookups (account not yet provisioned) are also served from
+// memory instead of re-querying the SQLite pool on every inbound event.
+type environmentCacheEntry struct {
+	env       *BridgeEnvironment
+	expiresAt time.Time
+}
 
 type BridgeEnvironment struct {
 	AccountID     string
@@ -31,6 +47,9 @@ type EnvironmentStore struct {
 	db     *sql.DB
 	uaPool *UAPool
 	cfg    Config
+	// cache maps account_id -> environmentCacheEntry for the hot per-event
+	// tenant lookup (see GetCached). Invalidated per account_id on write.
+	cache sync.Map
 }
 
 func NewEnvironmentStore(db *sql.DB, uaPool *UAPool, cfg Config) *EnvironmentStore {
@@ -87,6 +106,46 @@ func (s *EnvironmentStore) Get(ctx context.Context, accountID string) (*BridgeEn
 		return nil, err
 	}
 	return &env, nil
+}
+
+// GetCached is a read-only, memory-cached variant of Get for the hot per-event
+// path (tenant resolution on every published event). The returned pointer must
+// be treated as read-only and never mutated, since it is shared across callers.
+// Writes through this store invalidate the cached account_id, and environmentCacheTTL
+// bounds staleness from any out-of-band edits.
+func (s *EnvironmentStore) GetCached(ctx context.Context, accountID string) (*BridgeEnvironment, error) {
+	if accountID == "" {
+		return nil, nil
+	}
+	if environmentCacheTTL > 0 {
+		if v, ok := s.cache.Load(accountID); ok {
+			if entry := v.(environmentCacheEntry); time.Now().Before(entry.expiresAt) {
+				return entry.env, nil
+			}
+		}
+	}
+
+	env, err := s.Get(ctx, accountID)
+	if err != nil {
+		// Do not cache failures; the next event retries.
+		return nil, err
+	}
+
+	if environmentCacheTTL > 0 {
+		s.cache.Store(accountID, environmentCacheEntry{
+			env:       env,
+			expiresAt: time.Now().Add(environmentCacheTTL),
+		})
+	}
+	return env, nil
+}
+
+// invalidateCache drops the cached environment for a single account_id. Called
+// after any write (GetOrCreate/Delete) so the next GetCached reloads from SQLite.
+func (s *EnvironmentStore) invalidateCache(accountID string) {
+	if accountID != "" {
+		s.cache.Delete(accountID)
+	}
 }
 
 func (s *EnvironmentStore) List(ctx context.Context) ([]*BridgeEnvironment, error) {
@@ -214,6 +273,7 @@ func (s *EnvironmentStore) GetOrCreate(ctx context.Context, accountID, tenantID 
 				return nil, false, err
 			}
 			existing.UpdatedAt = now
+			s.invalidateCache(accountID)
 		}
 		return existing, false, err
 	}
@@ -257,11 +317,15 @@ func (s *EnvironmentStore) GetOrCreate(ctx context.Context, accountID, tenantID 
 	if err != nil {
 		return nil, false, err
 	}
+	s.invalidateCache(accountID)
 	return env, true, nil
 }
 
 func (s *EnvironmentStore) Delete(ctx context.Context, accountID string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM bridge_environments WHERE account_id = ?`, accountID)
+	if err == nil {
+		s.invalidateCache(accountID)
+	}
 	return err
 }
 

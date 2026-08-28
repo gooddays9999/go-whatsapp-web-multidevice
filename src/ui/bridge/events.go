@@ -348,16 +348,26 @@ func (s *Service) handleReceiptEvent(ctx context.Context, accountID string, inst
 }
 
 func (s *Service) receiptAppliesToOutgoing(ctx context.Context, instance *whatsapp.DeviceInstance, id types.MessageID, evt *events.Receipt) bool {
-	// Delivered/Read/Played receipts are, in practice, always about our own
-	// outgoing messages, so trust the receipt type and skip the per-receipt
-	// chatstorage lookup. Under high inbound volume that lookup (a point read on
-	// a multi-GB messages table, once per receipt) dominates CPU: database/sql
-	// connection locking + pread syscalls. The stored-message fallback below is
-	// kept only for receipt types whose direction is genuinely ambiguous.
+	// Most receipt types have an unambiguous direction that we can infer from the
+	// type alone, so we skip the per-receipt chatstorage lookup. Under high receipt
+	// volume that lookup (a point read on a multi-GB messages table, once per
+	// receipt) queues on the small SQLite connection pool and piles up goroutines
+	// (database/sql connection wait) — it was a top saturation source in prod.
 	switch evt.Type {
-	case types.ReceiptTypeDelivered, types.ReceiptTypeRead, types.ReceiptTypePlayed:
+	case types.ReceiptTypeDelivered, // recipient's device got OUR message ("" empty type)
+		types.ReceiptTypeRead,   // recipient read OUR message
+		types.ReceiptTypePlayed, // recipient played OUR media message
+		types.ReceiptTypeSender, // our other device confirms a message WE sent
+		types.ReceiptTypeRetry:  // recipient failed to decrypt OUR message and wants a resend
 		return true
+	case types.ReceiptTypeReadSelf, // WE read an incoming message (synced from another device)
+		types.ReceiptTypePlayedSelf: // WE played an incoming media message
+		return false
 	}
+
+	// Truly ambiguous / rare types (server-error, inactive, peer_msg, hist_sync)
+	// fall back to the stored-message direction. These are low volume, so the
+	// occasional lookup does not meaningfully load the pool.
 
 	if instance != nil {
 		if repo := instance.GetChatStorage(); repo != nil {

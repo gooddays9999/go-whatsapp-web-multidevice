@@ -45,6 +45,38 @@ func TestOutgoingSentStatusEventMatchesIMSAckShape(t *testing.T) {
 	}
 }
 
+func TestReceiptAppliesToOutgoingClassifiesByTypeWithoutDBLookup(t *testing.T) {
+	// A Service with no instance and no ChatStorageRepo: the stored-message
+	// fallback returns false. So any case that returns true can ONLY have come
+	// from the type switch, proving the classification skips the chatstorage
+	// lookup for that receipt type.
+	s := &Service{}
+	cases := []struct {
+		name string
+		typ  types.ReceiptType
+		want bool
+	}{
+		{"delivered(empty)", types.ReceiptTypeDelivered, true},
+		{"read", types.ReceiptTypeRead, true},
+		{"played", types.ReceiptTypePlayed, true},
+		{"sender", types.ReceiptTypeSender, true},
+		{"retry", types.ReceiptTypeRetry, true},
+		{"read-self", types.ReceiptTypeReadSelf, false},
+		{"played-self", types.ReceiptTypePlayedSelf, false},
+		// Ambiguous/rare type falls back; with nil repo that yields false and,
+		// importantly, does not panic.
+		{"inactive(fallback)", types.ReceiptTypeInactive, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			evt := &events.Receipt{Type: c.typ}
+			if got := s.receiptAppliesToOutgoing(context.Background(), nil, "MSGID", evt); got != c.want {
+				t.Fatalf("type=%q: got %v, want %v", c.typ, got, c.want)
+			}
+		})
+	}
+}
+
 func TestGroupPictureUpdatedPayloadIncludesAvatarURL(t *testing.T) {
 	evt := &events.Picture{
 		JID:       types.NewJID("120363222", types.GroupServer),
