@@ -163,8 +163,11 @@ var webhookConfigCache sync.Map
 // webhookConfigCacheTTL bounds staleness after a webhook config change. Reads
 // match devices.jid while writes match devices.device_id (different columns), so
 // correctness relies on this TTL plus a full flush on write rather than
-// key-scoped invalidation. Set to 0 to disable caching entirely.
-var webhookConfigCacheTTL = 60 * time.Second
+// key-scoped invalidation. It is long because the underlying device record is
+// effectively static: a short TTL made every device re-query GetDeviceRecordByJID
+// (a point read on the SQLite pool) once per window, which under a large fleet
+// dominated the chat-storage pool and drove up send latency. Set to 0 to disable.
+var webhookConfigCacheTTL = 30 * time.Minute
 
 // invalidateWebhookConfigCache drops every cached device webhook config. Called
 // after any per-device webhook write. Webhook writes are rare (device

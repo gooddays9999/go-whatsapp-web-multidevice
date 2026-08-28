@@ -28,8 +28,12 @@ func NewAccountProxyStore(dsn string) (*AccountProxyStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(5)
-	db.SetMaxIdleConns(2)
+	// Pool sized for the hot ProxyForAccount lookups on this store rather than the
+	// original 5, which serialized those cross-network MySQL round-trips under
+	// fleet load and showed up as a top source of blocked goroutines / send
+	// latency. (IsPlatformAccount is served from an in-memory set, not the pool.)
+	db.SetMaxOpenConns(16)
+	db.SetMaxIdleConns(16)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
