@@ -78,6 +78,12 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 	if err := envStore.Init(context.Background()); err != nil {
 		return nil, err
 	}
+	// Preload the environment cache so the hot per-event tenant lookup starts
+	// warm instead of faulting every account through the SQLite pool on its
+	// first event. Non-fatal: on failure lookups fall back to on-demand caching.
+	if err := envStore.WarmCache(context.Background()); err != nil {
+		logrus.WithError(err).Warn("failed to warm bridge environment cache; falling back to on-demand caching")
+	}
 	if cfg.StatusSendConcurrency <= 0 {
 		cfg.StatusSendConcurrency = 1
 	}

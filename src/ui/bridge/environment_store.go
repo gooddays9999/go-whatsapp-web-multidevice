@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"net/url"
 	"strings"
@@ -17,8 +18,10 @@ import (
 // the hot per-event tenant lookup) may be stale after an out-of-band change.
 // Writes that go through this store (GetOrCreate/Delete) invalidate the affected
 // account_id immediately, so this TTL only guards against edits made outside the
-// store (e.g. an admin restoring the registry). Set to 0 to disable caching.
-var environmentCacheTTL = 5 * time.Minute
+// store (e.g. an admin restoring the registry). It is long because the data is
+// effectively static config: a short TTL made sparsely-active accounts miss and
+// re-query the SQLite pool on nearly every event. Set to 0 to disable caching.
+var environmentCacheTTL = 1 * time.Hour
 
 // environmentCacheEntry caches a resolved bridge environment. A nil env is cached
 // too, so negative lookups (account not yet provisioned) are also served from
@@ -134,10 +137,50 @@ func (s *EnvironmentStore) GetCached(ctx context.Context, accountID string) (*Br
 	if environmentCacheTTL > 0 {
 		s.cache.Store(accountID, environmentCacheEntry{
 			env:       env,
-			expiresAt: time.Now().Add(environmentCacheTTL),
+			expiresAt: s.cacheExpiry(accountID),
 		})
 	}
 	return env, nil
+}
+
+// cacheExpiry returns the expiry for an account's cache entry, jittered by a
+// deterministic per-account offset (up to TTL/4). This spreads out expirations
+// so entries warmed together (e.g. by WarmCache at startup) do not all lapse at
+// the same instant and stampede the SQLite pool with simultaneous reloads.
+func (s *EnvironmentStore) cacheExpiry(accountID string) time.Time {
+	now := time.Now()
+	if environmentCacheTTL <= 0 {
+		return now
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(accountID))
+	jitter := time.Duration(h.Sum32()) % (environmentCacheTTL/4 + 1)
+	return now.Add(environmentCacheTTL + jitter)
+}
+
+// WarmCache preloads every stored environment into the in-memory cache so the
+// hot per-event tenant lookup (GetCached) starts fully warm and does not fault
+// through to the SQLite pool on the first event of each account. Intended to be
+// called once at startup after Init. A failure is non-fatal: lookups just fall
+// back to on-demand caching.
+func (s *EnvironmentStore) WarmCache(ctx context.Context) error {
+	if environmentCacheTTL <= 0 {
+		return nil
+	}
+	envs, err := s.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, env := range envs {
+		if env == nil || env.AccountID == "" {
+			continue
+		}
+		s.cache.Store(env.AccountID, environmentCacheEntry{
+			env:       env,
+			expiresAt: s.cacheExpiry(env.AccountID),
+		})
+	}
+	return nil
 }
 
 // invalidateCache drops the cached environment for a single account_id. Called

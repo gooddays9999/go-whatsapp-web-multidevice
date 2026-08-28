@@ -34,14 +34,34 @@ func initDatabase(ctx context.Context, dbLog waLog.Logger, DBURI string) (*sqlst
 	// Strip surrounding quotes that may come from .env file parsing
 	DBURI = strings.Trim(DBURI, `"'`)
 
-	if strings.HasPrefix(DBURI, "file:") {
+	var container *sqlstore.Container
+	var err error
+	switch {
+	case strings.HasPrefix(DBURI, "file:"):
 		DBURI = sqlite.FormatChatStorageURI(DBURI, true, true)
-		return sqlstore.New(ctx, sqlite.DriverName, DBURI, dbLog)
-	} else if strings.HasPrefix(DBURI, "postgres:") {
-		return initPostgresStore(ctx, dbLog, DBURI)
+		container, err = sqlstore.New(ctx, sqlite.DriverName, DBURI, dbLog)
+	case strings.HasPrefix(DBURI, "postgres:"):
+		container, err = initPostgresStore(ctx, dbLog, DBURI)
+	default:
+		return nil, fmt.Errorf("unknown database type: %s. Currently only sqlite3(file:) and postgres are supported", DBURI)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("unknown database type: %s. Currently only sqlite3(file:) and postgres are supported", DBURI)
+	// Preload the global phone<->LID map so per-message/per-send LID lookups take
+	// the lock-free read path. Otherwise the cache is never marked filled, and
+	// every lookup for a not-yet-cached peer holds the single global lidCacheLock
+	// while querying Postgres. Under a broadcast workload (a new recipient on
+	// nearly every send) that serialized all sends across the whole fleet on one
+	// mutex. With the cache filled, a miss returns "no mapping" instantly without
+	// a query or lock. The mapping table is small (tens of MB). Non-fatal.
+	if container != nil && container.LIDMap != nil {
+		if ferr := container.LIDMap.FillCache(ctx); ferr != nil {
+			log.Warnf("LID map cache pre-fill failed; falling back to per-lookup queries: %v", ferr)
+		}
+	}
+	return container, nil
 }
 
 // initPostgresStore opens Postgres with a bounded connection pool before handing

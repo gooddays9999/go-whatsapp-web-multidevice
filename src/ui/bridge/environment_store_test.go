@@ -186,6 +186,44 @@ func TestEnvironmentStoreGetCachedServesFromMemoryAndInvalidates(t *testing.T) {
 	}
 }
 
+func TestEnvironmentStoreWarmCachePreloadsAllAccounts(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	store := NewEnvironmentStore(db, newTestUAPool(), Config{})
+	if err := store.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"acc-1", "acc-2", "acc-3"} {
+		if _, _, err := store.GetOrCreate(ctx, id, "t-"+id, &bridgepb.ProxyConfig{
+			Type: "socks5", Host: "127.0.0.1", Port: 1080,
+		}, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := store.WarmCache(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete every row directly (bypassing the store, so the cache is NOT
+	// invalidated). If WarmCache preloaded the cache, GetCached still serves the
+	// warmed values without touching the DB.
+	if _, err := db.ExecContext(ctx, `DELETE FROM bridge_environments`); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"acc-1", "acc-2", "acc-3"} {
+		env, err := store.GetCached(ctx, id)
+		if err != nil || env == nil || env.TenantID != "t-"+id {
+			t.Fatalf("account %s not served from warmed cache: env=%+v err=%v", id, env, err)
+		}
+	}
+}
+
 func TestEnvironmentStoreGetCachedTTLZeroDisablesCache(t *testing.T) {
 	ctx := context.Background()
 	db, err := sql.Open("sqlite3", ":memory:")
