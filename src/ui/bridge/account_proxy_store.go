@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -12,6 +13,19 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 )
+
+// defaultProxyCacheTTL bounds how long a resolved account→proxy mapping is
+// served from the in-process cache before re-reading the central account MySQL.
+// Proxy assignments change rarely, so a short TTL slashes per-send MySQL load
+// (every send resolves a proxy) while keeping reassignments visible within the
+// window. On a MySQL error a cached value — even expired — is served instead of
+// failing, so a central-DB blip no longer times out sends.
+const defaultProxyCacheTTL = 60 * time.Second
+
+type proxyCacheEntry struct {
+	lookup    AccountProxyLookup
+	expiresAt time.Time
+}
 
 type AccountProxyStore struct {
 	db *sql.DB
@@ -21,6 +35,10 @@ type AccountProxyStore struct {
 	// account-to-account traffic), which is redundant and, at fleet scale,
 	// dominates incoming-media volume.
 	platformPhones atomic.Pointer[map[string]struct{}]
+	// proxyCache memoises ProxyForAccount results (keyed by accountID) so the send
+	// hot path does not hit the central MySQL on every message.
+	proxyCache    sync.Map // string -> proxyCacheEntry
+	proxyCacheTTL time.Duration
 }
 
 func NewAccountProxyStore(dsn string) (*AccountProxyStore, error) {
@@ -38,7 +56,7 @@ func NewAccountProxyStore(dsn string) (*AccountProxyStore, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping account database: %w", err)
 	}
-	return &AccountProxyStore{db: db}, nil
+	return &AccountProxyStore{db: db, proxyCacheTTL: defaultProxyCacheTTL}, nil
 }
 
 func (s *AccountProxyStore) Close() error {
@@ -91,6 +109,45 @@ func (s *AccountProxyStore) ProxyForAccount(ctx context.Context, accountID strin
 		return AccountProxyLookup{}, fmt.Errorf("account_id is required")
 	}
 
+	// Fresh cache hit: skip the central MySQL entirely on the send hot path.
+	if cached, ok := s.loadCachedProxy(accountID); ok && time.Now().Before(cached.expiresAt) {
+		return cached.lookup, nil
+	}
+
+	lookup, err := s.queryProxyForAccount(ctx, accountID)
+	if err != nil {
+		// Serve-stale on error: if the central MySQL is briefly unavailable, fall
+		// back to any previously cached value (even expired) so a DB blip does not
+		// time out sends. Only propagate the error when we have nothing cached.
+		if cached, ok := s.loadCachedProxy(accountID); ok {
+			logrus.WithError(err).WithField("account_id", accountID).
+				Warn("[ACCOUNT_STORE] proxy lookup failed; serving stale cached proxy")
+			return cached.lookup, nil
+		}
+		return AccountProxyLookup{}, err
+	}
+
+	ttl := s.proxyCacheTTL
+	if ttl <= 0 {
+		ttl = defaultProxyCacheTTL
+	}
+	s.proxyCache.Store(accountID, proxyCacheEntry{lookup: lookup, expiresAt: time.Now().Add(ttl)})
+	return lookup, nil
+}
+
+func (s *AccountProxyStore) loadCachedProxy(accountID string) (proxyCacheEntry, bool) {
+	v, ok := s.proxyCache.Load(accountID)
+	if !ok {
+		return proxyCacheEntry{}, false
+	}
+	entry, ok := v.(proxyCacheEntry)
+	return entry, ok
+}
+
+// queryProxyForAccount reads the account→proxy mapping from the central MySQL,
+// with no caching. A missing (non-deleted) account row is not an error: it
+// returns a zero-value lookup (Found=false), matching the previous behaviour.
+func (s *AccountProxyStore) queryProxyForAccount(ctx context.Context, accountID string) (AccountProxyLookup, error) {
 	where, args := accountIDOrPhoneWhere(accountID)
 	row := s.db.QueryRowContext(ctx, `
 		SELECT

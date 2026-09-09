@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	_ "github.com/mattn/go-sqlite3"
@@ -79,6 +80,54 @@ func TestAccountProxyStoreProxyForAccount(t *testing.T) {
 	}
 	if !leadingZero.Found || leadingZero.Proxy.Host != "127.0.0.1" {
 		t.Fatalf("expected leading-zero phone to resolve via phone-only fallback, got %#v", leadingZero)
+	}
+}
+
+// A fresh (within-TTL) cache hit must be served without touching the DB, so we
+// close the DB after the first lookup and expect the second to still succeed.
+func TestProxyForAccountServesFreshFromCacheWithoutDB(t *testing.T) {
+	ctx := context.Background()
+	db := newAccountProxyTestDB(t)
+	store := &AccountProxyStore{db: db, proxyCacheTTL: time.Minute}
+
+	first, err := store.ProxyForAccount(ctx, "1")
+	if err != nil || !first.Found {
+		t.Fatalf("first lookup: %#v err=%v", first, err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+	second, err := store.ProxyForAccount(ctx, "1")
+	if err != nil {
+		t.Fatalf("fresh cache hit must not touch the closed DB, got err=%v", err)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("cached lookup mismatch: first=%#v second=%#v", first, second)
+	}
+}
+
+// When the cache entry has expired and the DB is unavailable, ProxyForAccount
+// must serve the stale cached value instead of failing, so a central-MySQL blip
+// does not time out sends.
+func TestProxyForAccountServesStaleOnError(t *testing.T) {
+	ctx := context.Background()
+	db := newAccountProxyTestDB(t)
+	store := &AccountProxyStore{db: db, proxyCacheTTL: time.Millisecond}
+
+	first, err := store.ProxyForAccount(ctx, "1")
+	if err != nil || !first.Found {
+		t.Fatalf("first lookup: %#v err=%v", first, err)
+	}
+	time.Sleep(10 * time.Millisecond) // let the cache entry expire
+	if err := db.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+	stale, err := store.ProxyForAccount(ctx, "1")
+	if err != nil {
+		t.Fatalf("expected stale-serve on DB error, got err=%v", err)
+	}
+	if !reflect.DeepEqual(first, stale) {
+		t.Fatalf("stale lookup mismatch: first=%#v stale=%#v", first, stale)
 	}
 }
 

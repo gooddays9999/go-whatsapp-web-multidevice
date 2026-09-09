@@ -10,6 +10,7 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/config"
 	pkgError "github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/error"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/sqlite"
+	"github.com/lib/pq"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
@@ -47,6 +48,13 @@ func initDatabase(ctx context.Context, dbLog waLog.Logger, DBURI string) (*sqlst
 // it to whatsmeow, so a large account fleet cannot exhaust Postgres
 // max_connections (whatsmeow's own sqlstore.New leaves the pool unbounded).
 func initPostgresStore(ctx context.Context, dbLog waLog.Logger, DBURI string) (*sqlstore.Container, error) {
+	// Wire pq.Array so whatsmeow's array-valued queries (GetManySessions session
+	// prefetch, LID-map batch lookups) bind a single Postgres array instead of
+	// falling back to a giant placeholder-IN. Without this every send's session
+	// prefetch is serialised on a slow query. Package-level and idempotent; only
+	// affects the Postgres path.
+	sqlstore.PostgresArrayWrapper = pq.Array
+
 	db, err := sql.Open("postgres", DBURI)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres store: %w", err)
@@ -64,6 +72,17 @@ func initPostgresStore(ctx context.Context, dbLog waLog.Logger, DBURI string) (*
 	if err := container.Upgrade(ctx); err != nil {
 		_ = container.Close()
 		return nil, fmt.Errorf("upgrade postgres store: %w", err)
+	}
+	// Warm the global LID-map cache once at startup. Otherwise the cache is never
+	// marked filled, so every send that sees a new number takes a global write
+	// lock to query Postgres, serialising the whole account fleet. Best-effort:
+	// a failure only forgoes the optimisation and must not block startup.
+	if container.LIDMap != nil {
+		if err := container.LIDMap.FillCache(ctx); err != nil {
+			dbLog.Warnf("failed to warm LID map cache (non-fatal): %v", err)
+		} else {
+			dbLog.Infof("LID map cache warmed")
+		}
 	}
 	return container, nil
 }
