@@ -135,6 +135,18 @@ func (s *AccountProxyStore) ProxyForAccount(ctx context.Context, accountID strin
 	return lookup, nil
 }
 
+// InvalidateProxy drops any cached proxy for accountID so the next ProxyForAccount
+// re-reads the central MySQL. Called on (re)connect so a proxy reassignment made
+// while the account was offline is picked up immediately instead of only after the
+// cache TTL — otherwise a reconnect within the TTL would resolve the stale proxy and
+// the connect-time proxy-change detection would miss it.
+func (s *AccountProxyStore) InvalidateProxy(accountID string) {
+	if s == nil || accountID == "" {
+		return
+	}
+	s.proxyCache.Delete(accountID)
+}
+
 func (s *AccountProxyStore) loadCachedProxy(accountID string) (proxyCacheEntry, bool) {
 	v, ok := s.proxyCache.Load(accountID)
 	if !ok {

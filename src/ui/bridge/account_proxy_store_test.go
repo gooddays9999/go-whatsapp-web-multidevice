@@ -398,3 +398,22 @@ func TestSkipMediaDownload(t *testing.T) {
 		})
 	}
 }
+
+// InvalidateProxy 后缓存被清,下次查询必须回到 DB(此处因 DB 已关而失败),
+// 而不是把被清掉的旧值继续返回——保证(重)连时能拿到最新代理。
+func TestInvalidateProxyForcesFreshLookup(t *testing.T) {
+	ctx := context.Background()
+	db := newAccountProxyTestDB(t)
+	store := &AccountProxyStore{db: db, proxyCacheTTL: time.Minute}
+
+	if _, err := store.ProxyForAccount(ctx, "1"); err != nil {
+		t.Fatalf("seed lookup: %v", err)
+	}
+	store.InvalidateProxy("1")
+	if err := db.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+	if _, err := store.ProxyForAccount(ctx, "1"); err == nil {
+		t.Fatal("expected error after invalidation with DB closed (cache must not serve stale)")
+	}
+}
