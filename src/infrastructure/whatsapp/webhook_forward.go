@@ -478,7 +478,11 @@ func buildChatwootMessageContent(data map[string]any, isGroup bool, fromName str
 	}
 	prefixGroupSender := isGroup && !fromMe && senderLabel != ""
 
-	if body, ok := data["body"].(string); ok && body != "" {
+	// Interactive messages carry the same summary as body, but it has always
+	// been forwarded without the markdown pass below.
+	if interactive, ok := data["interactive"].(string); ok && interactive != "" {
+		content = interactive
+	} else if body, ok := data["body"].(string); ok && body != "" {
 		// Translate WhatsApp formatting (*bold*, _italic_, ~strike~) into the
 		// GitHub-flavored markdown Chatwoot renders so emphasis survives the hop.
 		content = utils.WhatsAppToChatwootMarkdown(body)
