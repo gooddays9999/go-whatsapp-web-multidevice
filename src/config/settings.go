@@ -39,8 +39,13 @@ var (
 	// from web.whatsapp.com at startup so the bridge is not pinned to the version
 	// frozen into the vendored whatsmeow (WhatsApp deprecates old web versions
 	// over time). Best-effort: a failed fetch keeps the compiled-in version.
-	WhatsappAutoFetchVersion          = true
-	WhatsappVersionFetchTimeout       = 15 * time.Second
+	WhatsappAutoFetchVersion    = true
+	WhatsappVersionFetchTimeout = 15 * time.Second
+	// WhatsappVersionRefreshInterval re-fetches the WhatsApp Web version while
+	// running, so a process up for weeks does not get rejected (405 client
+	// outdated) on reconnect. Only new handshakes use the new version; live
+	// sessions are unaffected. 0 disables it. Needs WhatsappAutoFetchVersion.
+	WhatsappVersionRefreshInterval    = 6 * time.Hour
 	WhatsappWebhook                   []string
 	WhatsappWebhookSecret             = "secret"
 	WhatsappWebhookInsecureSkipVerify = false          // Skip TLS certificate verification for webhooks (insecure)

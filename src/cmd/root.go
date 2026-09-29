@@ -125,6 +125,11 @@ func initEnvConfig() {
 	if viper.IsSet("whatsapp_auto_fetch_version") {
 		config.WhatsappAutoFetchVersion = viper.GetBool("whatsapp_auto_fetch_version")
 	}
+	if viper.IsSet("whatsapp_version_refresh_interval") {
+		if interval := viper.GetDuration("whatsapp_version_refresh_interval"); interval >= 0 {
+			config.WhatsappVersionRefreshInterval = interval
+		}
+	}
 	if viper.IsSet("chat_storage_async_queue_size") {
 		if n := viper.GetInt("chat_storage_async_queue_size"); n > 0 {
 			config.ChatStorageAsyncQueueSize = n
@@ -649,6 +654,7 @@ func initApp() {
 	// Best-effort: a failed fetch keeps the compiled-in version.
 	if config.WhatsappAutoFetchVersion {
 		whatsapp.FetchAndApplyLatestWAVersion(ctx, config.WhatsappVersionFetchTimeout)
+		whatsapp.StartWAVersionRefresher(context.Background(), config.WhatsappVersionRefreshInterval, config.WhatsappVersionFetchTimeout)
 	}
 
 	whatsappDB := whatsapp.InitWaDB(ctx, config.DBURI)
