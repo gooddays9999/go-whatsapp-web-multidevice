@@ -172,16 +172,18 @@ func buildEventPayload(ctx context.Context, client *whatsmeow.Client, evt *event
 		return "", nil, err
 	}
 
-	if payloadHasNoRenderableContent(payload) && !hasRecognizedMessageType(msg) {
+	if payloadHasNoRenderableContent(payload) && !hasRecognizedMessageType(msg) && !isProtocolOnlyMessage(msg) {
 		// Neither a recognized message type nor any renderable payload field:
 		// this is genuinely an unhandled kind (e.g. group invites, payment
-		// requests).
+		// requests, newsletter polls/questions).
 		// Downstream (Chatwoot) will render it as "(Unsupported message
 		// type)" with no way to tell which WhatsApp message kind caused it.
 		// Log which proto field is populated — never its value, since that
 		// can carry customer message content, media URLs, and decryption
 		// keys — so a future occurrence is diagnosable from logs alone.
-		logrus.Warnf("Unrecognized message type from %s (id=%s): populated proto fields=%v", evt.Info.Sender.String(), evt.Info.ID, populatedMessageFields(msg))
+		// Debug, not Warn: a busy bridge sees these constantly and they are
+		// expected, so they would otherwise drown real warnings.
+		logrus.Debugf("Unrecognized message type from %s (id=%s): populated proto fields=%v", evt.Info.Sender.String(), evt.Info.ID, populatedMessageFields(msg))
 	}
 
 	return EventTypeMessage, payload, nil
@@ -249,6 +251,30 @@ func hasRecognizedMessageType(msg *waE2E.Message) bool {
 // "interactiveMessage", "templateMessage"), using reflection purely for
 // field descriptors — never field values — so this is safe to log at warn
 // level even though the message itself may carry customer content.
+// protocolOnlyMessageFields are proto fields that carry signalling, not user
+// content. A message made up only of these (e.g. the group sender-key
+// distribution WhatsApp sends ahead of group traffic) is expected to render
+// nothing and is not an unhandled message type.
+var protocolOnlyMessageFields = map[string]struct{}{
+	"senderKeyDistributionMessage": {},
+	"messageContextInfo":           {},
+}
+
+// isProtocolOnlyMessage reports whether msg has fields set and all of them are
+// protocolOnlyMessageFields.
+func isProtocolOnlyMessage(msg *waE2E.Message) bool {
+	fields := populatedMessageFields(msg)
+	if len(fields) == 0 {
+		return false
+	}
+	for _, name := range fields {
+		if _, ok := protocolOnlyMessageFields[name]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func populatedMessageFields(msg *waE2E.Message) []string {
 	if msg == nil {
 		return nil
