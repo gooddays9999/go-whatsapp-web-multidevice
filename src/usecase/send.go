@@ -38,6 +38,24 @@ import (
 // webpCanvasSizeRegex is compiled once at package level for efficiency
 var webpCanvasSizeRegex = regexp.MustCompile(`Canvas size:\s*(\d+)\s*x\s*(\d+)`)
 
+// buildStickerWebPFFmpegArgs converts a single still PNG into a static WebP sticker.
+// It must not pass -vsync: ffmpeg deprecated it in 5.1 and removed it in 9.0, and
+// frame-rate sync does nothing for a one-frame input anyway.
+func buildStickerWebPFFmpegArgs(inputPath, outputPath string) []string {
+	return []string{
+		"-y",
+		"-i", inputPath,
+		"-vcodec", "libwebp",
+		"-lossless", "0",
+		"-compression_level", "6",
+		"-q:v", "60",
+		"-preset", "default",
+		"-loop", "0",
+		"-an",
+		outputPath,
+	}
+}
+
 type serviceSend struct {
 	appService      app.IAppUsecase
 	chatStorageRepo domainChatStorage.IChatStorageRepository
@@ -1709,7 +1727,7 @@ func (service serviceSend) SendSticker(ctx context.Context, request domainSend.S
 	// Check if ffmpeg is available
 	if _, err := exec.LookPath("ffmpeg"); err == nil {
 		// Use ffmpeg to convert to WebP with transparency support, overwrite if exists
-		convertCmd = exec.CommandContext(convCtx, "ffmpeg", "-y", "-i", pngPath, "-vcodec", "libwebp", "-lossless", "0", "-compression_level", "6", "-q:v", "60", "-preset", "default", "-loop", "0", "-an", "-vsync", "0", webpPath)
+		convertCmd = exec.CommandContext(convCtx, "ffmpeg", buildStickerWebPFFmpegArgs(pngPath, webpPath)...)
 	} else if _, err := exec.LookPath("cwebp"); err == nil {
 		// Use cwebp as fallback
 		convertCmd = exec.CommandContext(convCtx, "cwebp", "-q", "60", "-o", webpPath, pngPath)
