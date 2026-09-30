@@ -236,7 +236,7 @@ func (s *Service) downloadAndPublishMedia(ctx context.Context, accountID string,
 		"mimetype":       extracted.MimeType,
 	})
 	if s.cfg.UploadMediaURL != "" {
-		if err := s.uploadMedia(extracted.MediaPath, evt.Info.ID, bridgeMessageType("", utils.UnwrapMessage(evt.Message)), accountID, instance, extracted.MimeType); err != nil {
+		if err := s.uploadAndRemoveMedia(extracted.MediaPath, evt.Info.ID, bridgeMessageType("", utils.UnwrapMessage(evt.Message)), accountID, instance, extracted.MimeType); err != nil {
 			logrus.WithError(err).Warn("failed to upload incoming media")
 		}
 	}

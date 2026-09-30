@@ -82,3 +82,44 @@ func TestUploadMediaSetsMultipartFileContentTypeFromMIME(t *testing.T) {
 		t.Fatalf("file Content-Type = %q, want %q", gotFileContentType, mediaMIME)
 	}
 }
+
+// Incoming media is downloaded to MediaDownloadPath (default /tmp/media) only
+// to be uploaded to the platform; the platform uses the uploaded copy, never
+// the local path. Keeping the file filled api02's 1G /tmp partition.
+func TestUploadAndRemoveMediaDeletesLocalFileOnlyAfterSuccess(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     int
+		wantErr    bool
+		wantExists bool
+	}{
+		{name: "upload ok removes local file", status: http.StatusOK, wantErr: false, wantExists: false},
+		{name: "upload failure keeps local file", status: http.StatusBadGateway, wantErr: true, wantExists: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				w.WriteHeader(tt.status)
+			}))
+			defer server.Close()
+
+			filePath := filepath.Join(t.TempDir(), "photo.jpg")
+			if err := os.WriteFile(filePath, []byte("jpeg"), 0644); err != nil {
+				t.Fatalf("write media file: %v", err)
+			}
+			service := &Service{cfg: Config{UploadMediaURL: server.URL, UploadAPIKey: "test-key"}}
+			instance := whatsapp.NewDeviceInstance("15551234567@s.whatsapp.net", nil, nil)
+
+			err := service.uploadAndRemoveMedia(filePath, "msg-1", "image", "257", instance, "image/jpeg")
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("uploadAndRemoveMedia() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			_, statErr := os.Stat(filePath)
+			if exists := statErr == nil; exists != tt.wantExists {
+				t.Fatalf("local file exists = %v, want %v (stat err: %v)", exists, tt.wantExists, statErr)
+			}
+		})
+	}
+}
