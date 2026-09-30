@@ -2341,5 +2341,9 @@ func (r *SQLiteRepository) getMigrations() []string {
 
 		// Migration 34: Store per-device webhook TLS verification override
 		`ALTER TABLE devices ADD COLUMN webhook_insecure_skip_verify BOOLEAN DEFAULT FALSE`,
+
+		// Migration 35: Index devices by JID. GetDeviceRecordByJID runs for every
+		// forwarded event; without it each lookup scanned the whole table.
+		`CREATE INDEX IF NOT EXISTS idx_devices_jid ON devices(jid)`,
 	}
 }
