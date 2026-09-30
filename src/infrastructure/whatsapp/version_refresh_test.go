@@ -5,6 +5,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"go.mau.fi/whatsmeow/store"
+	"go.mau.fi/whatsmeow/types"
 )
 
 func TestRunWAVersionRefresherFetchesEveryInterval(t *testing.T) {
@@ -56,5 +59,29 @@ func TestStartWAVersionRefresherDisabledForNonPositiveInterval(t *testing.T) {
 		if StartWAVersionRefresher(context.Background(), interval, time.Second) {
 			t.Fatalf("interval %s: refresher started, want disabled", interval)
 		}
+	}
+}
+
+// A refresh must change what the next handshake announces while leaving
+// payloads already built (live sessions) alone. whatsmeow builds the login
+// payload from store.BaseClientPayload on every connect via
+// Device.GetClientPayload, the same call used here.
+func TestApplyLatestWAVersionAffectsNextHandshakePayload(t *testing.T) {
+	orig := store.GetWAVersion()
+	t.Cleanup(func() { store.SetWAVersion(orig) })
+	store.SetWAVersion(store.WAVersionContainer{2, 3000, 1000000001})
+
+	jid := types.NewJID("15550000000", types.DefaultUserServer)
+	device := &store.Device{ID: &jid}
+	before := device.GetClientPayload()
+
+	ApplyLatestWAVersion(context.Background(), mockHTTPClient(`{"client_revision":1048792267,"x":1}`, 200, nil))
+
+	after := device.GetClientPayload()
+	if got := after.GetUserAgent().GetAppVersion().GetTertiary(); got != 1048792267 {
+		t.Fatalf("next handshake app version tertiary = %d, want 1048792267", got)
+	}
+	if got := before.GetUserAgent().GetAppVersion().GetTertiary(); got != 1000000001 {
+		t.Fatalf("already-built payload changed to %d; live sessions must not be affected", got)
 	}
 }
