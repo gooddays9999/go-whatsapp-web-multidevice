@@ -326,14 +326,9 @@ func normalizedJIDString(value string) string {
 }
 
 func (s *Service) handleReceiptEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Receipt) {
-	status := "sent"
-	switch evt.Type {
-	case types.ReceiptTypeDelivered:
-		status = "delivered"
-	case types.ReceiptTypeRead, types.ReceiptTypeReadSelf:
-		status = "read"
-	case types.ReceiptTypeRetry:
-		status = "failed"
+	status, publish := receiptMessageStatus(evt.Type)
+	if !publish {
+		return
 	}
 	for _, id := range evt.MessageIDs {
 		s.publish("message.status", accountID, map[string]any{
@@ -344,6 +339,19 @@ func (s *Service) handleReceiptEvent(ctx context.Context, accountID string, inst
 			"from":      normalizedEventJID(ctx, instance, evt.Sender).ToNonAD().String(),
 			"timestamp": evt.Timestamp.UnixMilli(),
 		})
+	}
+}
+
+func receiptMessageStatus(receiptType types.ReceiptType) (string, bool) {
+	switch receiptType {
+	case types.ReceiptTypeDelivered:
+		return "delivered", true
+	case types.ReceiptTypeRead, types.ReceiptTypeReadSelf:
+		return "read", true
+	case types.ReceiptTypeRetry:
+		return "", false
+	default:
+		return "sent", true
 	}
 }
 

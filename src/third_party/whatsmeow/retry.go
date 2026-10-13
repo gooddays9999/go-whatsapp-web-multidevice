@@ -43,6 +43,7 @@ type recentMessageKey struct {
 type RecentMessage struct {
 	wa *waE2E.Message
 	fb *waMsgApplication.MessageApplication
+	to types.JID
 }
 
 func (rm RecentMessage) IsEmpty() bool {
@@ -82,7 +83,7 @@ func (cli *Client) addRecentMessage(ctx context.Context, to types.JID, id types.
 	if cli.recentMessagesList[cli.recentMessagesPtr].ID != "" {
 		delete(cli.recentMessagesMap, cli.recentMessagesList[cli.recentMessagesPtr])
 	}
-	cli.recentMessagesMap[key] = RecentMessage{wa: wa, fb: fb}
+	cli.recentMessagesMap[key] = RecentMessage{wa: wa, fb: fb, to: to}
 	cli.recentMessagesList[cli.recentMessagesPtr] = key
 	cli.recentMessagesPtr++
 	if cli.recentMessagesPtr >= len(cli.recentMessagesList) {
@@ -98,11 +99,48 @@ func (cli *Client) getRecentMessage(to types.JID, id types.MessageID) RecentMess
 	return cli.recentMessagesMap[recentMessageKey{to, id}]
 }
 
+func (cli *Client) getRecentMessageForOwnDevice(id types.MessageID) RecentMessage {
+	cli.recentMessagesLock.RLock()
+	defer cli.recentMessagesLock.RUnlock()
+	var found RecentMessage
+	for key, msg := range cli.recentMessagesMap {
+		if key.ID == id {
+			if !found.IsEmpty() && found.to != msg.to {
+				return RecentMessage{}
+			}
+			found = msg
+		}
+	}
+	return found
+}
+
+func ownDeviceRetryDestination(receipt *events.Receipt, msg *RecentMessage) types.JID {
+	if !msg.to.IsEmpty() {
+		return msg.to
+	}
+	return receipt.Chat
+}
+
+func wrapOwnDeviceRetryMessage(receipt *events.Receipt, msg *RecentMessage) *waE2E.Message {
+	return &waE2E.Message{DeviceSentMessage: &waE2E.DeviceSentMessage{
+		DestinationJID: proto.String(ownDeviceRetryDestination(receipt, msg).String()),
+		Message:        msg.wa,
+	}}
+}
+
 func (cli *Client) getMessageForRetry(ctx context.Context, receipt *events.Receipt, messageID types.MessageID) (*RecentMessage, error) {
 	msg := cli.getRecentMessage(receipt.Chat, messageID)
 	if !msg.IsEmpty() {
 		cli.Log.Debugf("Found message in local cache to accept retry receipt for %s/%s from %s", receipt.Chat, messageID, receipt.Sender)
 		return &msg, nil
+	}
+	// A companion device can request a retry with our own LID as the chat,
+	// while the outgoing message was cached under the actual recipient.
+	if receipt.IsFromMe {
+		msg = cli.getRecentMessageForOwnDevice(messageID)
+		if !msg.IsEmpty() {
+			return &msg, nil
+		}
 	}
 	var altChat types.JID
 	var err error
@@ -265,15 +303,10 @@ func (cli *Client) handleRetryReceipt(ctx context.Context, receipt *events.Recei
 		}
 	} else if receipt.IsFromMe {
 		if msg.wa != nil {
-			msg.wa = &waE2E.Message{
-				DeviceSentMessage: &waE2E.DeviceSentMessage{
-					DestinationJID: proto.String(receipt.Chat.String()),
-					Message:        msg.wa,
-				},
-			}
+			msg.wa = wrapOwnDeviceRetryMessage(receipt, msg)
 		} else {
 			fbDSM = &waMsgTransport.MessageTransport_Protocol_Integral_DeviceSentMessage{
-				DestinationJID: proto.String(receipt.Chat.String()),
+				DestinationJID: proto.String(ownDeviceRetryDestination(receipt, msg).String()),
 			}
 		}
 	}

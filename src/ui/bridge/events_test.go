@@ -45,6 +45,15 @@ func TestOutgoingSentStatusEventMatchesIMSAckShape(t *testing.T) {
 	}
 }
 
+func TestRetryReceiptDoesNotBecomeFailedMessageStatus(t *testing.T) {
+	if status, publish := receiptMessageStatus(types.ReceiptTypeRetry); publish {
+		t.Fatalf("retry receipt published terminal status %q", status)
+	}
+	if status, publish := receiptMessageStatus(types.ReceiptTypeDelivered); !publish || status != "delivered" {
+		t.Fatalf("delivery receipt = %q, publish=%v", status, publish)
+	}
+}
+
 func TestGroupPictureUpdatedPayloadIncludesAvatarURL(t *testing.T) {
 	evt := &events.Picture{
 		JID:       types.NewJID("120363222", types.GroupServer),
