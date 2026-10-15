@@ -151,6 +151,7 @@ service WhatsAppBridge {
     rpc GetGroupJoinRequests(GetGroupJoinRequestsRequest) returns (GetGroupJoinRequestsResponse);
     rpc ActOnGroupJoinRequests(ActOnGroupJoinRequestsRequest) returns (ActOnGroupJoinRequestsResponse);
     rpc SetGroupEphemeral(SetGroupEphemeralRequest) returns (SetGroupEphemeralResponse);
+    rpc GetGroupInviteLink(GetGroupInviteLinkRequest) returns (GetGroupInviteLinkResponse);
 
     // ========== Reactions ==========
 
@@ -1123,4 +1124,15 @@ message SetGroupEphemeralRequest {
 message SetGroupEphemeralResponse {
     bool success = 1;
     string error = 2;
+}
+
+message GetGroupInviteLinkRequest {
+    string account_id = 1;
+    string group_jid = 2;
+}
+
+message GetGroupInviteLinkResponse {
+    bool success = 1;
+    string invite_link = 2;
+    string error = 3;
 }
