@@ -707,6 +707,40 @@ func (s *Service) SetGroupAdminsOnly(ctx context.Context, req *bridgepb.SetGroup
 	return &bridgepb.SetGroupAdminsOnlyResponse{Success: true}, nil
 }
 
+func (s *Service) SetGroupJoinApproval(ctx context.Context, req *bridgepb.SetGroupJoinApprovalRequest) (*bridgepb.SetGroupJoinApprovalResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	client := whatsapp.ClientFromContext(scoped)
+	if client == nil {
+		return &bridgepb.SetGroupJoinApprovalResponse{Error: "account not connected"}, nil
+	}
+	groupJID, err := utils.ValidateJidWithLogin(client, req.GetGroupJid())
+	if err != nil {
+		return &bridgepb.SetGroupJoinApprovalResponse{Error: err.Error()}, nil
+	}
+	if err := client.SetGroupJoinApprovalMode(scoped, groupJID, req.GetEnabled()); err != nil {
+		return &bridgepb.SetGroupJoinApprovalResponse{Error: err.Error()}, nil
+	}
+	return &bridgepb.SetGroupJoinApprovalResponse{Success: true}, nil
+}
+
+func (s *Service) GetGroupInviteLink(ctx context.Context, req *bridgepb.GetGroupInviteLinkRequest) (*bridgepb.GetGroupInviteLinkResponse, error) {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	result, err := s.deps.GroupUsecase.GetGroupInviteLink(scoped, domainGroup.GetGroupInviteLinkRequest{GroupID: req.GetGroupJid()})
+	if err != nil {
+		return &bridgepb.GetGroupInviteLinkResponse{Error: err.Error()}, nil
+	}
+	if strings.TrimSpace(result.InviteLink) == "" {
+		return &bridgepb.GetGroupInviteLinkResponse{Error: "empty group invite link"}, nil
+	}
+	return &bridgepb.GetGroupInviteLinkResponse{Success: true, InviteLink: result.InviteLink}, nil
+}
+
 func (s *Service) SetGroupInfoAdminsOnly(ctx context.Context, req *bridgepb.SetGroupInfoAdminsOnlyRequest) (*bridgepb.SetGroupInfoAdminsOnlyResponse, error) {
 	scoped, err := s.accountContext(ctx, req.GetAccountId())
 	if err != nil {

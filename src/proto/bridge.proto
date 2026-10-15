@@ -147,6 +147,10 @@ service WhatsAppBridge {
     // Toggle admins-only add members
     rpc SetGroupAddMembersAdminsOnly(SetGroupAddMembersAdminsOnlyRequest) returns (SetGroupAddMembersAdminsOnlyResponse);
 
+    rpc SetGroupJoinApproval(SetGroupJoinApprovalRequest) returns (SetGroupJoinApprovalResponse);
+
+    rpc GetGroupInviteLink(GetGroupInviteLinkRequest) returns (GetGroupInviteLinkResponse);
+
     // ========== Reactions ==========
 
     // React to a message (emoji reaction)
@@ -1088,4 +1092,26 @@ message SetGroupAddMembersAdminsOnlyRequest {
 message SetGroupAddMembersAdminsOnlyResponse {
     bool success = 1;
     string error = 2;
+}
+
+message SetGroupJoinApprovalRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    bool enabled = 3;
+}
+
+message SetGroupJoinApprovalResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message GetGroupInviteLinkRequest {
+    string account_id = 1;
+    string group_jid = 2;
+}
+
+message GetGroupInviteLinkResponse {
+    bool success = 1;
+    string invite_link = 2;
+    string error = 3;
 }
