@@ -8961,6 +8961,118 @@ func (x *SetGroupEphemeralResponse) GetError() string {
 	return ""
 }
 
+type GetGroupInviteLinkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	GroupJid      string                 `protobuf:"bytes,2,opt,name=group_jid,json=groupJid,proto3" json:"group_jid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGroupInviteLinkRequest) Reset() {
+	*x = GetGroupInviteLinkRequest{}
+	mi := &file_proto_bridge_proto_msgTypes[137]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGroupInviteLinkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGroupInviteLinkRequest) ProtoMessage() {}
+
+func (x *GetGroupInviteLinkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bridge_proto_msgTypes[137]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGroupInviteLinkRequest.ProtoReflect.Descriptor instead.
+func (*GetGroupInviteLinkRequest) Descriptor() ([]byte, []int) {
+	return file_proto_bridge_proto_rawDescGZIP(), []int{137}
+}
+
+func (x *GetGroupInviteLinkRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *GetGroupInviteLinkRequest) GetGroupJid() string {
+	if x != nil {
+		return x.GroupJid
+	}
+	return ""
+}
+
+type GetGroupInviteLinkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	InviteLink    string                 `protobuf:"bytes,2,opt,name=invite_link,json=inviteLink,proto3" json:"invite_link,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGroupInviteLinkResponse) Reset() {
+	*x = GetGroupInviteLinkResponse{}
+	mi := &file_proto_bridge_proto_msgTypes[138]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGroupInviteLinkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGroupInviteLinkResponse) ProtoMessage() {}
+
+func (x *GetGroupInviteLinkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bridge_proto_msgTypes[138]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGroupInviteLinkResponse.ProtoReflect.Descriptor instead.
+func (*GetGroupInviteLinkResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bridge_proto_rawDescGZIP(), []int{138}
+}
+
+func (x *GetGroupInviteLinkResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetGroupInviteLinkResponse) GetInviteLink() string {
+	if x != nil {
+		return x.InviteLink
+	}
+	return ""
+}
+
+func (x *GetGroupInviteLinkResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_proto_bridge_proto protoreflect.FileDescriptor
 
 const file_proto_bridge_proto_rawDesc = "" +
@@ -9738,7 +9850,16 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"expiration\"K\n" +
 	"\x19SetGroupEphemeralResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error2\xb1'\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"W\n" +
+	"\x19GetGroupInviteLinkRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1b\n" +
+	"\tgroup_jid\x18\x02 \x01(\tR\bgroupJid\"m\n" +
+	"\x1aGetGroupInviteLinkResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1f\n" +
+	"\vinvite_link\x18\x02 \x01(\tR\n" +
+	"inviteLink\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error2\x8e(\n" +
 	"\x0eWhatsAppBridge\x12:\n" +
 	"\aConnect\x12\x16.bridge.ConnectRequest\x1a\x17.bridge.ConnectResponse\x12C\n" +
 	"\n" +
@@ -9787,7 +9908,8 @@ const file_proto_bridge_proto_rawDesc = "" +
 	"\x14SetGroupJoinApproval\x12#.bridge.SetGroupJoinApprovalRequest\x1a$.bridge.SetGroupJoinApprovalResponse\x12a\n" +
 	"\x14GetGroupJoinRequests\x12#.bridge.GetGroupJoinRequestsRequest\x1a$.bridge.GetGroupJoinRequestsResponse\x12g\n" +
 	"\x16ActOnGroupJoinRequests\x12%.bridge.ActOnGroupJoinRequestsRequest\x1a&.bridge.ActOnGroupJoinRequestsResponse\x12X\n" +
-	"\x11SetGroupEphemeral\x12 .bridge.SetGroupEphemeralRequest\x1a!.bridge.SetGroupEphemeralResponse\x12O\n" +
+	"\x11SetGroupEphemeral\x12 .bridge.SetGroupEphemeralRequest\x1a!.bridge.SetGroupEphemeralResponse\x12[\n" +
+	"\x12GetGroupInviteLink\x12!.bridge.GetGroupInviteLinkRequest\x1a\".bridge.GetGroupInviteLinkResponse\x12O\n" +
 	"\x0eReactToMessage\x12\x1d.bridge.ReactToMessageRequest\x1a\x1e.bridge.ReactToMessageResponse\x12^\n" +
 	"\x13GetMessageReactions\x12\".bridge.GetMessageReactionsRequest\x1a#.bridge.GetMessageReactionsResponse\x12C\n" +
 	"\n" +
@@ -9819,7 +9941,7 @@ func file_proto_bridge_proto_rawDescGZIP() []byte {
 	return file_proto_bridge_proto_rawDescData
 }
 
-var file_proto_bridge_proto_msgTypes = make([]protoimpl.MessageInfo, 139)
+var file_proto_bridge_proto_msgTypes = make([]protoimpl.MessageInfo, 141)
 var file_proto_bridge_proto_goTypes = []any{
 	(*ProxyConfig)(nil),                          // 0: bridge.ProxyConfig
 	(*ConnectRequest)(nil),                       // 1: bridge.ConnectRequest
@@ -9958,8 +10080,10 @@ var file_proto_bridge_proto_goTypes = []any{
 	(*ActOnGroupJoinRequestsResponse)(nil),       // 134: bridge.ActOnGroupJoinRequestsResponse
 	(*SetGroupEphemeralRequest)(nil),             // 135: bridge.SetGroupEphemeralRequest
 	(*SetGroupEphemeralResponse)(nil),            // 136: bridge.SetGroupEphemeralResponse
-	nil,                                          // 137: bridge.CheckNumberResponse.ResultsEntry
-	nil,                                          // 138: bridge.NewsletterMessage.ReactionCountsEntry
+	(*GetGroupInviteLinkRequest)(nil),            // 137: bridge.GetGroupInviteLinkRequest
+	(*GetGroupInviteLinkResponse)(nil),           // 138: bridge.GetGroupInviteLinkResponse
+	nil,                                          // 139: bridge.CheckNumberResponse.ResultsEntry
+	nil,                                          // 140: bridge.NewsletterMessage.ReactionCountsEntry
 }
 var file_proto_bridge_proto_depIdxs = []int32{
 	0,   // 0: bridge.ConnectRequest.proxy:type_name -> bridge.ProxyConfig
@@ -9968,11 +10092,11 @@ var file_proto_bridge_proto_depIdxs = []int32{
 	19,  // 3: bridge.GetGroupsResponse.groups:type_name -> bridge.Group
 	22,  // 4: bridge.GetGroupMembersResponse.members:type_name -> bridge.GroupMember
 	25,  // 5: bridge.AccountStatusResponse.windows:type_name -> bridge.BrowserWindow
-	137, // 6: bridge.CheckNumberResponse.results:type_name -> bridge.CheckNumberResponse.ResultsEntry
+	139, // 6: bridge.CheckNumberResponse.results:type_name -> bridge.CheckNumberResponse.ResultsEntry
 	34,  // 7: bridge.CreateNewsletterResponse.newsletter:type_name -> bridge.Newsletter
 	34,  // 8: bridge.GetNewslettersResponse.newsletters:type_name -> bridge.Newsletter
 	34,  // 9: bridge.GetNewsletterInfoResponse.newsletter:type_name -> bridge.Newsletter
-	138, // 10: bridge.NewsletterMessage.reaction_counts:type_name -> bridge.NewsletterMessage.ReactionCountsEntry
+	140, // 10: bridge.NewsletterMessage.reaction_counts:type_name -> bridge.NewsletterMessage.ReactionCountsEntry
 	44,  // 11: bridge.GetNewsletterMessagesResponse.messages:type_name -> bridge.NewsletterMessage
 	19,  // 12: bridge.CreateCommunityResponse.community:type_name -> bridge.Group
 	19,  // 13: bridge.CreateCommunitySubGroupResponse.group:type_name -> bridge.Group
@@ -10033,83 +10157,85 @@ var file_proto_bridge_proto_depIdxs = []int32{
 	129, // 68: bridge.WhatsAppBridge.GetGroupJoinRequests:input_type -> bridge.GetGroupJoinRequestsRequest
 	132, // 69: bridge.WhatsAppBridge.ActOnGroupJoinRequests:input_type -> bridge.ActOnGroupJoinRequestsRequest
 	135, // 70: bridge.WhatsAppBridge.SetGroupEphemeral:input_type -> bridge.SetGroupEphemeralRequest
-	95,  // 71: bridge.WhatsAppBridge.ReactToMessage:input_type -> bridge.ReactToMessageRequest
-	97,  // 72: bridge.WhatsAppBridge.GetMessageReactions:input_type -> bridge.GetMessageReactionsRequest
-	101, // 73: bridge.WhatsAppBridge.SendStatus:input_type -> bridge.SendStatusRequest
-	103, // 74: bridge.WhatsAppBridge.CommentStatus:input_type -> bridge.CommentStatusRequest
-	105, // 75: bridge.WhatsAppBridge.LikeStatus:input_type -> bridge.LikeStatusRequest
-	107, // 76: bridge.WhatsAppBridge.GetStatusViewers:input_type -> bridge.GetStatusViewersRequest
-	110, // 77: bridge.WhatsAppBridge.JoinGroupByLink:input_type -> bridge.JoinGroupByLinkRequest
-	114, // 78: bridge.WhatsAppBridge.CloseAllTabs:input_type -> bridge.CloseAllTabsRequest
-	116, // 79: bridge.WhatsAppBridge.ClearChats:input_type -> bridge.ClearChatsRequest
-	23,  // 80: bridge.WhatsAppBridge.GetAccountStatus:input_type -> bridge.AccountStatusRequest
-	26,  // 81: bridge.WhatsAppBridge.GetConnectionState:input_type -> bridge.ConnectionStateRequest
-	85,  // 82: bridge.WhatsAppBridge.GetAccountStats:input_type -> bridge.GetAccountStatsRequest
-	87,  // 83: bridge.WhatsAppBridge.GetBridgeStats:input_type -> bridge.GetBridgeStatsRequest
-	91,  // 84: bridge.WhatsAppBridge.GetWebServerStats:input_type -> bridge.GetWebServerStatsRequest
-	92,  // 85: bridge.WhatsAppBridge.BatchGetWebServerStats:input_type -> bridge.BatchGetWebServerStatsRequest
-	2,   // 86: bridge.WhatsAppBridge.Connect:output_type -> bridge.ConnectResponse
-	29,  // 87: bridge.WhatsAppBridge.Disconnect:output_type -> bridge.DisconnectResponse
-	4,   // 88: bridge.WhatsAppBridge.GetQRCode:output_type -> bridge.QRCodeResponse
-	6,   // 89: bridge.WhatsAppBridge.GetLinkCode:output_type -> bridge.LinkCodeResponse
-	8,   // 90: bridge.WhatsAppBridge.SendMessage:output_type -> bridge.SendMessageResponse
-	10,  // 91: bridge.WhatsAppBridge.SendMedia:output_type -> bridge.SendMediaResponse
-	12,  // 92: bridge.WhatsAppBridge.SendLink:output_type -> bridge.SendLinkResponse
-	73,  // 93: bridge.WhatsAppBridge.SendContact:output_type -> bridge.SendContactResponse
-	33,  // 94: bridge.WhatsAppBridge.GetMessageStatus:output_type -> bridge.MessageStatusResponse
-	36,  // 95: bridge.WhatsAppBridge.CreateNewsletter:output_type -> bridge.CreateNewsletterResponse
-	38,  // 96: bridge.WhatsAppBridge.FollowNewsletter:output_type -> bridge.FollowNewsletterResponse
-	40,  // 97: bridge.WhatsAppBridge.GetNewsletters:output_type -> bridge.GetNewslettersResponse
-	42,  // 98: bridge.WhatsAppBridge.GetNewsletterInfo:output_type -> bridge.GetNewsletterInfoResponse
-	45,  // 99: bridge.WhatsAppBridge.GetNewsletterMessages:output_type -> bridge.GetNewsletterMessagesResponse
-	47,  // 100: bridge.WhatsAppBridge.SendNewsletterPoll:output_type -> bridge.SendNewsletterPollResponse
-	49,  // 101: bridge.WhatsAppBridge.VoteNewsletterPoll:output_type -> bridge.VoteNewsletterPollResponse
-	51,  // 102: bridge.WhatsAppBridge.ReactNewsletterMessage:output_type -> bridge.ReactNewsletterMessageResponse
-	15,  // 103: bridge.WhatsAppBridge.GetContacts:output_type -> bridge.GetContactsResponse
-	31,  // 104: bridge.WhatsAppBridge.CheckNumber:output_type -> bridge.CheckNumberResponse
-	75,  // 105: bridge.WhatsAppBridge.AddContact:output_type -> bridge.AddContactResponse
-	77,  // 106: bridge.WhatsAppBridge.GetContactDetail:output_type -> bridge.GetContactDetailResponse
-	80,  // 107: bridge.WhatsAppBridge.SetProfilePicture:output_type -> bridge.SetProfilePictureResponse
-	82,  // 108: bridge.WhatsAppBridge.SetStatus:output_type -> bridge.SetStatusResponse
-	84,  // 109: bridge.WhatsAppBridge.SetDisplayName:output_type -> bridge.SetDisplayNameResponse
-	18,  // 110: bridge.WhatsAppBridge.GetGroups:output_type -> bridge.GetGroupsResponse
-	21,  // 111: bridge.WhatsAppBridge.GetGroupMembers:output_type -> bridge.GetGroupMembersResponse
-	113, // 112: bridge.WhatsAppBridge.GetGroupInfoFromLink:output_type -> bridge.GetGroupInfoFromLinkResponse
-	53,  // 113: bridge.WhatsAppBridge.CreateGroup:output_type -> bridge.CreateGroupResponse
-	55,  // 114: bridge.WhatsAppBridge.CreateCommunity:output_type -> bridge.CreateCommunityResponse
-	57,  // 115: bridge.WhatsAppBridge.CreateCommunitySubGroup:output_type -> bridge.CreateCommunitySubGroupResponse
-	59,  // 116: bridge.WhatsAppBridge.GetCommunitySubGroups:output_type -> bridge.GetCommunitySubGroupsResponse
-	61,  // 117: bridge.WhatsAppBridge.UpdateGroup:output_type -> bridge.UpdateGroupResponse
-	63,  // 118: bridge.WhatsAppBridge.AddGroupMembers:output_type -> bridge.AddGroupMembersResponse
-	65,  // 119: bridge.WhatsAppBridge.RemoveGroupMembers:output_type -> bridge.RemoveGroupMembersResponse
-	67,  // 120: bridge.WhatsAppBridge.PromoteGroupMembers:output_type -> bridge.PromoteGroupMembersResponse
-	69,  // 121: bridge.WhatsAppBridge.DemoteGroupMembers:output_type -> bridge.DemoteGroupMembersResponse
-	71,  // 122: bridge.WhatsAppBridge.LeaveGroup:output_type -> bridge.LeaveGroupResponse
-	120, // 123: bridge.WhatsAppBridge.DeleteMessage:output_type -> bridge.DeleteMessageResponse
-	122, // 124: bridge.WhatsAppBridge.SetGroupAdminsOnly:output_type -> bridge.SetGroupAdminsOnlyResponse
-	124, // 125: bridge.WhatsAppBridge.SetGroupInfoAdminsOnly:output_type -> bridge.SetGroupInfoAdminsOnlyResponse
-	126, // 126: bridge.WhatsAppBridge.SetGroupAddMembersAdminsOnly:output_type -> bridge.SetGroupAddMembersAdminsOnlyResponse
-	128, // 127: bridge.WhatsAppBridge.SetGroupJoinApproval:output_type -> bridge.SetGroupJoinApprovalResponse
-	131, // 128: bridge.WhatsAppBridge.GetGroupJoinRequests:output_type -> bridge.GetGroupJoinRequestsResponse
-	134, // 129: bridge.WhatsAppBridge.ActOnGroupJoinRequests:output_type -> bridge.ActOnGroupJoinRequestsResponse
-	136, // 130: bridge.WhatsAppBridge.SetGroupEphemeral:output_type -> bridge.SetGroupEphemeralResponse
-	96,  // 131: bridge.WhatsAppBridge.ReactToMessage:output_type -> bridge.ReactToMessageResponse
-	100, // 132: bridge.WhatsAppBridge.GetMessageReactions:output_type -> bridge.GetMessageReactionsResponse
-	102, // 133: bridge.WhatsAppBridge.SendStatus:output_type -> bridge.SendStatusResponse
-	104, // 134: bridge.WhatsAppBridge.CommentStatus:output_type -> bridge.CommentStatusResponse
-	106, // 135: bridge.WhatsAppBridge.LikeStatus:output_type -> bridge.LikeStatusResponse
-	108, // 136: bridge.WhatsAppBridge.GetStatusViewers:output_type -> bridge.GetStatusViewersResponse
-	111, // 137: bridge.WhatsAppBridge.JoinGroupByLink:output_type -> bridge.JoinGroupByLinkResponse
-	115, // 138: bridge.WhatsAppBridge.CloseAllTabs:output_type -> bridge.CloseAllTabsResponse
-	118, // 139: bridge.WhatsAppBridge.ClearChats:output_type -> bridge.ClearChatsResponse
-	24,  // 140: bridge.WhatsAppBridge.GetAccountStatus:output_type -> bridge.AccountStatusResponse
-	27,  // 141: bridge.WhatsAppBridge.GetConnectionState:output_type -> bridge.ConnectionStateResponse
-	86,  // 142: bridge.WhatsAppBridge.GetAccountStats:output_type -> bridge.GetAccountStatsResponse
-	89,  // 143: bridge.WhatsAppBridge.GetBridgeStats:output_type -> bridge.GetBridgeStatsResponse
-	93,  // 144: bridge.WhatsAppBridge.GetWebServerStats:output_type -> bridge.WebServerStats
-	94,  // 145: bridge.WhatsAppBridge.BatchGetWebServerStats:output_type -> bridge.BatchGetWebServerStatsResponse
-	86,  // [86:146] is the sub-list for method output_type
-	26,  // [26:86] is the sub-list for method input_type
+	137, // 71: bridge.WhatsAppBridge.GetGroupInviteLink:input_type -> bridge.GetGroupInviteLinkRequest
+	95,  // 72: bridge.WhatsAppBridge.ReactToMessage:input_type -> bridge.ReactToMessageRequest
+	97,  // 73: bridge.WhatsAppBridge.GetMessageReactions:input_type -> bridge.GetMessageReactionsRequest
+	101, // 74: bridge.WhatsAppBridge.SendStatus:input_type -> bridge.SendStatusRequest
+	103, // 75: bridge.WhatsAppBridge.CommentStatus:input_type -> bridge.CommentStatusRequest
+	105, // 76: bridge.WhatsAppBridge.LikeStatus:input_type -> bridge.LikeStatusRequest
+	107, // 77: bridge.WhatsAppBridge.GetStatusViewers:input_type -> bridge.GetStatusViewersRequest
+	110, // 78: bridge.WhatsAppBridge.JoinGroupByLink:input_type -> bridge.JoinGroupByLinkRequest
+	114, // 79: bridge.WhatsAppBridge.CloseAllTabs:input_type -> bridge.CloseAllTabsRequest
+	116, // 80: bridge.WhatsAppBridge.ClearChats:input_type -> bridge.ClearChatsRequest
+	23,  // 81: bridge.WhatsAppBridge.GetAccountStatus:input_type -> bridge.AccountStatusRequest
+	26,  // 82: bridge.WhatsAppBridge.GetConnectionState:input_type -> bridge.ConnectionStateRequest
+	85,  // 83: bridge.WhatsAppBridge.GetAccountStats:input_type -> bridge.GetAccountStatsRequest
+	87,  // 84: bridge.WhatsAppBridge.GetBridgeStats:input_type -> bridge.GetBridgeStatsRequest
+	91,  // 85: bridge.WhatsAppBridge.GetWebServerStats:input_type -> bridge.GetWebServerStatsRequest
+	92,  // 86: bridge.WhatsAppBridge.BatchGetWebServerStats:input_type -> bridge.BatchGetWebServerStatsRequest
+	2,   // 87: bridge.WhatsAppBridge.Connect:output_type -> bridge.ConnectResponse
+	29,  // 88: bridge.WhatsAppBridge.Disconnect:output_type -> bridge.DisconnectResponse
+	4,   // 89: bridge.WhatsAppBridge.GetQRCode:output_type -> bridge.QRCodeResponse
+	6,   // 90: bridge.WhatsAppBridge.GetLinkCode:output_type -> bridge.LinkCodeResponse
+	8,   // 91: bridge.WhatsAppBridge.SendMessage:output_type -> bridge.SendMessageResponse
+	10,  // 92: bridge.WhatsAppBridge.SendMedia:output_type -> bridge.SendMediaResponse
+	12,  // 93: bridge.WhatsAppBridge.SendLink:output_type -> bridge.SendLinkResponse
+	73,  // 94: bridge.WhatsAppBridge.SendContact:output_type -> bridge.SendContactResponse
+	33,  // 95: bridge.WhatsAppBridge.GetMessageStatus:output_type -> bridge.MessageStatusResponse
+	36,  // 96: bridge.WhatsAppBridge.CreateNewsletter:output_type -> bridge.CreateNewsletterResponse
+	38,  // 97: bridge.WhatsAppBridge.FollowNewsletter:output_type -> bridge.FollowNewsletterResponse
+	40,  // 98: bridge.WhatsAppBridge.GetNewsletters:output_type -> bridge.GetNewslettersResponse
+	42,  // 99: bridge.WhatsAppBridge.GetNewsletterInfo:output_type -> bridge.GetNewsletterInfoResponse
+	45,  // 100: bridge.WhatsAppBridge.GetNewsletterMessages:output_type -> bridge.GetNewsletterMessagesResponse
+	47,  // 101: bridge.WhatsAppBridge.SendNewsletterPoll:output_type -> bridge.SendNewsletterPollResponse
+	49,  // 102: bridge.WhatsAppBridge.VoteNewsletterPoll:output_type -> bridge.VoteNewsletterPollResponse
+	51,  // 103: bridge.WhatsAppBridge.ReactNewsletterMessage:output_type -> bridge.ReactNewsletterMessageResponse
+	15,  // 104: bridge.WhatsAppBridge.GetContacts:output_type -> bridge.GetContactsResponse
+	31,  // 105: bridge.WhatsAppBridge.CheckNumber:output_type -> bridge.CheckNumberResponse
+	75,  // 106: bridge.WhatsAppBridge.AddContact:output_type -> bridge.AddContactResponse
+	77,  // 107: bridge.WhatsAppBridge.GetContactDetail:output_type -> bridge.GetContactDetailResponse
+	80,  // 108: bridge.WhatsAppBridge.SetProfilePicture:output_type -> bridge.SetProfilePictureResponse
+	82,  // 109: bridge.WhatsAppBridge.SetStatus:output_type -> bridge.SetStatusResponse
+	84,  // 110: bridge.WhatsAppBridge.SetDisplayName:output_type -> bridge.SetDisplayNameResponse
+	18,  // 111: bridge.WhatsAppBridge.GetGroups:output_type -> bridge.GetGroupsResponse
+	21,  // 112: bridge.WhatsAppBridge.GetGroupMembers:output_type -> bridge.GetGroupMembersResponse
+	113, // 113: bridge.WhatsAppBridge.GetGroupInfoFromLink:output_type -> bridge.GetGroupInfoFromLinkResponse
+	53,  // 114: bridge.WhatsAppBridge.CreateGroup:output_type -> bridge.CreateGroupResponse
+	55,  // 115: bridge.WhatsAppBridge.CreateCommunity:output_type -> bridge.CreateCommunityResponse
+	57,  // 116: bridge.WhatsAppBridge.CreateCommunitySubGroup:output_type -> bridge.CreateCommunitySubGroupResponse
+	59,  // 117: bridge.WhatsAppBridge.GetCommunitySubGroups:output_type -> bridge.GetCommunitySubGroupsResponse
+	61,  // 118: bridge.WhatsAppBridge.UpdateGroup:output_type -> bridge.UpdateGroupResponse
+	63,  // 119: bridge.WhatsAppBridge.AddGroupMembers:output_type -> bridge.AddGroupMembersResponse
+	65,  // 120: bridge.WhatsAppBridge.RemoveGroupMembers:output_type -> bridge.RemoveGroupMembersResponse
+	67,  // 121: bridge.WhatsAppBridge.PromoteGroupMembers:output_type -> bridge.PromoteGroupMembersResponse
+	69,  // 122: bridge.WhatsAppBridge.DemoteGroupMembers:output_type -> bridge.DemoteGroupMembersResponse
+	71,  // 123: bridge.WhatsAppBridge.LeaveGroup:output_type -> bridge.LeaveGroupResponse
+	120, // 124: bridge.WhatsAppBridge.DeleteMessage:output_type -> bridge.DeleteMessageResponse
+	122, // 125: bridge.WhatsAppBridge.SetGroupAdminsOnly:output_type -> bridge.SetGroupAdminsOnlyResponse
+	124, // 126: bridge.WhatsAppBridge.SetGroupInfoAdminsOnly:output_type -> bridge.SetGroupInfoAdminsOnlyResponse
+	126, // 127: bridge.WhatsAppBridge.SetGroupAddMembersAdminsOnly:output_type -> bridge.SetGroupAddMembersAdminsOnlyResponse
+	128, // 128: bridge.WhatsAppBridge.SetGroupJoinApproval:output_type -> bridge.SetGroupJoinApprovalResponse
+	131, // 129: bridge.WhatsAppBridge.GetGroupJoinRequests:output_type -> bridge.GetGroupJoinRequestsResponse
+	134, // 130: bridge.WhatsAppBridge.ActOnGroupJoinRequests:output_type -> bridge.ActOnGroupJoinRequestsResponse
+	136, // 131: bridge.WhatsAppBridge.SetGroupEphemeral:output_type -> bridge.SetGroupEphemeralResponse
+	138, // 132: bridge.WhatsAppBridge.GetGroupInviteLink:output_type -> bridge.GetGroupInviteLinkResponse
+	96,  // 133: bridge.WhatsAppBridge.ReactToMessage:output_type -> bridge.ReactToMessageResponse
+	100, // 134: bridge.WhatsAppBridge.GetMessageReactions:output_type -> bridge.GetMessageReactionsResponse
+	102, // 135: bridge.WhatsAppBridge.SendStatus:output_type -> bridge.SendStatusResponse
+	104, // 136: bridge.WhatsAppBridge.CommentStatus:output_type -> bridge.CommentStatusResponse
+	106, // 137: bridge.WhatsAppBridge.LikeStatus:output_type -> bridge.LikeStatusResponse
+	108, // 138: bridge.WhatsAppBridge.GetStatusViewers:output_type -> bridge.GetStatusViewersResponse
+	111, // 139: bridge.WhatsAppBridge.JoinGroupByLink:output_type -> bridge.JoinGroupByLinkResponse
+	115, // 140: bridge.WhatsAppBridge.CloseAllTabs:output_type -> bridge.CloseAllTabsResponse
+	118, // 141: bridge.WhatsAppBridge.ClearChats:output_type -> bridge.ClearChatsResponse
+	24,  // 142: bridge.WhatsAppBridge.GetAccountStatus:output_type -> bridge.AccountStatusResponse
+	27,  // 143: bridge.WhatsAppBridge.GetConnectionState:output_type -> bridge.ConnectionStateResponse
+	86,  // 144: bridge.WhatsAppBridge.GetAccountStats:output_type -> bridge.GetAccountStatsResponse
+	89,  // 145: bridge.WhatsAppBridge.GetBridgeStats:output_type -> bridge.GetBridgeStatsResponse
+	93,  // 146: bridge.WhatsAppBridge.GetWebServerStats:output_type -> bridge.WebServerStats
+	94,  // 147: bridge.WhatsAppBridge.BatchGetWebServerStats:output_type -> bridge.BatchGetWebServerStatsResponse
+	87,  // [87:148] is the sub-list for method output_type
+	26,  // [26:87] is the sub-list for method input_type
 	26,  // [26:26] is the sub-list for extension type_name
 	26,  // [26:26] is the sub-list for extension extendee
 	0,   // [0:26] is the sub-list for field type_name
@@ -10127,7 +10253,7 @@ func file_proto_bridge_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_bridge_proto_rawDesc), len(file_proto_bridge_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   139,
+			NumMessages:   141,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

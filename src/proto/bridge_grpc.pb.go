@@ -64,6 +64,7 @@ const (
 	WhatsAppBridge_GetGroupJoinRequests_FullMethodName         = "/bridge.WhatsAppBridge/GetGroupJoinRequests"
 	WhatsAppBridge_ActOnGroupJoinRequests_FullMethodName       = "/bridge.WhatsAppBridge/ActOnGroupJoinRequests"
 	WhatsAppBridge_SetGroupEphemeral_FullMethodName            = "/bridge.WhatsAppBridge/SetGroupEphemeral"
+	WhatsAppBridge_GetGroupInviteLink_FullMethodName           = "/bridge.WhatsAppBridge/GetGroupInviteLink"
 	WhatsAppBridge_ReactToMessage_FullMethodName               = "/bridge.WhatsAppBridge/ReactToMessage"
 	WhatsAppBridge_GetMessageReactions_FullMethodName          = "/bridge.WhatsAppBridge/GetMessageReactions"
 	WhatsAppBridge_SendStatus_FullMethodName                   = "/bridge.WhatsAppBridge/SendStatus"
@@ -176,6 +177,7 @@ type WhatsAppBridgeClient interface {
 	GetGroupJoinRequests(ctx context.Context, in *GetGroupJoinRequestsRequest, opts ...grpc.CallOption) (*GetGroupJoinRequestsResponse, error)
 	ActOnGroupJoinRequests(ctx context.Context, in *ActOnGroupJoinRequestsRequest, opts ...grpc.CallOption) (*ActOnGroupJoinRequestsResponse, error)
 	SetGroupEphemeral(ctx context.Context, in *SetGroupEphemeralRequest, opts ...grpc.CallOption) (*SetGroupEphemeralResponse, error)
+	GetGroupInviteLink(ctx context.Context, in *GetGroupInviteLinkRequest, opts ...grpc.CallOption) (*GetGroupInviteLinkResponse, error)
 	// React to a message (emoji reaction)
 	ReactToMessage(ctx context.Context, in *ReactToMessageRequest, opts ...grpc.CallOption) (*ReactToMessageResponse, error)
 	// Get reactions on a message
@@ -675,6 +677,16 @@ func (c *whatsAppBridgeClient) SetGroupEphemeral(ctx context.Context, in *SetGro
 	return out, nil
 }
 
+func (c *whatsAppBridgeClient) GetGroupInviteLink(ctx context.Context, in *GetGroupInviteLinkRequest, opts ...grpc.CallOption) (*GetGroupInviteLinkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGroupInviteLinkResponse)
+	err := c.cc.Invoke(ctx, WhatsAppBridge_GetGroupInviteLink_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *whatsAppBridgeClient) ReactToMessage(ctx context.Context, in *ReactToMessageRequest, opts ...grpc.CallOption) (*ReactToMessageResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReactToMessageResponse)
@@ -920,6 +932,7 @@ type WhatsAppBridgeServer interface {
 	GetGroupJoinRequests(context.Context, *GetGroupJoinRequestsRequest) (*GetGroupJoinRequestsResponse, error)
 	ActOnGroupJoinRequests(context.Context, *ActOnGroupJoinRequestsRequest) (*ActOnGroupJoinRequestsResponse, error)
 	SetGroupEphemeral(context.Context, *SetGroupEphemeralRequest) (*SetGroupEphemeralResponse, error)
+	GetGroupInviteLink(context.Context, *GetGroupInviteLinkRequest) (*GetGroupInviteLinkResponse, error)
 	// React to a message (emoji reaction)
 	ReactToMessage(context.Context, *ReactToMessageRequest) (*ReactToMessageResponse, error)
 	// Get reactions on a message
@@ -1094,6 +1107,9 @@ func (UnimplementedWhatsAppBridgeServer) ActOnGroupJoinRequests(context.Context,
 }
 func (UnimplementedWhatsAppBridgeServer) SetGroupEphemeral(context.Context, *SetGroupEphemeralRequest) (*SetGroupEphemeralResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetGroupEphemeral not implemented")
+}
+func (UnimplementedWhatsAppBridgeServer) GetGroupInviteLink(context.Context, *GetGroupInviteLinkRequest) (*GetGroupInviteLinkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGroupInviteLink not implemented")
 }
 func (UnimplementedWhatsAppBridgeServer) ReactToMessage(context.Context, *ReactToMessageRequest) (*ReactToMessageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReactToMessage not implemented")
@@ -1964,6 +1980,24 @@ func _WhatsAppBridge_SetGroupEphemeral_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WhatsAppBridge_GetGroupInviteLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGroupInviteLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WhatsAppBridgeServer).GetGroupInviteLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WhatsAppBridge_GetGroupInviteLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WhatsAppBridgeServer).GetGroupInviteLink(ctx, req.(*GetGroupInviteLinkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WhatsAppBridge_ReactToMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReactToMessageRequest)
 	if err := dec(in); err != nil {
@@ -2416,6 +2450,10 @@ var WhatsAppBridge_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetGroupEphemeral",
 			Handler:    _WhatsAppBridge_SetGroupEphemeral_Handler,
+		},
+		{
+			MethodName: "GetGroupInviteLink",
+			Handler:    _WhatsAppBridge_GetGroupInviteLink_Handler,
 		},
 		{
 			MethodName: "ReactToMessage",
