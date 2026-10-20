@@ -29,6 +29,7 @@ type historyRecoveryRequest struct {
 	Count          int       `json:"count"`
 	CacheOnly      bool      `json:"cache_only"`
 	LegacyDeviceID string    `json:"legacy_device_id,omitempty"`
+	MessageIDs     []string  `json:"message_ids,omitempty"`
 }
 
 type historyRecovery struct {
@@ -57,6 +58,14 @@ func (r historyRecoveryRequest) validate(now time.Time) error {
 	}
 	if r.Count < 1 || r.Count > 100 {
 		return fmt.Errorf("count must be between 1 and 100")
+	}
+	if len(r.MessageIDs) > 100 {
+		return fmt.Errorf("at most 100 message_ids are allowed")
+	}
+	for _, id := range r.MessageIDs {
+		if strings.TrimSpace(id) == "" || len(id) > 128 || strings.TrimSpace(id) != id {
+			return fmt.Errorf("message_ids must contain non-empty original IDs of at most 128 bytes")
+		}
 	}
 	if !r.CacheOnly && (r.AnchorID == "" || r.AnchorAt.IsZero() || r.AnchorAt.Before(r.Since) || r.AnchorAt.After(now.Add(time.Minute))) {
 		return fmt.Errorf("a real anchor_id and anchor_at at or after since are required")
@@ -88,7 +97,7 @@ func (s *Service) handleHistoryRecovery(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var req historyRecoveryRequest
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192))
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32768))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
@@ -180,8 +189,7 @@ func (j *historyRecovery) respond(w http.ResponseWriter, status string) {
 }
 
 func (s *Service) recoverCachedReplies(ctx context.Context, inst *whatsapp.DeviceInstance, job *historyRecovery) error {
-	repo := inst.GetChatStorage()
-	if repo == nil {
+	if s.deps.DB == nil {
 		return fmt.Errorf("chat storage unavailable")
 	}
 	req := job.request
@@ -189,7 +197,7 @@ func (s *Service) recoverCachedReplies(ctx context.Context, inst *whatsapp.Devic
 	if req.LegacyDeviceID != "" {
 		storageDeviceID = req.LegacyDeviceID
 	}
-	rows, err := repo.GetMessages(historyRecoveryFilter(req, storageDeviceID))
+	rows, err := readHistoryRecoveryMessages(ctx, s.deps.DB, req, storageDeviceID)
 	if err != nil {
 		return err
 	}

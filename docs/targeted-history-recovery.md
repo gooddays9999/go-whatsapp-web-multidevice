@@ -12,12 +12,21 @@ Request fields:
   most 24 hours. Cached queries are normalized to UTC.
 - `count`: 1-100 messages to request from the primary device.
 - `cache_only`: replay verified local text messages without contacting the phone.
+- `message_ids`: optional list of up to 100 original IDs. Use this for bulk
+  recovery when IDs are known: reads use the full primary key and still enforce
+  device, chat, time window, and cryptographic ownership checks.
 - `anchor_id`, `anchor_at`, `anchor_from_me`: a real existing message used as the
   history anchor. Required unless `cache_only` is true. WhatsApp requests messages
   immediately **before** this anchor, not after it.
 - `legacy_device_id`: optional old storage phone JID, for builds that incorrectly
   stored incoming messages under their default device. This does not change the
   destination account or waive ownership verification.
+
+Time-range cache reads explicitly use the existing chat index on SQLite, not
+the potentially huge default-device index. These reads omit unrelated reactions
+and media keys, run with a cancellable five-second query deadline, and do not
+create new indexes or modify the cache. Narrow the window or specify message IDs
+if more than 500 candidate rows match.
 
 Every cached reply must match the requested chat, original timestamp, and
 destination account's cryptographic message store. Missing ownership evidence is
