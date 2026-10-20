@@ -393,6 +393,10 @@ func (s *Service) receiptAppliesToOutgoing(ctx context.Context, instance *whatsa
 }
 
 func (s *Service) handleHistorySyncEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.HistorySync) {
+	if evt == nil || evt.Data == nil {
+		return
+	}
+	s.recoverHistoryReplies(ctx, accountID, instance, evt.Data)
 	payloads := historySyncStatusEvents(ctx, instance, evt.Data)
 	if evt != nil && evt.Data != nil {
 		logrus.WithFields(logrus.Fields{

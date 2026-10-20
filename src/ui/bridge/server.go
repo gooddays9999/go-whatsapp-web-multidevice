@@ -55,6 +55,8 @@ type Service struct {
 	reconnectFallback    map[string]time.Time
 	explicitOffline      map[string]time.Time
 	historySyncRequested map[string]time.Time
+	historyRecoveries    map[string]*historyRecovery
+	historyRecoverySlot  sync.Mutex
 	restoring            bool
 	reconnectSlots       chan struct{}
 	statusSendSlots      chan struct{}
