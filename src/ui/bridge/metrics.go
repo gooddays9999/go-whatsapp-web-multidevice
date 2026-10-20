@@ -21,6 +21,7 @@ func (s *Service) startHTTP(ctx context.Context) error {
 	mux.HandleFunc("/ready", s.handleReady)
 	mux.HandleFunc("/health/detail", s.handleHealthDetail)
 	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.HandleFunc("/internal/history-sync", s.handleHistoryRecovery)
 	if s.cfg.EnablePprof {
 		// Opt-in live profiling: capture a goroutine/CPU/block profile during a
 		// send-latency incident to locate serialization, e.g.

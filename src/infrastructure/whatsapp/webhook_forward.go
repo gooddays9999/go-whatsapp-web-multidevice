@@ -265,11 +265,12 @@ func sessionIDForJID(jid string) string {
 // Partial failures (some succeed, some fail) are logged but do not cause a return error.
 func forwardToWebhooks(ctx context.Context, payload map[string]any, eventName string, webhookURLs []string, webhookConfig *domainChatStorage.DeviceWebhookConfig) error {
 	total := len(webhookURLs)
-	logrus.Infof("Forwarding %s to %d configured webhook(s)", eventName, total)
-
+	// Skip entirely (and silently) when no webhooks are configured: logging
+	// here per event once caused a journald log storm that wedged production.
 	if total == 0 {
 		return nil
 	}
+	logrus.Infof("Forwarding %s to %d configured webhook(s)", eventName, total)
 
 	var (
 		failed    []string
