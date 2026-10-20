@@ -94,18 +94,23 @@ func forwardPayloadToConfiguredWebhooks(ctx context.Context, payload map[string]
 		webhookConfig = nil
 	}
 
-	webhookAllowed := isEventWhitelistedForDevice(eventName, webhookConfig) &&
+	webhookURLs := getWebhookURLsFromConfig(webhookConfig)
+	if len(webhookURLs) == 0 {
+		webhookURLs = config.WhatsappWebhook
+	}
+
+	// No target URL means nothing to deliver: bail out before the session-id
+	// enrichment below, which scans every registered device (O(devices) per
+	// event — a quarter of the bridge's CPU on a 48k-device host with no
+	// webhooks configured).
+	webhookAllowed := len(webhookURLs) > 0 &&
+		isEventWhitelistedForDevice(eventName, webhookConfig) &&
 		!shouldIgnoreWebhookJID(payload)
 	chatwootAllowed := config.ChatwootEnabled && shouldForwardEventToChatwoot(eventName) && isEventWhitelistedForChatwoot(eventName)
 
 	if !webhookAllowed && !chatwootAllowed {
-		logrus.Debugf("Skipping event %s - not allowed for webhooks or Chatwoot", eventName)
+		logrus.Debugf("Skipping event %s - no webhook target and Chatwoot not allowed", eventName)
 		return nil
-	}
-
-	webhookURLs := getWebhookURLsFromConfig(webhookConfig)
-	if len(webhookURLs) == 0 {
-		webhookURLs = config.WhatsappWebhook
 	}
 
 	// Enrich the payload with the operator-facing session id so multi-tenant
@@ -532,7 +537,11 @@ func buildChatwootMessageContent(data map[string]any, isGroup bool, fromName str
 	}
 	prefixGroupSender := isGroup && !fromMe && senderLabel != ""
 
-	if body, ok := data["body"].(string); ok && body != "" {
+	// Interactive messages carry the same summary as body, but it has always
+	// been forwarded without the markdown pass below.
+	if interactive, ok := data["interactive"].(string); ok && interactive != "" {
+		content = interactive
+	} else if body, ok := data["body"].(string); ok && body != "" {
 		// Translate WhatsApp formatting (*bold*, _italic_, ~strike~) into the
 		// GitHub-flavored markdown Chatwoot renders so emphasis survives the hop.
 		content = utils.WhatsAppToChatwootMarkdown(body)

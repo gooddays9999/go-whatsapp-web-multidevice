@@ -701,3 +701,38 @@ func TestGetWebhookConfigForDeviceIgnoresExpiredCacheEntry(t *testing.T) {
 		t.Fatalf("expired cache entry must not be served, got %q", stale)
 	}
 }
+
+// TestForwardPayloadSkipsSessionLookupWithoutWebhooks pins the api01 CPU fix:
+// sessionIDForJID scans every registered device, so it must not run for each
+// event when no webhook URL is configured (the enriched payload would be
+// discarded anyway).
+func TestForwardPayloadSkipsSessionLookupWithoutWebhooks(t *testing.T) {
+	originalWebhooks := config.WhatsappWebhook
+	config.WhatsappWebhook = nil
+	defer func() { config.WhatsappWebhook = originalWebhooks }()
+	originalChatwoot := config.ChatwootEnabled
+	config.ChatwootEnabled = false
+	defer func() { config.ChatwootEnabled = originalChatwoot }()
+
+	origResolve := sessionIDForJIDFn
+	sessionIDForJIDFn = func(string) string {
+		t.Fatal("session id lookup must not run when there is no webhook target")
+		return ""
+	}
+	defer func() { sessionIDForJIDFn = origResolve }()
+
+	originalSubmit := submitWebhookFn
+	submitWebhookFn = func(context.Context, map[string]any, string, *chatstorage.DeviceWebhookConfig) error {
+		t.Fatal("nothing should be submitted without a webhook target")
+		return nil
+	}
+	defer func() { submitWebhookFn = originalSubmit }()
+
+	payload := map[string]any{"event": "message", "device_id": "556283088170@s.whatsapp.net"}
+	if err := forwardPayloadToConfiguredWebhooks(context.Background(), payload, "message"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := payload["session_id"]; ok {
+		t.Fatal("payload must not be enriched when there is no webhook target")
+	}
+}

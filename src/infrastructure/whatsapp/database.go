@@ -94,5 +94,16 @@ func initPostgresStore(ctx context.Context, dbLog waLog.Logger, DBURI string) (*
 		_ = container.Close()
 		return nil, fmt.Errorf("upgrade postgres store: %w", err)
 	}
+	// Warm the global LID-map cache once at startup. Otherwise the cache is never
+	// marked filled, so every send that sees a new number takes a global write
+	// lock to query Postgres, serialising the whole account fleet. Best-effort:
+	// a failure only forgoes the optimisation and must not block startup.
+	if container.LIDMap != nil {
+		if err := container.LIDMap.FillCache(ctx); err != nil {
+			dbLog.Warnf("failed to warm LID map cache (non-fatal): %v", err)
+		} else {
+			dbLog.Infof("LID map cache warmed")
+		}
+	}
 	return container, nil
 }

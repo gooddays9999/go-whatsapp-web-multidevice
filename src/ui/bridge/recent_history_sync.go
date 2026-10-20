@@ -101,10 +101,9 @@ func (s *Service) requestRecentHistorySync(parent context.Context, accountID str
 	if timeout <= 0 {
 		timeout = defaultHistorySyncTimeout
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), timeout)
-	defer cancel()
-
+	planStart := time.Now()
 	plan, err := buildRecentHistorySyncPlan(repo, deviceID, maxChats, exactPerChat)
+	planDuration := time.Since(planStart)
 	if err != nil {
 		logrus.WithError(err).WithField("account_id", accountID).Warn("failed to build recent history sync plan")
 		return
@@ -113,43 +112,110 @@ func (s *Service) requestRecentHistorySync(parent context.Context, accountID str
 		return
 	}
 
-	var historyOK, historyFailed, exactOK, exactFailed int
-	for _, anchor := range plan.HistoryAnchors {
-		if err := requestHistoryAroundMessage(ctx, client, anchor, count); err != nil {
-			historyFailed++
-			logrus.WithError(err).WithFields(logrus.Fields{
-				"account_id":  accountID,
-				"message_id":  anchor.ID,
-				"chat":        anchor.Chat.String(),
-				"sync_reason": reason,
-			}).Warn("failed to request on-demand history sync")
-			continue
-		}
-		historyOK++
-	}
-	for _, msg := range plan.ExactMessages {
-		if err := requestExactMessageResend(ctx, client, msg); err != nil {
-			exactFailed++
-			logrus.WithError(err).WithFields(logrus.Fields{
-				"account_id":  accountID,
-				"message_id":  msg.ID,
-				"chat":        msg.Chat.String(),
-				"sync_reason": reason,
-			}).Warn("failed to request exact message history sync")
-			continue
-		}
-		exactOK++
-	}
-	logrus.WithFields(logrus.Fields{
+	sendStart := time.Now()
+	result := sendRecentHistorySyncPlan(
+		context.WithoutCancel(parent),
+		logrus.WithFields(logrus.Fields{"account_id": accountID, "sync_reason": reason}),
+		plan,
+		timeout,
+		func(ctx context.Context, anchor *types.MessageInfo) error {
+			return requestHistoryAroundMessage(ctx, client, anchor, count)
+		},
+		func(ctx context.Context, msg *types.MessageInfo) error {
+			return requestExactMessageResend(ctx, client, msg)
+		},
+	)
+	fields := logrus.Fields{
 		"account_id":      accountID,
 		"sync_reason":     reason,
-		"history_ok":      historyOK,
-		"history_failed":  historyFailed,
-		"exact_ok":        exactOK,
-		"exact_failed":    exactFailed,
+		"history_ok":      result.historyOK,
+		"history_failed":  result.historyFailed,
+		"exact_ok":        result.exactOK,
+		"exact_failed":    result.exactFailed,
+		"skipped":         result.skipped,
 		"history_anchors": len(plan.HistoryAnchors),
 		"exact_messages":  len(plan.ExactMessages),
-	}).Info("requested recent WhatsApp history sync")
+		"plan_ms":         planDuration.Milliseconds(),
+		"send_ms":         time.Since(sendStart).Milliseconds(),
+	}
+	if result.aborted {
+		logrus.WithError(result.abortErr).WithFields(fields).Warn("recent WhatsApp history sync aborted after a request timed out")
+		return
+	}
+	logrus.WithFields(fields).Info("requested recent WhatsApp history sync")
+}
+
+type historySyncRequestFunc func(ctx context.Context, msg *types.MessageInfo) error
+
+type recentHistorySyncResult struct {
+	historyOK, historyFailed int
+	exactOK, exactFailed     int
+	skipped                  int
+	aborted                  bool
+	abortErr                 error
+}
+
+// sendRecentHistorySyncPlan sends the plan's requests one by one, each with its
+// own timeout so a slow request cannot eat the budget of the ones after it.
+// A timed-out request means the client is stalled (whatsmeow's send lock is not
+// context-aware, so a busy client makes every following request wait the full
+// timeout too), so the rest of the batch is skipped instead of failing one by
+// one. whatsmeow formats the cause with %v, so the timeout is detected from the
+// request context rather than with errors.Is.
+func sendRecentHistorySyncPlan(parent context.Context, logger *logrus.Entry, plan *recentHistorySyncPlan, timeout time.Duration, history, exact historySyncRequestFunc) recentHistorySyncResult {
+	type request struct {
+		msg     *types.MessageInfo
+		send    historySyncRequestFunc
+		isExact bool
+	}
+	requests := make([]request, 0, len(plan.HistoryAnchors)+len(plan.ExactMessages))
+	for _, anchor := range plan.HistoryAnchors {
+		requests = append(requests, request{msg: anchor, send: history})
+	}
+	for _, msg := range plan.ExactMessages {
+		requests = append(requests, request{msg: msg, send: exact, isExact: true})
+	}
+
+	var result recentHistorySyncResult
+	for i, req := range requests {
+		if parent.Err() != nil {
+			result.aborted = true
+			result.skipped = len(requests) - i
+			return result
+		}
+		timedOut, err := sendHistorySyncRequest(parent, timeout, req.send, req.msg)
+		switch {
+		case err == nil && req.isExact:
+			result.exactOK++
+			continue
+		case err == nil:
+			result.historyOK++
+			continue
+		case req.isExact:
+			result.exactFailed++
+		default:
+			result.historyFailed++
+		}
+		if timedOut {
+			result.aborted = true
+			result.abortErr = err
+			result.skipped = len(requests) - i - 1
+			return result
+		}
+		logger.WithError(err).WithFields(logrus.Fields{
+			"message_id": req.msg.ID,
+			"chat":       req.msg.Chat.String(),
+			"exact":      req.isExact,
+		}).Warn("failed to request WhatsApp history sync")
+	}
+	return result
+}
+
+func sendHistorySyncRequest(parent context.Context, timeout time.Duration, send historySyncRequestFunc, msg *types.MessageInfo) (timedOut bool, err error) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+	err = send(ctx, msg)
+	return err != nil && ctx.Err() != nil, err
 }
 
 func requestHistoryAroundMessage(ctx context.Context, client *whatsmeow.Client, anchor *types.MessageInfo, count int) error {

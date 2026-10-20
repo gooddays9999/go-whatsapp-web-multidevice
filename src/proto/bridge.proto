@@ -147,6 +147,11 @@ service WhatsAppBridge {
     // Toggle admins-only add members
     rpc SetGroupAddMembersAdminsOnly(SetGroupAddMembersAdminsOnlyRequest) returns (SetGroupAddMembersAdminsOnlyResponse);
 
+    rpc SetGroupJoinApproval(SetGroupJoinApprovalRequest) returns (SetGroupJoinApprovalResponse);
+    rpc GetGroupJoinRequests(GetGroupJoinRequestsRequest) returns (GetGroupJoinRequestsResponse);
+    rpc ActOnGroupJoinRequests(ActOnGroupJoinRequestsRequest) returns (ActOnGroupJoinRequestsResponse);
+    rpc SetGroupEphemeral(SetGroupEphemeralRequest) returns (SetGroupEphemeralResponse);
+
     // ========== Reactions ==========
 
     // React to a message (emoji reaction)
@@ -1086,6 +1091,63 @@ message SetGroupAddMembersAdminsOnlyRequest {
 }
 
 message SetGroupAddMembersAdminsOnlyResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message SetGroupJoinApprovalRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    bool enabled = 3;
+}
+
+message SetGroupJoinApprovalResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message GetGroupJoinRequestsRequest {
+    string account_id = 1;
+    string group_jid = 2;
+}
+
+message GroupJoinRequest {
+    string jid = 1;
+    string phone_number = 2;
+    string display_name = 3;
+    int64 requested_at = 4;
+}
+
+message GetGroupJoinRequestsResponse {
+    repeated GroupJoinRequest requests = 1;
+}
+
+message ActOnGroupJoinRequestsRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    string action = 3;
+    repeated string participants = 4;
+}
+
+message GroupJoinRequestResult {
+    string jid = 1;
+    string status = 2;
+    string message = 3;
+}
+
+message ActOnGroupJoinRequestsResponse {
+    bool success = 1;
+    string error = 2;
+    repeated GroupJoinRequestResult results = 3;
+}
+
+message SetGroupEphemeralRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    int64 expiration = 3;
+}
+
+message SetGroupEphemeralResponse {
     bool success = 1;
     string error = 2;
 }

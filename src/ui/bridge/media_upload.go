@@ -13,7 +13,22 @@ import (
 	"strings"
 
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
+	"github.com/sirupsen/logrus"
 )
+
+// uploadAndRemoveMedia uploads a downloaded incoming media file to the platform
+// and, once the upload succeeds, deletes the local copy: the platform only uses
+// the uploaded file, and keeping it filled the media download directory (a 1G
+// /tmp partition on api02). A failed upload keeps the file for inspection.
+func (s *Service) uploadAndRemoveMedia(filePath, msgID, msgType, accountID string, instance *whatsapp.DeviceInstance, mimeType string) error {
+	if err := s.uploadMedia(filePath, msgID, msgType, accountID, instance, mimeType); err != nil {
+		return err
+	}
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		logrus.WithError(err).WithField("path", filePath).Warn("failed to remove uploaded media file")
+	}
+	return nil
+}
 
 func (s *Service) uploadMedia(filePath, msgID, msgType, accountID string, instance *whatsapp.DeviceInstance, mimeType string) error {
 	file, err := os.Open(filePath)

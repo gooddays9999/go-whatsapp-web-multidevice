@@ -77,6 +77,12 @@ func (s *Service) Connect(ctx context.Context, req *bridgepb.ConnectRequest) (*b
 		return nil, grpcError(fmt.Errorf("account_id is required"))
 	}
 	s.clearExplicitOffline(req.GetAccountId())
+	// Drop any cached proxy before resolving the environment so a (re)connect always
+	// sees the current proxy assignment — a proxy reassigned while the account was
+	// offline must take effect on reconnect, not only after the proxy-cache TTL.
+	if s.accountProxyStore != nil {
+		s.accountProxyStore.InvalidateProxy(req.GetAccountId())
+	}
 	var oldProxyURL string
 	var hadOldEnv bool
 	if oldEnv, err := s.envStore.Get(ctx, req.GetAccountId()); err == nil && oldEnv != nil {
