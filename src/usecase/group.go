@@ -148,15 +148,19 @@ func (service serviceGroup) ManageParticipant(ctx context.Context, request domai
 	}
 
 	for _, participant := range participants {
-		result = append(result, participantStatusFromResult(participant))
+		result = append(result, participantStatusFromResult(ctx, client, participant))
 	}
 
 	return result, nil
 }
 
-func participantStatusFromResult(participant types.GroupParticipant) domainGroup.ParticipantStatus {
+func participantStatusFromResult(ctx context.Context, client *whatsmeow.Client, participant types.GroupParticipant) domainGroup.ParticipantStatus {
+	participantJID := participant.PhoneNumber
+	if participantJID.IsEmpty() {
+		participantJID = utils.ResolveLIDToPhone(ctx, participant.JID, client)
+	}
 	status := domainGroup.ParticipantStatus{
-		Participant: participant.JID.String(),
+		Participant: participantJID.String(),
 		Status:      "success",
 		Message:     "Action success",
 	}

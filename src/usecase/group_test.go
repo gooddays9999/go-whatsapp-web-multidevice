@@ -96,6 +96,7 @@ func TestManageParticipantMapsEveryFailedResultAsError(t *testing.T) {
 		participant types.GroupParticipant
 		wantStatus  string
 		wantCode    int
+		wantID      string
 	}{
 		{
 			name: "rate limited participant",
@@ -105,6 +106,7 @@ func TestManageParticipantMapsEveryFailedResultAsError(t *testing.T) {
 			},
 			wantStatus: "error",
 			wantCode:   429,
+			wantID:     "15550000001@s.whatsapp.net",
 		},
 		{
 			name: "approval request is not a completed add",
@@ -115,6 +117,7 @@ func TestManageParticipantMapsEveryFailedResultAsError(t *testing.T) {
 			},
 			wantStatus: "error",
 			wantCode:   403,
+			wantID:     "15550000002@s.whatsapp.net",
 		},
 		{
 			name: "completed participant operation",
@@ -123,17 +126,31 @@ func TestManageParticipantMapsEveryFailedResultAsError(t *testing.T) {
 			},
 			wantStatus: "success",
 			wantCode:   0,
+			wantID:     "15550000003@s.whatsapp.net",
+		},
+		{
+			name: "lid result prefers provided phone number",
+			participant: types.GroupParticipant{
+				JID:         types.NewJID("987654321", types.HiddenUserServer),
+				PhoneNumber: types.NewJID("15550000004", types.DefaultUserServer),
+			},
+			wantStatus: "success",
+			wantCode:   0,
+			wantID:     "15550000004@s.whatsapp.net",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := participantStatusFromResult(tt.participant)
+			got := participantStatusFromResult(context.Background(), nil, tt.participant)
 			if got.Status != tt.wantStatus {
 				t.Fatalf("status = %q, want %q", got.Status, tt.wantStatus)
 			}
 			if got.ErrorCode != tt.wantCode {
 				t.Fatalf("error code = %d, want %d", got.ErrorCode, tt.wantCode)
+			}
+			if got.Participant != tt.wantID {
+				t.Fatalf("participant = %q, want %q", got.Participant, tt.wantID)
 			}
 		})
 	}
