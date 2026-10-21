@@ -50,6 +50,22 @@ func TestRemoveGroupMembersErrorWhenBridgeReturnsNoParticipantResults(t *testing
 	}
 }
 
+func TestParticipantSummaryFindsMissingRequestByIdentityNotPosition(t *testing.T) {
+	added, failed, detail := summarizeParticipantChanges(
+		[]string{"15550000001", "15550000002"},
+		[]domainGroup.ParticipantStatus{{Participant: "15550000002@s.whatsapp.net", Status: "success"}},
+	)
+	if len(added) != 1 || added[0] != "15550000002@s.whatsapp.net" {
+		t.Fatalf("added = %#v, want second participant", added)
+	}
+	if len(failed) != 1 || failed[0] != "15550000001" {
+		t.Fatalf("failed = %#v, want missing first participant", failed)
+	}
+	if !strings.Contains(detail, "15550000001") {
+		t.Fatalf("detail = %q, want missing first participant", detail)
+	}
+}
+
 func TestLegacyContactChatID(t *testing.T) {
 	tests := []struct {
 		name  string

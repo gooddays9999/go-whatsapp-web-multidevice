@@ -823,7 +823,11 @@ func summarizeParticipantChanges(requested []string, result []domainGroup.Partic
 	ok := make([]string, 0, len(result))
 	failed := make([]string, 0)
 	details := make([]string, 0)
+	seen := make(map[string]struct{}, len(result))
 	for _, item := range result {
+		if identity := participantChangeIdentity(item.Participant); identity != "" {
+			seen[identity] = struct{}{}
+		}
 		if item.Status == "success" {
 			ok = append(ok, item.Participant)
 		} else {
@@ -838,8 +842,13 @@ func summarizeParticipantChanges(requested []string, result []domainGroup.Partic
 			details = append(details, fmt.Sprintf("%s: %s", item.Participant, detail))
 		}
 	}
-	if len(result) < len(requested) {
-		missing := requested[len(result):]
+	missing := make([]string, 0)
+	for _, participant := range requested {
+		if _, found := seen[participantChangeIdentity(participant)]; !found {
+			missing = append(missing, participant)
+		}
+	}
+	if len(missing) > 0 {
 		failed = append(failed, missing...)
 		details = append(details, fmt.Sprintf("bridge returned no participant result for: %s", strings.Join(missing, ",")))
 	}
@@ -847,6 +856,17 @@ func summarizeParticipantChanges(requested []string, result []domainGroup.Partic
 		details = append(details, fmt.Sprintf("participant operation failed for: %s", strings.Join(failed, ",")))
 	}
 	return ok, failed, strings.Join(details, "; ")
+}
+
+func participantChangeIdentity(participant string) string {
+	participant = strings.TrimSpace(participant)
+	if idx := strings.IndexByte(participant, '@'); idx >= 0 {
+		participant = participant[:idx]
+	}
+	if idx := strings.IndexByte(participant, ':'); idx >= 0 {
+		participant = participant[:idx]
+	}
+	return strings.TrimSpace(participant)
 }
 
 func downloadBytes(rawURL string) ([]byte, error) {
