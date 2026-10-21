@@ -6,13 +6,65 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"strings"
 	"testing"
 
+	domainGroup "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/group"
 	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
 )
+
+func TestAddGroupMembersErrorSummaryIncludesParticipantReason(t *testing.T) {
+	added, failed, detail := summarizeParticipantChanges(
+		[]string{"15550000001", "15550000002"},
+		[]domainGroup.ParticipantStatus{
+			{Participant: "15550000001@s.whatsapp.net", Status: "success"},
+			{Participant: "15550000002@s.whatsapp.net", Status: "error", ErrorCode: 429, Message: "Participant operation failed with code 429"},
+		},
+	)
+
+	if len(added) != 1 || added[0] != "15550000001@s.whatsapp.net" {
+		t.Fatalf("added = %#v, want successful participant", added)
+	}
+	if len(failed) != 1 || failed[0] != "15550000002@s.whatsapp.net" {
+		t.Fatalf("failed = %#v, want failed participant", failed)
+	}
+	if !strings.Contains(detail, "429") || !strings.Contains(detail, "15550000002@s.whatsapp.net") {
+		t.Fatalf("detail = %q, want participant and error code", detail)
+	}
+}
+
+func TestRemoveGroupMembersErrorWhenBridgeReturnsNoParticipantResults(t *testing.T) {
+	added, failed, detail := summarizeParticipantChanges([]string{"15550000001"}, nil)
+
+	if len(added) != 0 {
+		t.Fatalf("added = %#v, want none", added)
+	}
+	if len(failed) != 1 || failed[0] != "15550000001" {
+		t.Fatalf("failed = %#v, want requested participant", failed)
+	}
+	if strings.TrimSpace(detail) == "" {
+		t.Fatal("detail is empty, want explicit protocol error")
+	}
+}
+
+func TestParticipantSummaryFindsMissingRequestByIdentityNotPosition(t *testing.T) {
+	added, failed, detail := summarizeParticipantChanges(
+		[]string{"15550000001", "15550000002"},
+		[]domainGroup.ParticipantStatus{{Participant: "15550000002@s.whatsapp.net", Status: "success"}},
+	)
+	if len(added) != 1 || added[0] != "15550000002@s.whatsapp.net" {
+		t.Fatalf("added = %#v, want second participant", added)
+	}
+	if len(failed) != 1 || failed[0] != "15550000001" {
+		t.Fatalf("failed = %#v, want missing first participant", failed)
+	}
+	if !strings.Contains(detail, "15550000001") {
+		t.Fatalf("detail = %q, want missing first participant", detail)
+	}
+}
 
 func TestLegacyContactChatID(t *testing.T) {
 	tests := []struct {
