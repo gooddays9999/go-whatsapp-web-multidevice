@@ -654,35 +654,35 @@ func setGroupPhotoFromURL(ctx context.Context, groupJID, avatarURL string) error
 }
 
 func (s *Service) AddGroupMembers(ctx context.Context, req *bridgepb.AddGroupMembersRequest) (*bridgepb.AddGroupMembersResponse, error) {
-	added, failed, err := s.changeParticipants(ctx, req.GetAccountId(), req.GetGroupJid(), req.GetParticipants(), whatsmeow.ParticipantChangeAdd)
+	added, failed, detail, err := s.changeParticipants(ctx, req.GetAccountId(), req.GetGroupJid(), req.GetParticipants(), whatsmeow.ParticipantChangeAdd)
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	return &bridgepb.AddGroupMembersResponse{Success: len(failed) == 0, Added: added, Failed: failed}, nil
+	return &bridgepb.AddGroupMembersResponse{Success: len(failed) == 0, Added: added, Failed: failed, Error: detail}, nil
 }
 
 func (s *Service) RemoveGroupMembers(ctx context.Context, req *bridgepb.RemoveGroupMembersRequest) (*bridgepb.RemoveGroupMembersResponse, error) {
-	removed, failed, err := s.changeParticipants(ctx, req.GetAccountId(), req.GetGroupJid(), req.GetParticipants(), whatsmeow.ParticipantChangeRemove)
+	removed, failed, detail, err := s.changeParticipants(ctx, req.GetAccountId(), req.GetGroupJid(), req.GetParticipants(), whatsmeow.ParticipantChangeRemove)
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	return &bridgepb.RemoveGroupMembersResponse{Success: len(failed) == 0, Removed: removed, Failed: failed}, nil
+	return &bridgepb.RemoveGroupMembersResponse{Success: len(failed) == 0, Removed: removed, Failed: failed, Error: detail}, nil
 }
 
 func (s *Service) PromoteGroupMembers(ctx context.Context, req *bridgepb.PromoteGroupMembersRequest) (*bridgepb.PromoteGroupMembersResponse, error) {
-	promoted, failed, err := s.changeParticipants(ctx, req.GetAccountId(), req.GetGroupJid(), req.GetParticipants(), whatsmeow.ParticipantChangePromote)
+	promoted, failed, detail, err := s.changeParticipants(ctx, req.GetAccountId(), req.GetGroupJid(), req.GetParticipants(), whatsmeow.ParticipantChangePromote)
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	return &bridgepb.PromoteGroupMembersResponse{Success: len(failed) == 0, Promoted: promoted, Failed: failed}, nil
+	return &bridgepb.PromoteGroupMembersResponse{Success: len(failed) == 0, Promoted: promoted, Failed: failed, Error: detail}, nil
 }
 
 func (s *Service) DemoteGroupMembers(ctx context.Context, req *bridgepb.DemoteGroupMembersRequest) (*bridgepb.DemoteGroupMembersResponse, error) {
-	demoted, failed, err := s.changeParticipants(ctx, req.GetAccountId(), req.GetGroupJid(), req.GetParticipants(), whatsmeow.ParticipantChangeDemote)
+	demoted, failed, detail, err := s.changeParticipants(ctx, req.GetAccountId(), req.GetGroupJid(), req.GetParticipants(), whatsmeow.ParticipantChangeDemote)
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	return &bridgepb.DemoteGroupMembersResponse{Success: len(failed) == 0, Demoted: demoted, Failed: failed}, nil
+	return &bridgepb.DemoteGroupMembersResponse{Success: len(failed) == 0, Demoted: demoted, Failed: failed, Error: detail}, nil
 }
 
 func (s *Service) LeaveGroup(ctx context.Context, req *bridgepb.LeaveGroupRequest) (*bridgepb.LeaveGroupResponse, error) {
@@ -806,25 +806,47 @@ func findJoinedGroupNameByJID(groups []types.GroupInfo, groupJID string) string 
 	return ""
 }
 
-func (s *Service) changeParticipants(ctx context.Context, accountID, groupJID string, participants []string, action whatsmeow.ParticipantChange) ([]string, []string, error) {
+func (s *Service) changeParticipants(ctx context.Context, accountID, groupJID string, participants []string, action whatsmeow.ParticipantChange) ([]string, []string, string, error) {
 	scoped, err := s.accountContext(ctx, accountID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	result, err := s.deps.GroupUsecase.ManageParticipant(scoped, domainGroup.ParticipantRequest{GroupID: groupJID, Participants: participants, Action: action})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
+	ok, failed, detail := summarizeParticipantChanges(participants, result)
+	return ok, failed, detail, nil
+}
+
+func summarizeParticipantChanges(requested []string, result []domainGroup.ParticipantStatus) ([]string, []string, string) {
 	ok := make([]string, 0, len(result))
 	failed := make([]string, 0)
+	details := make([]string, 0)
 	for _, item := range result {
 		if item.Status == "success" {
 			ok = append(ok, item.Participant)
 		} else {
 			failed = append(failed, item.Participant)
+			detail := strings.TrimSpace(item.Message)
+			if detail == "" {
+				detail = "participant operation failed"
+			}
+			if item.ErrorCode != 0 {
+				detail = fmt.Sprintf("%s (code=%d)", detail, item.ErrorCode)
+			}
+			details = append(details, fmt.Sprintf("%s: %s", item.Participant, detail))
 		}
 	}
-	return ok, failed, nil
+	if len(result) < len(requested) {
+		missing := requested[len(result):]
+		failed = append(failed, missing...)
+		details = append(details, fmt.Sprintf("bridge returned no participant result for: %s", strings.Join(missing, ",")))
+	}
+	if len(failed) > 0 && len(details) == 0 {
+		details = append(details, fmt.Sprintf("participant operation failed for: %s", strings.Join(failed, ",")))
+	}
+	return ok, failed, strings.Join(details, "; ")
 }
 
 func downloadBytes(rawURL string) ([]byte, error) {

@@ -32,6 +32,7 @@ type ParticipantStatus struct {
 	Participant string `json:"participant"`
 	Status      string `json:"status"`
 	Message     string `json:"message"`
+	ErrorCode   int    `json:"error_code,omitempty"`
 }
 
 type GetGroupParticipantsRequest struct {

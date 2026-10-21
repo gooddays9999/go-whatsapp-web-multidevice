@@ -89,3 +89,52 @@ func TestResolveParticipantDisplayNamePreservesSourceOrdering(t *testing.T) {
 		})
 	}
 }
+
+func TestManageParticipantMapsEveryFailedResultAsError(t *testing.T) {
+	tests := []struct {
+		name        string
+		participant types.GroupParticipant
+		wantStatus  string
+		wantCode    int
+	}{
+		{
+			name: "rate limited participant",
+			participant: types.GroupParticipant{
+				JID:   types.NewJID("15550000001", types.DefaultUserServer),
+				Error: 429,
+			},
+			wantStatus: "error",
+			wantCode:   429,
+		},
+		{
+			name: "approval request is not a completed add",
+			participant: types.GroupParticipant{
+				JID:        types.NewJID("15550000002", types.DefaultUserServer),
+				Error:      403,
+				AddRequest: &types.GroupParticipantAddRequest{Code: "invite-code"},
+			},
+			wantStatus: "error",
+			wantCode:   403,
+		},
+		{
+			name: "completed participant operation",
+			participant: types.GroupParticipant{
+				JID: types.NewJID("15550000003", types.DefaultUserServer),
+			},
+			wantStatus: "success",
+			wantCode:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := participantStatusFromResult(tt.participant)
+			if got.Status != tt.wantStatus {
+				t.Fatalf("status = %q, want %q", got.Status, tt.wantStatus)
+			}
+			if got.ErrorCode != tt.wantCode {
+				t.Fatalf("error code = %d, want %d", got.ErrorCode, tt.wantCode)
+			}
+		})
+	}
+}
