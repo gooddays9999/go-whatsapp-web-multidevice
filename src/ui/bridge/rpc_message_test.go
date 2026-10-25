@@ -13,11 +13,96 @@ import (
 	"time"
 
 	domainChatStorage "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chatstorage"
+	infraWhatsApp "github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	bridgepb "github.com/aldinokemal/go-whatsapp-web-multidevice/proto"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
 )
+
+func TestMessageRequestFromBridgeMapsStableRequestedMessageID(t *testing.T) {
+	request, err := messageRequestFromBridge(&bridgepb.SendMessageRequest{
+		To:                 "120363123@g.us",
+		Content:            &bridgepb.MessageContent{Text: "hello"},
+		RequestedMessageId: "A1B2C3D4E5F60718293A",
+	})
+	if err != nil {
+		t.Fatalf("messageRequestFromBridge() error = %v", err)
+	}
+	if request.MessageID != "A1B2C3D4E5F60718293A" {
+		t.Fatalf("message id = %q, want stable requested id", request.MessageID)
+	}
+}
+
+func TestMessageRequestFromBridgeRejectsInvalidRequestedMessageID(t *testing.T) {
+	_, err := messageRequestFromBridge(&bridgepb.SendMessageRequest{RequestedMessageId: "unsafe-id"})
+	if err == nil {
+		t.Fatal("messageRequestFromBridge() error = nil, want invalid message id error")
+	}
+}
+
+func TestGetMessageStatusRequiresValidAccountAndMatchingGroupSender(t *testing.T) {
+	sender := types.NewJID("15550001111", types.DefaultUserServer)
+	repo := &reactionTargetTestStore{messages: []*domainChatStorage.Message{{
+		ID: "A1B2C3D4E5F60718293A", ChatJID: "target@g.us", Sender: "15550001111:7@s.whatsapp.net",
+		DeviceID: "observer@s.whatsapp.net", Timestamp: time.Unix(100, 0),
+	}}}
+	svc := testMessageReconciliationService(sender, repo)
+
+	got, err := svc.GetMessageStatus(t.Context(), &bridgepb.MessageStatusRequest{
+		AccountId: "42", MessageId: "A1B2C3D4E5F60718293A", GroupJid: "target@g.us",
+	})
+	if err != nil || got.GetStatus() != "sent" {
+		t.Fatalf("GetMessageStatus() = %+v, %v; want sent", got, err)
+	}
+	wrongGroup, err := svc.GetMessageStatus(t.Context(), &bridgepb.MessageStatusRequest{
+		AccountId: "42", MessageId: "A1B2C3D4E5F60718293A", GroupJid: "other@g.us",
+	})
+	if err != nil || wrongGroup.GetStatus() != "unknown" {
+		t.Fatalf("wrong-group status = %+v, %v; want unknown", wrongGroup, err)
+	}
+}
+
+func TestGetMessageStatusRejectsUnknownAccount(t *testing.T) {
+	svc := &Service{accountContextForTest: func(context.Context, string) (context.Context, error) {
+		return nil, errors.New("account not found")
+	}}
+	_, err := svc.GetMessageStatus(t.Context(), &bridgepb.MessageStatusRequest{
+		AccountId: "missing", MessageId: "A1B2C3D4E5F60718293A", GroupJid: "target@g.us",
+	})
+	if err == nil {
+		t.Fatal("GetMessageStatus() error = nil, want unknown account rejection")
+	}
+}
+
+func TestFindRecentMessageMatchesExactSenderGroupContentAndWindow(t *testing.T) {
+	sender := types.NewJID("15550001111", types.DefaultUserServer)
+	repo := &reactionTargetTestStore{messages: []*domainChatStorage.Message{{
+		ID: "MATCHED", ChatJID: "target@g.us", Sender: sender.String(), Content: "hello",
+		DeviceID: "observer@s.whatsapp.net", Timestamp: time.Unix(105, 0),
+	}}}
+	svc := testMessageReconciliationService(sender, repo)
+	got, err := svc.FindRecentMessage(t.Context(), &bridgepb.FindRecentMessageRequest{
+		AccountId: "42", GroupJid: "target@g.us", Content: "hello",
+		StartTimestampMs: time.Unix(100, 0).UnixMilli(), EndTimestampMs: time.Unix(110, 0).UnixMilli(),
+	})
+	if err != nil || !got.GetFound() || got.GetMessageId() != "MATCHED" {
+		t.Fatalf("FindRecentMessage() = %+v, %v; want MATCHED", got, err)
+	}
+}
+
+func testMessageReconciliationService(sender types.JID, repo domainChatStorage.IChatStorageRepository) *Service {
+	client := &whatsmeow.Client{Store: &store.Device{ID: &sender}}
+	inst := infraWhatsApp.NewDeviceInstance("42", client, repo)
+	return &Service{
+		deps: Dependencies{ChatStorageRepo: repo},
+		accountContextForTest: func(ctx context.Context, _ string) (context.Context, error) {
+			return infraWhatsApp.ContextWithDevice(ctx, inst), nil
+		},
+	}
+}
 
 func TestBuildStatusMessageRejectsEmptyText(t *testing.T) {
 	_, _, err := buildStatusMessage(t.Context(), nil, &bridgepb.SendStatusRequest{})
@@ -333,6 +418,15 @@ type reactionTargetTestStore struct {
 func (r *reactionTargetTestStore) GetMessageByID(id string) (*domainChatStorage.Message, error) {
 	for _, msg := range r.messages {
 		if msg != nil && msg.ID == id {
+			return msg, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *reactionTargetTestStore) FindRecentMessage(chatJID, senderJID, content string, startTime, endTime time.Time) (*domainChatStorage.Message, error) {
+	for _, msg := range r.messages {
+		if msg != nil && msg.ChatJID == chatJID && msg.Sender == senderJID && msg.Content == content && !msg.Timestamp.Before(startTime) && !msg.Timestamp.After(endTime) {
 			return msg, nil
 		}
 	}

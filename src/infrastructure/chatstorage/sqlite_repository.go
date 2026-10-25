@@ -184,6 +184,26 @@ func (r *SQLiteRepository) GetMessageByIDAndDevice(deviceID, id string) (*domain
 	return message, err
 }
 
+// FindRecentMessage finds an exact outbound identity across observer devices.
+// Linked WEB accounts may receive a phone-originated group send as an incoming
+// event, so device_id and is_from_me intentionally aren't part of this lookup.
+func (r *SQLiteRepository) FindRecentMessage(chatJID, senderJID, content string, startTime, endTime time.Time) (*domainChatStorage.Message, error) {
+	query := `
+		SELECT id, chat_jid, device_id, sender, content, timestamp, is_from_me,
+			media_type, call_metadata, filename, url, direct_path, media_key, file_sha256,
+			file_enc_sha256, file_length, referral_metadata, created_at, updated_at
+		FROM messages INDEXED BY idx_messages_chat_jid
+		WHERE chat_jid = ? AND sender = ? AND content = ? AND timestamp >= ? AND timestamp <= ?
+		ORDER BY timestamp DESC
+		LIMIT 1
+	`
+	message, err := r.scanMessage(r.exec.QueryRow(query, chatJID, senderJID, content, startTime.UTC(), endTime.UTC()))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return message, err
+}
+
 // GetMessageEdits returns the edit history for a specific message.
 func (r *SQLiteRepository) GetMessageEdits(originalMessageID, deviceID string) ([]*domainChatStorage.MessageEdit, error) {
 	query := `

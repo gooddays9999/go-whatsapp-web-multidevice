@@ -73,7 +73,19 @@ func NewSendService(appService app.IAppUsecase, chatStorageRepo domainChatStorag
 // "reach-out timelock" rejection is a WhatsApp server-side restriction that the
 // client cannot retry around, so it is surfaced as-is via normalizeSendError.
 func (service serviceSend) wrapSendMessage(ctx context.Context, client *whatsmeow.Client, recipient types.JID, msg *waE2E.Message, content string) (whatsmeow.SendResponse, error) {
-	ts, err := client.SendMessage(ctx, recipient, msg)
+	return service.wrapSendMessageWithID(ctx, client, recipient, msg, content, "")
+}
+
+func (service serviceSend) wrapSendMessageWithID(ctx context.Context, client *whatsmeow.Client, recipient types.JID, msg *waE2E.Message, content string, messageID types.MessageID) (whatsmeow.SendResponse, error) {
+	var (
+		ts  whatsmeow.SendResponse
+		err error
+	)
+	if messageID == "" {
+		ts, err = client.SendMessage(ctx, recipient, msg)
+	} else {
+		ts, err = client.SendMessage(ctx, recipient, msg, whatsmeow.SendRequestExtra{ID: messageID})
+	}
 	if err != nil {
 		return whatsmeow.SendResponse{}, normalizeSendError(err)
 	}
@@ -194,7 +206,7 @@ func (service serviceSend) SendText(ctx context.Context, request domainSend.Mess
 
 	msg.ExtendedTextMessage.ContextInfo = service.mergeReplyContext(ctx, msg.ExtendedTextMessage.ContextInfo, request.ReplyMessageID)
 
-	ts, err := service.wrapSendMessage(ctx, client, dataWaRecipient, msg, request.Message)
+	ts, err := service.wrapSendMessageWithID(ctx, client, dataWaRecipient, msg, request.Message, types.MessageID(request.MessageID))
 	if err != nil {
 		return response, err
 	}

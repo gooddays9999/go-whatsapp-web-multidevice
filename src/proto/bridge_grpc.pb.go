@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.36.2
-// source: proto/bridge.proto
+// source: bridge.proto
 
 package bridgepb
 
@@ -28,6 +28,7 @@ const (
 	WhatsAppBridge_SendLink_FullMethodName                     = "/bridge.WhatsAppBridge/SendLink"
 	WhatsAppBridge_SendContact_FullMethodName                  = "/bridge.WhatsAppBridge/SendContact"
 	WhatsAppBridge_GetMessageStatus_FullMethodName             = "/bridge.WhatsAppBridge/GetMessageStatus"
+	WhatsAppBridge_FindRecentMessage_FullMethodName            = "/bridge.WhatsAppBridge/FindRecentMessage"
 	WhatsAppBridge_CreateNewsletter_FullMethodName             = "/bridge.WhatsAppBridge/CreateNewsletter"
 	WhatsAppBridge_FollowNewsletter_FullMethodName             = "/bridge.WhatsAppBridge/FollowNewsletter"
 	WhatsAppBridge_GetNewsletters_FullMethodName               = "/bridge.WhatsAppBridge/GetNewsletters"
@@ -104,6 +105,8 @@ type WhatsAppBridgeClient interface {
 	SendContact(ctx context.Context, in *SendContactRequest, opts ...grpc.CallOption) (*SendContactResponse, error)
 	// Get message status
 	GetMessageStatus(ctx context.Context, in *MessageStatusRequest, opts ...grpc.CallOption) (*MessageStatusResponse, error)
+	// Find an exact recently observed text message for timeout reconciliation.
+	FindRecentMessage(ctx context.Context, in *FindRecentMessageRequest, opts ...grpc.CallOption) (*FindRecentMessageResponse, error)
 	// Create a WhatsApp channel/newsletter
 	CreateNewsletter(ctx context.Context, in *CreateNewsletterRequest, opts ...grpc.CallOption) (*CreateNewsletterResponse, error)
 	// Follow a WhatsApp channel/newsletter
@@ -311,6 +314,16 @@ func (c *whatsAppBridgeClient) GetMessageStatus(ctx context.Context, in *Message
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MessageStatusResponse)
 	err := c.cc.Invoke(ctx, WhatsAppBridge_GetMessageStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *whatsAppBridgeClient) FindRecentMessage(ctx context.Context, in *FindRecentMessageRequest, opts ...grpc.CallOption) (*FindRecentMessageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FindRecentMessageResponse)
+	err := c.cc.Invoke(ctx, WhatsAppBridge_FindRecentMessage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -859,6 +872,8 @@ type WhatsAppBridgeServer interface {
 	SendContact(context.Context, *SendContactRequest) (*SendContactResponse, error)
 	// Get message status
 	GetMessageStatus(context.Context, *MessageStatusRequest) (*MessageStatusResponse, error)
+	// Find an exact recently observed text message for timeout reconciliation.
+	FindRecentMessage(context.Context, *FindRecentMessageRequest) (*FindRecentMessageResponse, error)
 	// Create a WhatsApp channel/newsletter
 	CreateNewsletter(context.Context, *CreateNewsletterRequest) (*CreateNewsletterResponse, error)
 	// Follow a WhatsApp channel/newsletter
@@ -999,6 +1014,9 @@ func (UnimplementedWhatsAppBridgeServer) SendContact(context.Context, *SendConta
 }
 func (UnimplementedWhatsAppBridgeServer) GetMessageStatus(context.Context, *MessageStatusRequest) (*MessageStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMessageStatus not implemented")
+}
+func (UnimplementedWhatsAppBridgeServer) FindRecentMessage(context.Context, *FindRecentMessageRequest) (*FindRecentMessageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FindRecentMessage not implemented")
 }
 func (UnimplementedWhatsAppBridgeServer) CreateNewsletter(context.Context, *CreateNewsletterRequest) (*CreateNewsletterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateNewsletter not implemented")
@@ -1328,6 +1346,24 @@ func _WhatsAppBridge_GetMessageStatus_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WhatsAppBridgeServer).GetMessageStatus(ctx, req.(*MessageStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WhatsAppBridge_FindRecentMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindRecentMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WhatsAppBridgeServer).FindRecentMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WhatsAppBridge_FindRecentMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WhatsAppBridgeServer).FindRecentMessage(ctx, req.(*FindRecentMessageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2308,6 +2344,10 @@ var WhatsAppBridge_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _WhatsAppBridge_GetMessageStatus_Handler,
 		},
 		{
+			MethodName: "FindRecentMessage",
+			Handler:    _WhatsAppBridge_FindRecentMessage_Handler,
+		},
+		{
 			MethodName: "CreateNewsletter",
 			Handler:    _WhatsAppBridge_CreateNewsletter_Handler,
 		},
@@ -2523,5 +2563,5 @@ var WhatsAppBridge_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/bridge.proto",
+	Metadata: "bridge.proto",
 }

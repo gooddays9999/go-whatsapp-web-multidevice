@@ -45,6 +45,29 @@ func TestSQLiteRepositoryInitializesMessageReactionsSchema(t *testing.T) {
 	}
 }
 
+func TestFindRecentMessageMatchesGroupSenderContentAndWindowAcrossObserverDevices(t *testing.T) {
+	repo := newTestSQLiteRepository(t)
+	sentAt := time.Date(2026, time.October, 25, 8, 0, 0, 0, time.UTC)
+	for _, message := range []*domainChatStorage.Message{
+		{ID: "wrong-group", ChatJID: "other@g.us", DeviceID: "observer-a@s.whatsapp.net", Sender: "15550001111@s.whatsapp.net", Content: "probe", Timestamp: sentAt},
+		{ID: "wrong-sender", ChatJID: "target@g.us", DeviceID: "observer-b@s.whatsapp.net", Sender: "15550002222@s.whatsapp.net", Content: "probe", Timestamp: sentAt},
+		{ID: "too-old", ChatJID: "target@g.us", DeviceID: "observer-c@s.whatsapp.net", Sender: "15550001111@s.whatsapp.net", Content: "probe", Timestamp: sentAt.Add(-time.Hour)},
+		{ID: "matched", ChatJID: "target@g.us", DeviceID: "observer-d@s.whatsapp.net", Sender: "15550001111@s.whatsapp.net", Content: "probe", Timestamp: sentAt.Add(2 * time.Second)},
+	} {
+		if err := repo.StoreMessage(message); err != nil {
+			t.Fatalf("StoreMessage(%s): %v", message.ID, err)
+		}
+	}
+
+	got, err := repo.FindRecentMessage("target@g.us", "15550001111@s.whatsapp.net", "probe", sentAt.Add(-time.Second), sentAt.Add(10*time.Second))
+	if err != nil {
+		t.Fatalf("FindRecentMessage: %v", err)
+	}
+	if got == nil || got.ID != "matched" || got.DeviceID != "observer-d@s.whatsapp.net" {
+		t.Fatalf("message = %+v, want matched message observed by another device", got)
+	}
+}
+
 func TestSQLiteRepositoryGetsDeviceWebhookConfigByJID(t *testing.T) {
 	repo := newTestSQLiteRepository(t)
 

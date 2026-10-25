@@ -36,6 +36,9 @@ service WhatsAppBridge {
     // Get message status
     rpc GetMessageStatus(MessageStatusRequest) returns (MessageStatusResponse);
 
+    // Find an exact recently observed text message for timeout reconciliation.
+    rpc FindRecentMessage(FindRecentMessageRequest) returns (FindRecentMessageResponse);
+
     // ========== Newsletter/Channel Operations ==========
 
     // Create a WhatsApp channel/newsletter
@@ -269,6 +272,7 @@ message SendMessageRequest {
     string type = 3;            // text
     MessageContent content = 4;
     string quoted_msg_id = 5;   // Optional, quoted message ID
+    string requested_message_id = 6; // Optional stable WhatsApp message ID for idempotent retry
 }
 
 message SendMessageResponse {
@@ -429,6 +433,7 @@ message CheckNumberResponse {
 message MessageStatusRequest {
     string account_id = 1;
     string message_id = 2;
+    string group_jid = 3;
 }
 
 message MessageStatusResponse {
@@ -1162,4 +1167,18 @@ message GetGroupInviteLinkResponse {
     bool success = 1;
     string invite_link = 2;
     string error = 3;
+}
+
+message FindRecentMessageRequest {
+    string account_id = 1;
+    string group_jid = 2;
+    string content = 3;
+    int64 start_timestamp_ms = 4;
+    int64 end_timestamp_ms = 5;
+}
+
+message FindRecentMessageResponse {
+    bool found = 1;
+    string message_id = 2;
+    int64 timestamp = 3;
 }

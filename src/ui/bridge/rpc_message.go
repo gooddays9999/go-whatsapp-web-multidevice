@@ -39,6 +39,8 @@ const (
 	statusThumbnailJPEGQuality = 75
 )
 
+var stableMessageIDPattern = regexp.MustCompile(`^[A-F0-9]{20}$`)
+
 func (s *Service) accountContext(ctx context.Context, accountID string) (context.Context, error) {
 	if s != nil && s.accountContextForTest != nil {
 		return s.accountContextForTest(ctx, accountID)
@@ -103,13 +105,18 @@ func (s *Service) SendMessage(ctx context.Context, req *bridgepb.SendMessageRequ
 	sendCtx, cancel := statusDeviceContext(ctx, inst, timeout)
 	var resp domainSend.GenericResponse
 	if strings.EqualFold(req.GetType(), "interactive") {
+		if req.GetRequestedMessageId() != "" {
+			cancel()
+			return nil, grpcError(fmt.Errorf("requested_message_id is only supported for text messages"))
+		}
 		resp, err = s.sendInteractiveMessage(sendCtx, req)
 	} else {
-		resp, err = s.deps.SendUsecase.SendText(sendCtx, domainSend.MessageRequest{
-			BaseRequest:    domainSend.BaseRequest{Phone: req.GetTo()},
-			Message:        req.GetContent().GetText(),
-			ReplyMessageID: optionalString(req.GetQuotedMsgId()),
-		})
+		messageRequest, requestErr := messageRequestFromBridge(req)
+		if requestErr != nil {
+			cancel()
+			return nil, grpcError(requestErr)
+		}
+		resp, err = s.deps.SendUsecase.SendText(sendCtx, messageRequest)
 	}
 	cancel()
 	if err != nil {
@@ -123,6 +130,19 @@ func (s *Service) SendMessage(ctx context.Context, req *bridgepb.SendMessageRequ
 	s.publish("message.sent", req.GetAccountId(), map[string]any{"messageId": resp.MessageID, "to": req.GetTo()})
 	logAccountOperationSuccess(req.GetAccountId(), "SendMessage", start, logrus.Fields{"to": req.GetTo(), "message_id": resp.MessageID})
 	return &bridgepb.SendMessageResponse{Success: true, MessageId: resp.MessageID, Status: "sent"}, nil
+}
+
+func messageRequestFromBridge(req *bridgepb.SendMessageRequest) (domainSend.MessageRequest, error) {
+	messageID := strings.TrimSpace(req.GetRequestedMessageId())
+	if messageID != "" && !stableMessageIDPattern.MatchString(messageID) {
+		return domainSend.MessageRequest{}, fmt.Errorf("requested_message_id must be 20 uppercase hexadecimal characters")
+	}
+	return domainSend.MessageRequest{
+		BaseRequest:    domainSend.BaseRequest{Phone: req.GetTo()},
+		MessageID:      messageID,
+		Message:        req.GetContent().GetText(),
+		ReplyMessageID: optionalString(req.GetQuotedMsgId()),
+	}, nil
 }
 
 // sendInteractiveMessage handles type="interactive" sends. The content text
@@ -286,15 +306,71 @@ func (s *Service) markRecentIncomingAsRead(ctx context.Context, to string) {
 }
 
 func (s *Service) GetMessageStatus(ctx context.Context, req *bridgepb.MessageStatusRequest) (*bridgepb.MessageStatusResponse, error) {
-	if req.GetAccountId() == "" || req.GetMessageId() == "" {
-		return nil, grpcError(fmt.Errorf("account_id and message_id are required"))
+	if req.GetAccountId() == "" || req.GetMessageId() == "" || req.GetGroupJid() == "" {
+		return nil, grpcError(fmt.Errorf("account_id, message_id and group_jid are required"))
 	}
-	if s.deps.ChatStorageRepo != nil {
-		if msg, _ := s.deps.ChatStorageRepo.GetMessageByID(req.GetMessageId()); msg != nil {
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	inst, _ := whatsapp.DeviceFromContext(scoped)
+	if inst == nil || inst.GetClient() == nil || inst.GetClient().Store == nil || inst.GetClient().Store.ID == nil {
+		return nil, grpcError(fmt.Errorf("account not connected"))
+	}
+	repo := inst.GetChatStorage()
+	if repo == nil {
+		repo = s.deps.ChatStorageRepo
+	}
+	if repo != nil {
+		if msg, _ := repo.GetMessageByID(req.GetMessageId()); msg != nil && msg.ChatJID == req.GetGroupJid() && sameNonADJID(msg.Sender, inst.GetClient().Store.ID.ToNonAD().String()) {
 			return &bridgepb.MessageStatusResponse{MessageId: req.GetMessageId(), Status: "sent", Timestamp: msg.Timestamp.UnixMilli()}, nil
 		}
 	}
 	return &bridgepb.MessageStatusResponse{MessageId: req.GetMessageId(), Status: "unknown", Timestamp: 0}, nil
+}
+
+func sameNonADJID(left, right string) bool {
+	leftJID, leftErr := types.ParseJID(strings.TrimSpace(left))
+	rightJID, rightErr := types.ParseJID(strings.TrimSpace(right))
+	if leftErr != nil || rightErr != nil {
+		return strings.TrimSpace(left) == strings.TrimSpace(right)
+	}
+	return leftJID.ToNonAD() == rightJID.ToNonAD()
+}
+
+func (s *Service) FindRecentMessage(ctx context.Context, req *bridgepb.FindRecentMessageRequest) (*bridgepb.FindRecentMessageResponse, error) {
+	if req.GetAccountId() == "" || req.GetGroupJid() == "" || req.GetContent() == "" || req.GetStartTimestampMs() <= 0 || req.GetEndTimestampMs() < req.GetStartTimestampMs() {
+		return nil, grpcError(fmt.Errorf("account_id, group_jid, content and a valid time window are required"))
+	}
+	scoped, err := s.accountContext(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	inst, _ := whatsapp.DeviceFromContext(scoped)
+	if inst == nil || inst.GetClient() == nil || inst.GetClient().Store == nil || inst.GetClient().Store.ID == nil {
+		return nil, grpcError(fmt.Errorf("account not connected"))
+	}
+	repo := inst.GetChatStorage()
+	if repo == nil {
+		repo = s.deps.ChatStorageRepo
+	}
+	if repo == nil {
+		return &bridgepb.FindRecentMessageResponse{}, nil
+	}
+	msg, err := repo.FindRecentMessage(
+		req.GetGroupJid(),
+		inst.GetClient().Store.ID.ToNonAD().String(),
+		req.GetContent(),
+		time.UnixMilli(req.GetStartTimestampMs()),
+		time.UnixMilli(req.GetEndTimestampMs()),
+	)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	if msg == nil {
+		return &bridgepb.FindRecentMessageResponse{}, nil
+	}
+	return &bridgepb.FindRecentMessageResponse{Found: true, MessageId: msg.ID, Timestamp: msg.Timestamp.UnixMilli()}, nil
 }
 
 func (s *Service) ReactToMessage(ctx context.Context, req *bridgepb.ReactToMessageRequest) (*bridgepb.ReactToMessageResponse, error) {

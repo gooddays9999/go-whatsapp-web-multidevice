@@ -111,6 +111,10 @@ func (r *deviceChatStorage) GetMessageByIDChatAndDevice(deviceID, chatJID, id st
 	return r.base.GetMessageByIDChatAndDevice(targetDeviceID, chatJID, id)
 }
 
+func (r *deviceChatStorage) FindRecentMessage(chatJID, senderJID, content string, startTime, endTime time.Time) (*domainChatStorage.Message, error) {
+	return r.base.FindRecentMessage(chatJID, senderJID, content, startTime, endTime)
+}
+
 func (r *deviceChatStorage) GetMessageEdits(originalMessageID, deviceID string) ([]*domainChatStorage.MessageEdit, error) {
 	targetDeviceID := deviceID
 	if targetDeviceID == "" {
