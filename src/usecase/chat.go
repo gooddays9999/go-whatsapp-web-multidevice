@@ -70,10 +70,14 @@ func (service serviceChat) ListChats(ctx context.Context, request domainChat.Lis
 	if err = validations.ValidateListChats(ctx, &request); err != nil {
 		return response, err
 	}
+	deviceID := storageDeviceID(ctx)
+	if deviceID == "" {
+		return response, fmt.Errorf("device identification required")
+	}
 
 	// Create filter from request
 	filter := &domainChatStorage.ChatFilter{
-		DeviceID:   deviceIDFromContext(ctx),
+		DeviceID:   deviceID,
 		Limit:      request.Limit,
 		Offset:     request.Offset,
 		SearchName: request.Search,
@@ -292,6 +296,17 @@ func (service serviceChat) GetChatMessages(ctx context.Context, request domainCh
 	}).Info("Retrieved chat messages successfully")
 
 	return response, nil
+}
+
+// storageDeviceID refuses an unscoped read when no account can be resolved.
+func storageDeviceID(ctx context.Context) string {
+	if deviceID := deviceIDFromContext(ctx); deviceID != "" {
+		return deviceID
+	}
+	if client := whatsapp.ClientFromContext(ctx); client != nil && client.Store != nil && client.Store.ID != nil {
+		return client.Store.ID.ToNonAD().String()
+	}
+	return ""
 }
 
 func deviceIDFromContext(ctx context.Context) string {

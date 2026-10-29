@@ -14,7 +14,7 @@ import (
 // lives at most 2*TTL (see ephemeralExpirationCache). Set to 0 to disable.
 var ephemeralExpirationCacheTTL = 5 * time.Minute
 
-// ephemeralExpirationCache is a memory-bounded TTL cache keyed by recipient JID.
+// ephemeralExpirationCache is a memory-bounded TTL cache keyed by account and recipient JID.
 //
 // A broadcast/farming workload sends to an unbounded set of recipients, so a
 // plain sync.Map keyed by JID would grow without limit and leak memory. Instead

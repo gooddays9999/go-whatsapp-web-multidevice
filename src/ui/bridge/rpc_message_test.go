@@ -415,6 +415,36 @@ type reactionTargetTestStore struct {
 	messages []*domainChatStorage.Message
 }
 
+func TestResolveReactionTargetMessageUsesCallingAccount(t *testing.T) {
+	own := types.NewJID("16723028367", types.DefaultUserServer)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &own}}
+	repo := &reactionTargetTestStore{messages: []*domainChatStorage.Message{
+		{ID: "target", DeviceID: "15812781311@s.whatsapp.net", ChatJID: "wrong@g.us", IsFromMe: true},
+		{ID: "target", DeviceID: own.String(), ChatJID: "correct@g.us", IsFromMe: false},
+		{ID: "other-account-only", DeviceID: "15812781311@s.whatsapp.net", ChatJID: "wrong@g.us"},
+	}}
+	s := &Service{deps: Dependencies{ChatStorageRepo: repo}}
+	msg, err := s.resolveReactionTargetMessage(context.Background(), client, "target")
+	if err != nil || msg == nil || msg.ChatJID != "correct@g.us" || msg.IsFromMe {
+		t.Fatalf("wrong account's reaction target: %+v %v", msg, err)
+	}
+	if _, err := s.resolveReactionTargetMessage(context.Background(), client, "other-account-only"); err == nil {
+		t.Fatal("resolved a message owned only by another account")
+	}
+	if _, err := s.resolveReactionTargetMessage(context.Background(), nil, "target"); err == nil {
+		t.Fatal("unscoped reaction lookup was allowed")
+	}
+}
+
+func (r *reactionTargetTestStore) GetMessageByIDAndDevice(deviceID, id string) (*domainChatStorage.Message, error) {
+	for _, msg := range r.messages {
+		if msg != nil && msg.DeviceID == deviceID && msg.ID == id {
+			return msg, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *reactionTargetTestStore) GetMessageByID(id string) (*domainChatStorage.Message, error) {
 	for _, msg := range r.messages {
 		if msg != nil && msg.ID == id {

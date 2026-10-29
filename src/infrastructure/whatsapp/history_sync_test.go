@@ -141,7 +141,7 @@ func (r *historyReactionRepoSpy) CreateReaction(_ context.Context, evt *events.M
 	return nil
 }
 
-func (r *historyReactionRepoSpy) GetChatNameWithPushName(jid types.JID, _ string, _ string, pushName string) string {
+func (r *historyReactionRepoSpy) GetChatNameWithPushNameByDevice(_ string, jid types.JID, _ string, _ string, pushName string) string {
 	if pushName != "" {
 		return pushName
 	}

@@ -186,7 +186,7 @@ func (service serviceSend) SendText(ctx context.Context, request domainSend.Mess
 	if request.BaseRequest.Duration != nil && *request.BaseRequest.Duration > 0 {
 		msg.ExtendedTextMessage.ContextInfo.Expiration = proto.Uint32(uint32(*request.BaseRequest.Duration))
 	} else {
-		msg.ExtendedTextMessage.ContextInfo.Expiration = proto.Uint32(service.getDefaultEphemeralExpiration(request.BaseRequest.Phone))
+		msg.ExtendedTextMessage.ContextInfo.Expiration = proto.Uint32(service.getDefaultEphemeralExpiration(ctx, request.BaseRequest.Phone))
 	}
 
 	// Get mentions from text (existing behavior - parses @phone from message text)
@@ -1855,21 +1855,26 @@ func getWebPInfo(ctx context.Context, filePath string) (isAnimated bool, width i
 	return isAnimated, width, height
 }
 
-func (service serviceSend) getDefaultEphemeralExpiration(jid string) (expiration uint32) {
+func (service serviceSend) getDefaultEphemeralExpiration(ctx context.Context, jid string) (expiration uint32) {
 	expiration = 0
-	if jid == "" {
+	if jid == "" || service.chatStorageRepo == nil {
 		return expiration
 	}
+	deviceID := storageDeviceID(ctx)
+	if deviceID == "" {
+		return expiration
+	}
+	cacheKey := deviceID + "\x00" + jid
 
 	// Serve from the memory-bounded cache to avoid a chatstorage (SQLite) query
 	// on every send; the disappearing-message expiration changes rarely.
 	if ephemeralExpirationCacheTTL > 0 && defaultEphemeralExpirationCache != nil {
-		if cached, ok := defaultEphemeralExpirationCache.get(jid); ok {
+		if cached, ok := defaultEphemeralExpirationCache.get(cacheKey); ok {
 			return cached
 		}
 	}
 
-	chat, err := service.chatStorageRepo.GetChat(jid)
+	chat, err := service.chatStorageRepo.GetChatByDevice(deviceID, jid)
 	if err != nil {
 		// Do not cache lookup failures; the next send retries.
 		return expiration
@@ -1880,7 +1885,7 @@ func (service serviceSend) getDefaultEphemeralExpiration(jid string) (expiration
 	}
 
 	if ephemeralExpirationCacheTTL > 0 && defaultEphemeralExpirationCache != nil {
-		defaultEphemeralExpirationCache.put(jid, expiration)
+		defaultEphemeralExpirationCache.put(cacheKey, expiration)
 	}
 
 	return expiration

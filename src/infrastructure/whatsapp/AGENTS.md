@@ -38,7 +38,7 @@ presence pulse scheduling, webhook forwarding, and the event-side chatstorage wr
 - Do not store `instance.ID()` as chat/message `device_id` after a real WhatsApp JID is available.
 - Do not bypass `chatstorage_wrapper.go` for event-side chat/message access.
 - Do not add an `IChatStorageRepository` method without implementing the wrapper method.
-- Do not remove the receipt `Device == 0` filter; linked devices produce duplicate receipts.
+- Keep the receipt `Device == 0` filter for contacts; only the current account's own read/read-self receipts may bypass it.
 - Do not start a second presence pulse loop; `cmd/helpers.go` uses `sync.Once` for process-wide startup.
 - Do not move privacy tokens to a volatile keys DB; long-lived sessions need them in durable primary WhatsApp storage.
 - Do not assume `client`, `client.Store`, or `client.Store.LIDs` is non-nil during LID resolution.

@@ -97,7 +97,7 @@ func (r *historyMessageBatchRepoSpy) StoreMessagesBatch(messages []*domainChatSt
 	return nil
 }
 
-func (r *historyMessageBatchRepoSpy) GetChatNameWithPushName(jid types.JID, _ string, _ string, pushName string) string {
+func (r *historyMessageBatchRepoSpy) GetChatNameWithPushNameByDevice(_ string, jid types.JID, _ string, _ string, pushName string) string {
 	if pushName != "" {
 		return pushName
 	}

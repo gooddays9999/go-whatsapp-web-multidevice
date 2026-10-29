@@ -416,7 +416,11 @@ func (s *Service) resolveReactionTargetMessage(ctx context.Context, client *what
 		return nil, fmt.Errorf("message_id is required")
 	}
 
-	msg, err := s.deps.ChatStorageRepo.GetMessageByID(rawMessageID)
+	deviceID := currentDeviceStorageID(ctx, client)
+	if deviceID == "" {
+		return nil, fmt.Errorf("unable to resolve current account device")
+	}
+	msg, err := s.deps.ChatStorageRepo.GetMessageByIDAndDevice(deviceID, rawMessageID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find message: %w", err)
 	}
@@ -436,10 +440,6 @@ func (s *Service) resolveReactionTargetMessage(ctx context.Context, client *what
 	}
 	chatJID = chatJID.ToNonAD()
 
-	deviceID := currentDeviceStorageID(ctx, client)
-	if deviceID == "" {
-		return nil, fmt.Errorf("unable to resolve current account device")
-	}
 	msg, err = findLatestIncomingReactionTarget(s.deps.ChatStorageRepo, deviceID, chatJID.String(), rawMessageID)
 	if err != nil {
 		return nil, err

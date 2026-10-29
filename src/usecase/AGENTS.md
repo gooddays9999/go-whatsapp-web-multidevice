@@ -13,7 +13,7 @@ Usecases orchestrate validation, device/client lookup, WhatsApp operations, stor
 | Send message/media | `send.go` | Largest file; handles text, media, links, contacts, polls, presence, quote context, and stored sent messages. |
 | Quoted replies | `send.go` `mergeReplyContext` | Uses `GetMessageByIDAndDevice(deviceIDFromContext(ctx), id)` before setting `ContextInfo`. |
 | Chat listing/history | `chat.go` | Device ID comes from context and must reach chat/message filters. |
-| Message actions | `message.go` | Reaction/revoke may use global ID lookup to resolve sender for WhatsApp protocol behavior. |
+| Message actions | `message.go` | Resolve the original message by current device and chat; sender flags are device-relative. |
 | Group operations | `group.go` | Handles participant JID conversion, names, invite links, and group settings. |
 | Account/user operations | `user.go` | Uses current device client and chat storage. |
 | Device operations | `device.go` | Delegates to `whatsapp.DeviceManager`. |
