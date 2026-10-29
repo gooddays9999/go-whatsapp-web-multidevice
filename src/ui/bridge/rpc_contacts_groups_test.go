@@ -210,6 +210,66 @@ func (s *checkNumberUserUsecaseStub) IsOnWhatsApp(ctx context.Context, request d
 	return s.isOnWhatsApp(ctx, request)
 }
 
+type joinGroupUsecaseStub struct {
+	domainGroup.IGroupUsecase
+	joinGroupWithLink func(context.Context, domainGroup.JoinGroupWithLinkRequest) (string, error)
+}
+
+func (s *joinGroupUsecaseStub) JoinGroupWithLink(ctx context.Context, request domainGroup.JoinGroupWithLinkRequest) (string, error) {
+	return s.joinGroupWithLink(ctx, request)
+}
+
+type unexpectedGroupListUserUsecaseStub struct {
+	domainUser.IUserUsecase
+	listCalls int
+}
+
+func (s *unexpectedGroupListUserUsecaseStub) MyListGroups(context.Context) (domainUser.MyListGroupsResponse, error) {
+	s.listCalls++
+	return domainUser.MyListGroupsResponse{}, errors.New("unexpected group list lookup")
+}
+
+func TestJoinGroupByLinkReturnsImmediatelyWithoutListingGroups(t *testing.T) {
+	const (
+		inviteLink = "https://chat.whatsapp.com/BqRAIdEh12KGJgZ8Y7kh5L"
+		groupJID   = "120363400001859555@g.us"
+	)
+	userUsecase := &unexpectedGroupListUserUsecaseStub{}
+	svc := &Service{
+		deps: Dependencies{
+			GroupUsecase: &joinGroupUsecaseStub{
+				joinGroupWithLink: func(_ context.Context, request domainGroup.JoinGroupWithLinkRequest) (string, error) {
+					if request.Link != inviteLink {
+						t.Fatalf("invite link = %q, want %q", request.Link, inviteLink)
+					}
+					return groupJID, nil
+				},
+			},
+			UserUsecase: userUsecase,
+		},
+		accountContextForTest: func(ctx context.Context, accountID string) (context.Context, error) {
+			if accountID != "364" {
+				t.Fatalf("account ID = %q, want 364", accountID)
+			}
+			return ctx, nil
+		},
+	}
+
+	response, err := svc.JoinGroupByLink(context.Background(), &bridgepb.JoinGroupByLinkRequest{
+		AccountId:  "364",
+		InviteLink: inviteLink,
+	})
+	if err != nil {
+		t.Fatalf("JoinGroupByLink returned error: %v", err)
+	}
+	if !response.GetSuccess() || response.GetGroupId() != groupJID || response.GetGroupName() != "" {
+		t.Fatalf("response = %+v, want successful group ID with empty name", response)
+	}
+	if userUsecase.listCalls != 0 {
+		t.Fatalf("MyListGroups calls = %d, want 0", userUsecase.listCalls)
+	}
+}
+
 func TestCheckNumberReturnsErrorWhenSingleNumberCheckFails(t *testing.T) {
 	svc := &Service{
 		deps: Dependencies{
@@ -231,24 +291,6 @@ func TestCheckNumberReturnsErrorWhenSingleNumberCheckFails(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("CheckNumber error = nil, want rate-overlimit")
-	}
-}
-
-func TestFindJoinedGroupNameByJID(t *testing.T) {
-	groups := []types.GroupInfo{
-		{
-			JID:       types.NewJID("120363111", types.GroupServer),
-			GroupName: types.GroupName{Name: "Other Group"},
-		},
-		{
-			JID:       types.NewJID("120363222", types.GroupServer),
-			GroupName: types.GroupName{Name: "The M Team"},
-		},
-	}
-
-	got := findJoinedGroupNameByJID(groups, "120363222@g.us")
-	if got != "The M Team" {
-		t.Fatalf("findJoinedGroupNameByJID() = %q, want %q", got, "The M Team")
 	}
 }
 
