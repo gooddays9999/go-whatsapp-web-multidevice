@@ -23,6 +23,7 @@ type Config struct {
 	// keeps the legacy behaviour (ims-api leaves web_online untouched).
 	WebServerID                     string
 	NATSURL                         string
+	NATSOutboxPath                  string
 	UAFilePath                      string
 	HeartbeatInterval               time.Duration
 	ConnectTimeout                  time.Duration
@@ -85,7 +86,8 @@ type configFile struct {
 		ReconnectQueueTimeoutMS       int `yaml:"reconnect_queue_timeout_ms"`
 	} `yaml:"worker"`
 	NATS struct {
-		URL string `yaml:"url"`
+		URL        string `yaml:"url"`
+		OutboxPath string `yaml:"outbox_path"`
 	} `yaml:"nats"`
 	Media struct {
 		DownloadPath   string `yaml:"download_path"`
@@ -115,6 +117,7 @@ func LoadConfig() Config {
 		MetricsPort:                     9191,
 		InstanceID:                      "ims-bridge-go",
 		NATSURL:                         "nats://localhost:4222",
+		NATSOutboxPath:                  "storages/bridge-events.db",
 		UAFilePath:                      "/Users/eric/Downloads/ua_US.txt",
 		HeartbeatInterval:               30 * time.Second,
 		ConnectTimeout:                  45 * time.Second,
@@ -213,6 +216,9 @@ func mergeFileConfig(cfg *Config, fileCfg configFile) {
 	if fileCfg.NATS.URL != "" {
 		cfg.NATSURL = fileCfg.NATS.URL
 	}
+	if fileCfg.NATS.OutboxPath != "" {
+		cfg.NATSOutboxPath = fileCfg.NATS.OutboxPath
+	}
 	if fileCfg.Media.DownloadPath != "" {
 		cfg.MediaDownloadPath = fileCfg.Media.DownloadPath
 	}
@@ -257,6 +263,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if value := os.Getenv("NATS_URL"); value != "" {
 		cfg.NATSURL = value
+	}
+	if value := os.Getenv("BRIDGE_NATS_OUTBOX_PATH"); value != "" {
+		cfg.NATSOutboxPath = value
 	}
 	if value := os.Getenv("BRIDGE_UA_FILE"); value != "" {
 		cfg.UAFilePath = value

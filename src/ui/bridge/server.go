@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	domainChat "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/chat"
@@ -47,6 +48,7 @@ type Service struct {
 	httpServer        *http.Server
 	startedAt         time.Time
 	workerID          string
+	metricsSnapshot   atomic.Pointer[bridgeMetricsSnapshot]
 
 	mu                   sync.RWMutex
 	connected            map[string]time.Time
@@ -110,13 +112,20 @@ func NewService(cfg Config, deps Dependencies) (*Service, error) {
 		accountProxyStore = store
 		logrus.Info("bridge account database proxy resolver enabled")
 	}
+	publisher, err := NewNATSPublisher(cfg.NATSURL, cfg.NATSOutboxPath)
+	if err != nil {
+		if accountProxyStore != nil {
+			_ = accountProxyStore.Close()
+		}
+		return nil, fmt.Errorf("initialize NATS publisher: %w", err)
+	}
 	workerID := fmt.Sprintf("%s-%d", cfg.InstanceID, os.Getpid())
 	service := &Service{
 		cfg:                  cfg,
 		deps:                 deps,
 		envStore:             envStore,
 		uaPool:               uaPool,
-		publisher:            NewNATSPublisher(cfg.NATSURL),
+		publisher:            publisher,
 		accountProxyStore:    accountProxyStore,
 		startedAt:            time.Now(),
 		workerID:             workerID,
@@ -140,6 +149,7 @@ func (s *Service) Start(ctx context.Context) error {
 	go s.heartbeatLoop(ctx)
 	go s.restorePersistedAccounts(ctx)
 	go s.reconnectSweepLoop(ctx)
+	go s.metricsSnapshotLoop(ctx)
 
 	if s.cfg.SkipMediaFromPlatformAccounts && s.accountProxyStore != nil {
 		s.accountProxyStore.StartPlatformPhoneRefresh(ctx, 5*time.Minute)
