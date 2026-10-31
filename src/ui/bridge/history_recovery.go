@@ -303,6 +303,9 @@ func (s *Service) recoverHistoryReplies(ctx context.Context, accountID string, i
 }
 
 func (s *Service) publishRecoveredReply(ctx context.Context, job *historyRecovery, message map[string]any) error {
+	if chat, _ := message["chatId"].(string); s.skipNewsletterChat(chat) {
+		return nil
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

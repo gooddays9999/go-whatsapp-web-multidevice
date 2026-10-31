@@ -420,13 +420,7 @@ func (m *DeviceManager) CreateDevice(ctx context.Context, requestedID string) (*
 }
 
 func (m *DeviceManager) ListDevices() []*DeviceInstance {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	result := make([]*DeviceInstance, 0, len(m.devices))
-	for _, instance := range m.devices {
-		result = append(result, instance)
-	}
+	result := m.SnapshotDevices()
 
 	// Sort by CreatedAt ascending (oldest first) for stable UI ordering.
 	// Use ID as tie-breaker when CreatedAt is equal.
@@ -436,6 +430,19 @@ func (m *DeviceManager) ListDevices() []*DeviceInstance {
 		}
 		return strings.Compare(a.ID(), b.ID())
 	})
+	return result
+}
+
+// SnapshotDevices copies the registry without acquiring any per-device locks.
+// Fleet health sampling does not need UI ordering or metadata lookups.
+func (m *DeviceManager) SnapshotDevices() []*DeviceInstance {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make([]*DeviceInstance, 0, len(m.devices))
+	for _, instance := range m.devices {
+		result = append(result, instance)
+	}
 
 	return result
 }

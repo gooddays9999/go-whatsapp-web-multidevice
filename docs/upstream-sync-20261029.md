@@ -43,11 +43,11 @@ reconnect behavior or reintroduce a process exit.
 
 - Fiber 3, Go 1.26, standalone dashboard and broad dependency migrations:
   unrelated to the bridge compatibility fixes and require separate validation.
-- Upstream's whatsmeow pin is `df33a485cc46` (2026-10-15), while this fork still
-  uses its vendored `662ad1dc6900` baseline (2026-07-30). Updating only go.mod
-  would have no effect because of the local replace directive. Re-vendoring must
-  preserve the fork's newsletter and linked-device retry patches and be tested
-  independently; it is not included in this backport.
+- At the time of this selective backport, whatsmeow re-vendoring was deferred.
+  The subsequent, separate [bottom-layer upgrade](whatsmeow-upgrade-20261029.md)
+  aligns the fork with upstream's `df33a485cc46` (2026-10-15), preserving the
+  newsletter and linked-device retry patches. It requires Go 1.26; Fiber 3 and
+  dashboard migration remain deferred.
 - Chatwoot conversation-lookup failure handling (#908), inbox identifier
   synchronization (#907), signed/per-device webhook verification (#914), and
   reply formatting (#915): separate Chatwoot integration work. Webhook signature

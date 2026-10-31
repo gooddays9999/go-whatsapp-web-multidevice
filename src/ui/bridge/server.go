@@ -49,6 +49,7 @@ type Service struct {
 	startedAt         time.Time
 	workerID          string
 	metricsSnapshot   atomic.Pointer[bridgeMetricsSnapshot]
+	newsletterSkipped atomic.Uint64
 
 	mu                   sync.RWMutex
 	connected            map[string]time.Time
@@ -236,6 +237,9 @@ func unaryPanicRecoveryInterceptor(
 }
 
 func (s *Service) publish(eventType, accountID string, data map[string]any) {
+	if s.skipNewsletterPayload(eventType, data) {
+		return
+	}
 	if data == nil {
 		data = map[string]any{}
 	}

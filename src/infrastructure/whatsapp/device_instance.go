@@ -379,6 +379,27 @@ func (d *DeviceInstance) ConnectWithTimeout(ctx context.Context, timeout time.Du
 	return nil
 }
 
+// TryClientState is for fleet-wide sampling: one busy account must not stop
+// metrics and heartbeats for every other account. It never rewrites cached state.
+func (d *DeviceInstance) TryClientState() (domainDevice.DeviceState, bool) {
+	if !d.mu.TryRLock() {
+		return "", false
+	}
+	client := d.client
+	d.mu.RUnlock()
+	connected, known := client.TryIsConnected()
+	if !known {
+		return "", false
+	}
+	if connected && client.IsLoggedIn() {
+		return domainDevice.DeviceStateLoggedIn, true
+	}
+	if connected {
+		return domainDevice.DeviceStateConnected, true
+	}
+	return domainDevice.DeviceStateDisconnected, true
+}
+
 // UpdateStateFromClient refreshes the snapshot state based on the client flags.
 func (d *DeviceInstance) UpdateStateFromClient() domainDevice.DeviceState {
 	d.mu.RLock()

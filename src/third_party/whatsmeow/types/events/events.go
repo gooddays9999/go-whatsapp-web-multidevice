@@ -41,6 +41,11 @@ type QR struct {
 	Codes []string
 }
 
+type RotateADVSecret struct {
+	OldSecret string
+	NewSecret string
+}
+
 // PairSuccess is emitted after the QR code has been scanned with the phone and the handshake has
 // been completed. Note that this is generally followed by a websocket reconnection, so you should
 // wait for the Connected before trying to send anything.
@@ -660,6 +665,6 @@ type NewsletterLiveUpdate struct {
 type NotifyAccountReachoutTimelock struct {
 	Mex                 MexNotificationData `json:"-"`
 	EnforcementType     string              `json:"enforcement_type,omitempty"`
-	IsActive            bool                `json:"is_active,omitempty"`
+	IsActive            bool                `json:"is_active,omitzero"`
 	TimeEnforcementEnds jsontime.UnixString `json:"time_enforcement_ends,omitzero"`
 }

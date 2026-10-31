@@ -14,23 +14,27 @@ import (
 )
 
 type NATSPublisher struct {
-	mu              sync.RWMutex
-	conn            *nats.Conn
-	closed          bool
-	url             string
-	outbox          *eventOutbox
-	cancel          context.CancelFunc
-	done            chan struct{}
-	wake            chan struct{}
-	closeOnce       sync.Once
-	published       atomic.Uint64
-	rebuilds        atomic.Uint64
-	failures        atomic.Uint64
-	enqueueFailures atomic.Uint64
-	lastEnqueueLog  atomic.Int64
-	lastDial        time.Time
-	nextDial        time.Time
-	dialBackoff     time.Duration
+	mu                       sync.RWMutex
+	conn                     *nats.Conn
+	closed                   bool
+	url                      string
+	outbox                   *eventOutbox
+	cancel                   context.CancelFunc
+	done                     chan struct{}
+	wake                     chan struct{}
+	closeOnce                sync.Once
+	published                atomic.Uint64
+	rebuilds                 atomic.Uint64
+	failures                 atomic.Uint64
+	enqueueFailures          atomic.Uint64
+	recoveredEnqueueFailures atomic.Uint64
+	enqueueHealthMu          sync.Mutex
+	lastEnqueueFailure       time.Time
+	lastEnqueueLog           atomic.Int64
+	lastDial                 time.Time
+	nextDial                 time.Time
+	dialBackoff              time.Duration
+	flushTimeouts            int
 }
 
 func NewNATSPublisher(url, outboxPath string) (*NATSPublisher, error) {
@@ -192,11 +196,7 @@ func (p *NATSPublisher) deliver(ctx context.Context) error {
 	}
 	// Core NATS PONG confirms server receipt, not consumer processing. A crash
 	// between this flush and the delete replays the same stable event IDs.
-	if err := conn.FlushTimeout(2 * time.Second); err != nil {
-		if errors.Is(err, nats.ErrTimeout) {
-			// Reset only the event-bus transport; WhatsApp clients stay connected.
-			_ = conn.ForceReconnect()
-		}
+	if err := p.flushBatch(conn); err != nil {
 		return err
 	}
 	if err := p.outbox.ack(ctx, ids); err != nil {
@@ -207,6 +207,30 @@ func (p *NATSPublisher) deliver(ctx context.Context) error {
 		p.signal()
 	}
 	return nil
+}
+
+type natsBatchFlusher interface {
+	FlushTimeout(time.Duration) error
+	ForceReconnect() error
+}
+
+func (p *NATSPublisher) flushBatch(conn natsBatchFlusher) error {
+	err := conn.FlushTimeout(10 * time.Second)
+	if !errors.Is(err, nats.ErrTimeout) {
+		p.flushTimeouts = 0
+		return err
+	}
+	p.flushTimeouts++
+	// A single slow PONG is not proof of a dead transport. Reconnecting after
+	// every 2s timeout amplified backlog and replay during bulk account recovery.
+	if p.flushTimeouts >= 3 {
+		p.flushTimeouts = 0
+		logrus.Warn("bridge NATS repeatedly timed out; resetting only event transport")
+		if reconnectErr := conn.ForceReconnect(); reconnectErr != nil {
+			logrus.WithError(reconnectErr).Warn("bridge NATS transport reset failed")
+		}
+	}
+	return err
 }
 
 func (p *NATSPublisher) Close() {
@@ -249,12 +273,35 @@ func (p *NATSPublisher) Count() uint64 {
 func (p *NATSPublisher) Publish(ctx context.Context, eventType string, payload map[string]any) {
 	if err := p.enqueue(ctx, eventType, payload); err != nil {
 		p.failures.Add(1)
-		p.enqueueFailures.Add(1)
+		p.recordEnqueueFailure(time.Now())
 		now := time.Now().UnixNano()
 		previous := p.lastEnqueueLog.Load()
 		if (previous == 0 || now-previous >= int64(30*time.Second)) && p.lastEnqueueLog.CompareAndSwap(previous, now) {
 			logrus.WithError(err).WithFields(logrus.Fields{"subject": eventType, "failures": p.enqueueFailures.Load()}).Error("bridge event could not be persisted; readiness disabled")
 		}
+	}
+}
+
+const enqueueRecoveryQuietPeriod = 30 * time.Second
+
+func (p *NATSPublisher) recordEnqueueFailure(at time.Time) {
+	p.enqueueHealthMu.Lock()
+	defer p.enqueueHealthMu.Unlock()
+	p.enqueueFailures.Add(1)
+	p.lastEnqueueFailure = at
+}
+
+func (p *NATSPublisher) enqueueHealthy() bool {
+	return p == nil || p.enqueueFailures.Load() <= p.recoveredEnqueueFailures.Load()
+}
+
+// A successful durable write probe can acknowledge historical failures after a
+// quiet period. Never clear the cumulative counter or hide concurrent failures.
+func (p *NATSPublisher) recoverEnqueueHealth(probedGeneration uint64, now time.Time) {
+	p.enqueueHealthMu.Lock()
+	defer p.enqueueHealthMu.Unlock()
+	if p.enqueueFailures.Load() == probedGeneration && now.Sub(p.lastEnqueueFailure) >= enqueueRecoveryQuietPeriod {
+		p.recoveredEnqueueFailures.Store(probedGeneration)
 	}
 }
 
@@ -284,7 +331,7 @@ func (p *NATSPublisher) enqueue(ctx context.Context, eventType string, payload m
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	if err := p.outbox.enqueue(ctx, eventID, eventType, data); err != nil {
 		return err

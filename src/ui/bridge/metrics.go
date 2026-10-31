@@ -55,7 +55,7 @@ func (s *Service) handleReady(w http.ResponseWriter, _ *http.Request) {
 	snapshot := s.metricsSnapshot.Load()
 	ready := snapshot != nil && time.Since(snapshot.sampledAt) <= 90*time.Second && snapshot.managerReady
 	natsOK := s.publisher == nil || s.publisher.IsConnected()
-	outboxOK := snapshot != nil && snapshot.outboxHealthy && (s.publisher == nil || s.publisher.enqueueFailures.Load() == 0)
+	outboxOK := snapshot != nil && snapshot.outboxHealthy && s.publisher.enqueueHealthy()
 	status := http.StatusOK
 	state := "ready"
 	if !ready || !natsOK || !outboxOK {
@@ -96,10 +96,12 @@ func (s *Service) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "# HELP bridge_active_connections Number of active WhatsApp connections\n")
 	fmt.Fprintf(w, "# TYPE bridge_active_connections gauge\n")
 	fmt.Fprintf(w, "bridge_active_connections{worker_id=%q} %d\n", s.workerID, snapshot.online)
+	fmt.Fprintln(w, "# HELP bridge_accounts_state_unknown Accounts skipped because their connection state is busy; not confirmed offline")
+	fmt.Fprintf(w, "bridge_accounts_state_unknown %d\n", snapshot.unknown)
 	fmt.Fprintf(w, "# HELP bridge_active_workers Number of active workers\n")
 	fmt.Fprintf(w, "# TYPE bridge_active_workers gauge\nbridge_active_workers 1\n")
 	fmt.Fprintf(w, "# HELP bridge_workers_ready Number of ready workers\n")
-	natsReady := s.publisher == nil || (s.publisher.IsConnected() && s.publisher.enqueueFailures.Load() == 0)
+	natsReady := s.publisher == nil || (s.publisher.IsConnected() && s.publisher.enqueueHealthy())
 	ready := 0
 	if natsReady && snapshot.managerReady && snapshot.outboxHealthy {
 		ready = 1
@@ -110,6 +112,8 @@ func (s *Service) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "bridge_worker_account_count{worker_id=%q} %d\n", s.workerID, snapshot.accounts)
 	fmt.Fprintf(w, "# HELP bridge_events_published_total Total number of events published to NATS\n")
 	fmt.Fprintf(w, "# TYPE bridge_events_published_total counter\nbridge_events_published_total %d\n", s.publisher.Count())
+	fmt.Fprintln(w, "# HELP bridge_newsletter_events_skipped_total Channel events skipped at bridge event/publish boundaries")
+	fmt.Fprintf(w, "bridge_newsletter_events_skipped_total %d\n", s.newsletterSkipped.Load())
 	if p := s.publisher; p != nil {
 		connected := 0
 		if p.IsConnected() {
@@ -117,8 +121,14 @@ func (s *Service) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 		}
 		fmt.Fprintf(w, "bridge_nats_connected %d\nbridge_nats_connections_created_total %d\nbridge_nats_failures_total %d\n", connected, p.rebuilds.Load(), p.failures.Load())
 		fmt.Fprintf(w, "bridge_nats_enqueue_failures_total %d\n", p.enqueueFailures.Load())
+		if p.enqueueHealthy() {
+			fmt.Fprintln(w, "bridge_nats_enqueue_healthy 1")
+		} else {
+			fmt.Fprintln(w, "bridge_nats_enqueue_healthy 0")
+		}
 	}
 	fmt.Fprintf(w, "bridge_nats_outbox_pending %d\nbridge_nats_outbox_quarantined %d\n", snapshot.outbox.Pending, snapshot.outbox.Quarantined)
+	fmt.Fprintf(w, "bridge_nats_outbox_used_bytes %d\nbridge_nats_outbox_max_bytes %d\n", snapshot.outbox.UsedBytes, snapshot.outbox.MaxBytes)
 	outboxHealthy := 0
 	if snapshot.outboxHealthy {
 		outboxHealthy = 1
@@ -135,6 +145,7 @@ type bridgeMetricsSnapshot struct {
 	outboxHealthy bool
 	accounts      int
 	online        int
+	unknown       int
 	outbox        outboxStats
 }
 
@@ -144,19 +155,27 @@ func (s *Service) metricsSnapshotLoop(ctx context.Context) {
 	for ctx.Err() == nil {
 		snapshot := &bridgeMetricsSnapshot{sampledAt: time.Now(), outboxHealthy: true}
 		if s.publisher != nil && s.publisher.outbox != nil {
-			statsCtx, cancel := context.WithTimeout(ctx, time.Second)
+			generation := s.publisher.enqueueFailures.Load()
+			statsCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			stats, err := s.publisher.outbox.stats(statsCtx)
 			cancel()
+			if err == nil {
+				probeCtx, probeCancel := context.WithTimeout(ctx, 3*time.Second)
+				err = s.publisher.outbox.probe(probeCtx)
+				probeCancel()
+			}
 			if err != nil {
 				snapshot.outboxHealthy = false
 				logrus.WithError(err).Warn("bridge outbox metrics unavailable")
 			} else {
 				snapshot.outbox = stats
+				s.publisher.recoverEnqueueHealth(generation, time.Now())
 			}
 		}
 		snapshot.managerReady = s.deps.DeviceManager != nil && s.deps.DeviceManager.IsHealthy()
 		snapshot.accounts = len(s.accountIDs())
-		snapshot.online = len(s.usableAccountIDs())
+		online, unknown := s.sampleUsableAccountIDs()
+		snapshot.online, snapshot.unknown = len(online), unknown
 		s.metricsSnapshot.Store(snapshot)
 		select {
 		case <-ctx.Done():
@@ -167,7 +186,7 @@ func (s *Service) metricsSnapshotLoop(ctx context.Context) {
 }
 
 func (s *Service) accountIDs() []string {
-	devices := s.deps.DeviceManager.ListDevices()
+	devices := s.deps.DeviceManager.SnapshotDevices()
 	ids := make([]string, 0, len(devices))
 	for _, inst := range devices {
 		ids = append(ids, inst.ID())
@@ -176,17 +195,28 @@ func (s *Service) accountIDs() []string {
 }
 
 func (s *Service) usableAccountIDs() []string {
-	devices := s.deps.DeviceManager.ListDevices()
+	ids, _ := s.sampleUsableAccountIDs()
+	return ids
+}
+
+func (s *Service) sampleUsableAccountIDs() ([]string, int) {
+	devices := s.deps.DeviceManager.SnapshotDevices()
 	ids := make([]string, 0, len(devices))
+	unknown := 0
 	for _, inst := range devices {
 		if s.isExplicitOffline(inst.ID()) {
 			continue
 		}
-		if cachedLoggedIn(inst.UpdateStateFromClient()) {
+		state, known := inst.TryClientState()
+		if !known {
+			unknown++
+			continue
+		}
+		if cachedLoggedIn(state) {
 			ids = append(ids, inst.ID())
 		}
 	}
-	return ids
+	return ids, unknown
 }
 
 func writeJSON(w http.ResponseWriter, status int, body string) {

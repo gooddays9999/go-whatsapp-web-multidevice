@@ -3,8 +3,10 @@ package bridge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +18,51 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+type stubBatchFlusher struct {
+	err        error
+	timeout    time.Duration
+	reconnects int
+}
+
+func (f *stubBatchFlusher) FlushTimeout(timeout time.Duration) error {
+	f.timeout = timeout
+	return f.err
+}
+
+func (f *stubBatchFlusher) ForceReconnect() error {
+	f.reconnects++
+	return nil
+}
+
+func TestNATSFlushDoesNotReconnectOnSingleSlowPong(t *testing.T) {
+	p := &NATSPublisher{}
+	f := &stubBatchFlusher{err: nats.ErrTimeout}
+	for i := 0; i < 2; i++ {
+		if err := p.flushBatch(f); !errors.Is(err, nats.ErrTimeout) {
+			t.Fatalf("unconfirmed batch must be retained: %v", err)
+		}
+	}
+	if f.reconnects != 0 || f.timeout != 10*time.Second {
+		t.Fatalf("premature reconnect or short timeout: %+v", f)
+	}
+	f.err = nil
+	if err := p.flushBatch(f); err != nil || p.flushTimeouts != 0 {
+		t.Fatalf("successful PONG did not reset timeout streak: %v", err)
+	}
+	f.err = nats.ErrTimeout
+	for i := 0; i < 3; i++ {
+		_ = p.flushBatch(f)
+	}
+	if f.reconnects != 1 {
+		t.Fatalf("persistently stuck transport was not reset: %+v", f)
+	}
+	f.err = nats.ErrDisconnected
+	_ = p.flushBatch(f)
+	if p.flushTimeouts != 0 {
+		t.Fatal("different error did not break the consecutive timeout streak")
+	}
+}
+
 func eventuallyNATS(t *testing.T, condition func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(12 * time.Second)
@@ -26,6 +73,38 @@ func eventuallyNATS(t *testing.T, condition func() bool) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("NATS condition not reached before timeout")
+}
+
+func TestNATSReadinessRecoversAfterWriteProbeWithoutRestart(t *testing.T) {
+	url, _ := startTestNATS(t, 0, 1024*1024)
+	p := testPublisher(t, url, filepath.Join(t.TempDir(), "health.db"))
+	eventuallyNATS(t, p.IsConnected)
+	original := p.connection()
+	s := &Service{publisher: p}
+	s.metricsSnapshot.Store(&bridgeMetricsSnapshot{sampledAt: time.Now(), managerReady: true, outboxHealthy: true})
+	p.Publish(context.Background(), "invalid", map[string]any{"bad": make(chan int)})
+	w := httptest.NewRecorder()
+	s.handleReady(w, httptest.NewRequest("GET", "/ready", nil))
+	if w.Code != 503 {
+		t.Fatalf("enqueue failure did not disable readiness: %s", w.Body.String())
+	}
+	generation := p.enqueueFailures.Load()
+	if err := p.outbox.probe(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	p.recoverEnqueueHealth(generation, time.Now().Add(enqueueRecoveryQuietPeriod+time.Second))
+	w = httptest.NewRecorder()
+	s.handleReady(w, httptest.NewRequest("GET", "/ready", nil))
+	if w.Code != 200 || p.enqueueFailures.Load() != 1 || p.connection() != original {
+		t.Fatalf("recovery reset history or required connection replacement: %d %s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	s.handleMetrics(w, httptest.NewRequest("GET", "/metrics", nil))
+	for _, metric := range []string{"bridge_workers_ready 1", "bridge_nats_enqueue_healthy 1", "bridge_nats_enqueue_failures_total 1"} {
+		if !strings.Contains(w.Body.String(), metric) {
+			t.Fatalf("missing recovered metric %s", metric)
+		}
+	}
 }
 
 // Set NATS_SERVER_BIN to run failure-injection tests with a real broker.

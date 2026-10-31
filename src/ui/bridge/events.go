@@ -101,6 +101,10 @@ func (s *Service) HandleWhatsAppEvent(ctx context.Context, instance *whatsapp.De
 }
 
 func (s *Service) handleMessageEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Message) {
+	// Drop channel traffic before JID lookups, NATS enqueue and media work.
+	if evt == nil || s.skipNewsletterChat(evt.Info.Chat.String()) {
+		return
+	}
 	msg := utils.UnwrapMessage(evt.Message)
 	if protocol := msg.GetProtocolMessage(); protocol != nil && protocol.GetType().String() == "REVOKE" {
 		if key := protocol.GetKey(); key != nil {
@@ -216,6 +220,9 @@ func (s *Service) toWhatsAppMessage(ctx context.Context, accountID string, insta
 }
 
 func (s *Service) downloadAndPublishMedia(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Message, media whatsmeow.DownloadableMessage, message map[string]any) {
+	if evt == nil || s.skipNewsletterChat(evt.Info.Chat.String()) {
+		return
+	}
 	client := instance.GetClient()
 	if client == nil {
 		return
@@ -326,6 +333,9 @@ func normalizedJIDString(value string) string {
 }
 
 func (s *Service) handleReceiptEvent(ctx context.Context, accountID string, instance *whatsapp.DeviceInstance, evt *events.Receipt) {
+	if evt == nil || s.skipNewsletterChat(evt.Chat.String()) {
+		return
+	}
 	status, publish := receiptMessageStatus(evt.Type)
 	if !publish {
 		return
@@ -419,7 +429,7 @@ func historySyncStatusEvents(ctx context.Context, instance *whatsapp.DeviceInsta
 	eventsByID := make(map[string]map[string]any)
 	order := make([]string, 0)
 	for _, conv := range data.GetConversations() {
-		if conv == nil {
+		if conv == nil || isNewsletterChat(conv.GetID()) {
 			continue
 		}
 		conversationJID := normalizedHistoryJID(ctx, instance, conv.GetID())
@@ -462,6 +472,9 @@ func historySyncStatusEvents(ctx context.Context, instance *whatsapp.DeviceInsta
 
 func webMessageStatusEvent(ctx context.Context, instance *whatsapp.DeviceInstance, msg *waWeb.WebMessageInfo) (map[string]any, bool) {
 	if msg == nil || msg.GetKey() == nil || !msg.GetKey().GetFromMe() || msg.GetKey().GetID() == "" {
+		return nil, false
+	}
+	if isNewsletterChat(msg.GetKey().GetRemoteJID()) {
 		return nil, false
 	}
 	status, ok := historyMessageStatus(msg.GetStatus())

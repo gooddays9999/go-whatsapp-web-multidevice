@@ -325,7 +325,7 @@ func (s *Service) SetStatus(ctx context.Context, req *bridgepb.SetStatusRequest)
 		return nil, grpcError(err)
 	}
 	inst, _ := whatsapp.DeviceFromContext(scoped)
-	if err := inst.GetClient().SetStatusMessage(scoped, req.GetStatusText()); err != nil {
+	if err := inst.GetClient().SetStatusMessage(scoped, types.SetStatusInput{Text: proto.String(req.GetStatusText())}); err != nil {
 		return &bridgepb.SetStatusResponse{Success: false, Error: err.Error()}, nil
 	}
 	return &bridgepb.SetStatusResponse{Success: true}, nil
